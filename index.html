@@ -1,0 +1,976 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Terror of Sky 的 Bf 109 E 正俯视自由试飞。">
+  <title>Terror of Sky · 自由试飞</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #eff4f0;
+      --muted: #bacbc9;
+      --accent: #f7cb6b;
+      --glass: rgb(11 28 34 / 91%);
+      --border: rgb(199 227 219 / 25%);
+      --gutter: clamp(14px, 2.6vw, 40px);
+      font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; overflow: hidden; color: var(--ink); background: #123943; }
+    button { font: inherit; }
+    button:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+    button:disabled { opacity: .55; }
+
+    .game, .scene, .vignette { position: fixed; inset: 0; width: 100%; height: 100%; }
+    .game { isolation: isolate; }
+    .scene { display: block; }
+    .vignette {
+      pointer-events: none;
+      background:
+        linear-gradient(180deg, rgb(3 16 22 / 61%), transparent 22%, transparent 77%, rgb(5 20 27 / 53%)),
+        radial-gradient(ellipse at 52% 52%, transparent 53%, rgb(4 15 23 / 23%));
+    }
+
+    .topbar, .bottom-bar {
+      position: absolute;
+      left: var(--gutter);
+      right: var(--gutter);
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 18px;
+      align-items: start;
+      pointer-events: none;
+    }
+    .topbar { top: clamp(14px, 3vh, 28px); }
+    .bottom-bar { bottom: clamp(14px, 3.4vh, 33px); align-items: end; }
+
+    .identity { display: grid; gap: 7px; justify-items: start; }
+    .identity h1 {
+      margin: 0;
+      font-size: clamp(19px, 2vw, 28px);
+      font-weight: 800;
+      line-height: 1.05;
+      letter-spacing: .12em;
+      white-space: nowrap;
+      text-shadow: 0 2px 9px rgb(0 13 19 / 75%);
+    }
+    .identity p {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin: 0;
+      color: #e0ebe6;
+      font-size: .875rem;
+      line-height: 1.4;
+      text-shadow: 0 1px 6px #09191b;
+    }
+    .identity p span { color: var(--accent); font-weight: 650; letter-spacing: .08em; }
+    .identity p::before { content: ""; width: 14px; height: 2px; background: var(--accent); }
+
+    .compass { display: grid; justify-items: center; gap: 5px; min-width: 145px; }
+    .compass-scale {
+      position: relative;
+      width: clamp(124px, 17vw, 235px);
+      height: 14px;
+      background-image:
+        repeating-linear-gradient(90deg, rgb(232 246 236 / 62%) 0 1px, transparent 1px 12px),
+        repeating-linear-gradient(90deg, #e8f6ec 0 1px, transparent 1px 36px);
+      background-position: var(--tape-offset, 0) 0;
+      background-size: auto 6px, auto 11px;
+      background-repeat: no-repeat;
+      mask-image: linear-gradient(90deg, transparent, black 20% 80%, transparent);
+    }
+    .compass-scale::after {
+      position: absolute;
+      top: 0;
+      left: calc(50% - 1px);
+      width: 2px;
+      height: 14px;
+      content: "";
+      background: var(--accent);
+    }
+    .compass-reading {
+      display: flex;
+      gap: 7px;
+      align-items: baseline;
+      color: var(--muted);
+      font-size: .875rem;
+      text-shadow: 0 1px 5px #0b2228;
+    }
+    .compass-reading output { color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+    .actions { display: flex; justify-self: end; gap: 6px; pointer-events: auto; }
+    .button {
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      gap: 7px;
+      min-height: 38px;
+      padding: 0 11px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      color: var(--ink);
+      background: var(--glass);
+      font-size: .875rem;
+      font-weight: 550;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+    .button:enabled:hover { border-color: var(--accent); }
+    .icon { position: relative; flex: 0 0 auto; width: 13px; height: 13px; }
+    .icon-pause { width: 10px; height: 11px; border-left: 3px solid; border-right: 3px solid; }
+    .icon-play { width: 0; height: 0; border: 6px solid transparent; border-left: 9px solid; border-right: 0; }
+    .icon-reset { border: 1.5px solid currentColor; border-left-color: transparent; border-radius: 50%; }
+    .icon-reset::after {
+      position: absolute;
+      top: 0;
+      left: -2px;
+      content: "";
+      border: 3px solid transparent;
+      border-right-color: currentColor;
+      transform: rotate(-32deg);
+    }
+
+    .instrument {
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: var(--glass);
+      box-shadow: 0 5px 20px rgb(1 15 21 / 22%);
+    }
+    .telemetry { display: flex; justify-self: start; }
+    .gauge { display: grid; gap: 6px; min-width: 107px; padding: 12px 14px; }
+    .gauge + .gauge { border-left: 1px solid var(--border); }
+    .gauge-label { color: var(--muted); font-size: .875rem; }
+    .reading {
+      display: flex;
+      align-items: baseline;
+      gap: 5px;
+      white-space: nowrap;
+      line-height: 1;
+    }
+    .reading output { font-size: 1.72rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+    .reading span { font-size: .8125rem; color: var(--muted); }
+    .throttle-track {
+      position: relative;
+      height: 4px;
+      margin-top: 2px;
+      overflow: hidden;
+      border-radius: 2px;
+      background: rgb(202 231 226 / 22%);
+    }
+    .throttle-track::after {
+      position: absolute;
+      inset: 0;
+      content: "";
+      background: var(--accent);
+      transform: scaleX(var(--throttle, .55));
+      transform-origin: left;
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: clamp(8px, 1.5vw, 18px);
+      padding: 9px 12px;
+      white-space: nowrap;
+    }
+    .control-group { display: flex; align-items: center; gap: 4px; }
+    .control-group span { margin-left: 3px; color: var(--muted); font-size: .875rem; }
+    kbd {
+      display: inline-grid;
+      min-width: 21px;
+      height: 22px;
+      place-items: center;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--ink);
+      background: rgb(210 236 228 / 8%);
+      font-family: inherit;
+      font-size: .8125rem;
+      font-weight: 650;
+    }
+    kbd.active { color: #152526; border-color: var(--accent); background: var(--accent); }
+
+    .bank { display: grid; justify-self: end; min-width: 119px; padding: 10px 13px; gap: 5px; }
+    .bank-header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+    .bank-header output { font-size: .875rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+    .bank-diagram { position: relative; height: 26px; }
+    .bank-diagram::before {
+      position: absolute;
+      top: 50%;
+      inset-inline: 0;
+      border-top: 1px dashed rgb(190 220 216 / 42%);
+      content: "";
+    }
+    .bank-wings {
+      position: absolute;
+      top: calc(50% - 1px);
+      left: calc(50% - 20px);
+      width: 40px;
+      height: 2px;
+      border-radius: 4px;
+      background: var(--accent);
+      transform: rotate(var(--bank, 0deg));
+    }
+    .bank-wings::after {
+      position: absolute;
+      top: -2px;
+      left: 17px;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      content: "";
+    }
+
+    .message-overlay {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      background: rgb(3 15 19 / 42%);
+    }
+    .message-overlay[hidden] { display: none; }
+    .message-panel { width: min(100%, 320px); padding: 26px; text-align: center; }
+    .message-panel h2 { margin: 0; font-size: 1.45rem; }
+    .message-panel p { margin: 10px 0 0; color: var(--muted); line-height: 1.5; }
+    .message-panel .button { margin-top: 18px; padding-inline: 16px; color: #1a2322; background: var(--accent); }
+    .message-panel .button[hidden] { display: none; }
+
+    @media (max-width: 700px) {
+      .topbar, .bottom-bar { grid-template-columns: 1fr auto; gap: 12px; }
+      .identity { grid-area: 1 / 1; }
+      .actions { grid-area: 1 / 2; }
+      .compass { grid-column: 1 / -1; justify-self: center; }
+      .telemetry { grid-area: 1 / 1; }
+      .bank { grid-area: 1 / 2; }
+      .controls { grid-column: 1 / -1; justify-self: center; }
+    }
+    @media (max-width: 380px) {
+      .identity h1 { letter-spacing: .055em; }
+      .actions .button { padding-inline: 8px; }
+      .gauge { min-width: 85px; padding-inline: 9px; }
+      .bank { min-width: 96px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="game" aria-label="Bf 109 E 自由试飞">
+    <canvas class="scene" id="scene" role="img" aria-label="正俯视的海岸与玩家飞机"></canvas>
+    <div class="vignette" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <div class="identity">
+        <h1>TERROR OF SKY</h1>
+        <p>自由试飞 <span>Bf 109 E</span></p>
+      </div>
+      <div class="compass" id="compass">
+        <div class="compass-scale" aria-hidden="true"></div>
+        <div class="compass-reading">航向 <output id="heading" aria-live="off">000°</output></div>
+      </div>
+      <div class="actions">
+        <button class="button" id="pause" type="button" aria-keyshortcuts="Escape">
+          <i class="icon icon-pause" aria-hidden="true"></i><span>暂停</span>
+        </button>
+        <button class="button" id="reset" type="button" aria-keyshortcuts="R">
+          <i class="icon icon-reset" aria-hidden="true"></i><span>重置</span>
+        </button>
+      </div>
+    </header>
+
+    <footer class="bottom-bar">
+      <div class="instrument telemetry" aria-label="飞行仪表">
+        <div class="gauge">
+          <label class="gauge-label" for="speed">空速</label>
+          <div class="reading"><output id="speed" aria-live="off">365</output><span>km/h</span></div>
+        </div>
+        <div class="gauge">
+          <label class="gauge-label" for="throttle">油门</label>
+          <div class="reading"><output id="throttle" aria-live="off">55</output><span>%</span></div>
+          <div class="throttle-track" id="throttle-track" aria-hidden="true"></div>
+        </div>
+      </div>
+      <div class="instrument controls" aria-label="飞行按键">
+        <div class="control-group"><kbd data-key="KeyW">W</kbd><kbd data-key="KeyS">S</kbd><span>油门</span></div>
+        <div class="control-group"><kbd data-key="KeyA">A</kbd><kbd data-key="KeyD">D</kbd><span>转向</span></div>
+      </div>
+      <div class="instrument bank" id="bank">
+        <div class="bank-header">
+          <label class="gauge-label" for="bank-angle">侧滚</label><output id="bank-angle" aria-live="off">0°</output>
+        </div>
+        <div class="bank-diagram" aria-hidden="true"><i class="bank-wings"></i></div>
+      </div>
+    </footer>
+
+    <div class="message-overlay" id="message" hidden>
+      <section class="instrument message-panel" role="dialog" aria-labelledby="message-title" aria-describedby="message-detail">
+        <h2 id="message-title"></h2>
+        <p id="message-detail" hidden></p>
+        <button class="button" id="resume" type="button">继续试飞</button>
+      </section>
+    </div>
+  </main>
+
+  <script id="flight-fragment" type="x-shader/x-fragment">
+    #version 300 es
+    precision highp float;
+
+    uniform vec2 uResolution;
+    uniform vec4 uView;
+    uniform vec4 uPlane;
+    uniform vec2 uTime;
+    out vec4 pixel;
+
+    const vec3 SUN = vec3(-0.43, 0.85, -0.30);
+
+    mat2 rotation(float angle) {
+      float c = cos(angle);
+      float s = sin(angle);
+      return mat2(c, s, -s, c);
+    }
+
+    float hash(vec2 point) {
+      vec3 p = fract(vec3(point.xyx) * 0.1031);
+      p += dot(p, p.yzx + 33.33);
+      return fract((p.x + p.y) * p.z);
+    }
+
+    float noise(vec2 p) {
+      vec2 cell = floor(p);
+      vec2 f = fract(p);
+      vec2 w = f * f * (3.0 - 2.0 * f);
+      return mix(mix(hash(cell), hash(cell + vec2(1.0, 0.0)), w.x),
+                 mix(hash(cell + vec2(0.0, 1.0)), hash(cell + 1.0), w.x), w.y);
+    }
+
+    float fractalNoise(vec2 p) {
+      float result = 0.0;
+      float amplitude = 0.55;
+      for (int i = 0; i < 4; ++i) {
+        result += amplitude * noise(p);
+        p = mat2(1.64, 1.19, -1.19, 1.64) * p + vec2(17.6, 9.2);
+        amplitude *= 0.48;
+      }
+      return result;
+    }
+
+    float island(vec2 p, vec2 center, vec2 size, float angle) {
+      return 1.0 - length(rotation(angle) * (p - center) / size);
+    }
+
+    float landHeight(vec2 p) {
+      vec2 cell = floor((p + 90.0) / 180.0);
+      float mass = -2.0;
+      if (cell == vec2(0.0)) {
+        mass = island(p, vec2(-46.0, -24.0), vec2(35.0, 39.0), -0.38);
+        mass = max(mass, island(p, vec2(-26.0, -41.0), vec2(13.5, 21.0), 0.68));
+        mass = max(mass, island(p, vec2(-24.0, -10.0), vec2(12.2, 10.2), -0.65));
+        mass = max(mass, island(p, vec2(-22.0, 12.0), vec2(5.0, 10.0), -0.45));
+        mass = max(mass, island(p, vec2(51.0, 24.0), vec2(17.0, 19.5), 0.72));
+        mass = max(mass, island(p, vec2(31.0, 17.0), vec2(4.5, 6.3), 0.18));
+        mass = max(mass, island(p, vec2(59.0, -67.0), vec2(26.0, 18.0), -0.25));
+      } else {
+        vec2 jitter = vec2(hash(cell), hash(cell + vec2(13.4, 7.3)));
+        vec2 center = cell * 180.0 + (jitter - 0.5) * 34.0;
+        mass = island(p, center, vec2(16.0 + jitter.x * 20.0, 21.0 + jitter.y * 20.0), jitter.x * 6.28);
+      }
+      if (mass < -0.6) return -5.4;
+
+      float shape = fractalNoise(p * 0.099 + 8.2);
+      float field = mass + (shape - 0.47) * 0.68;
+      float ridge = 0.65 + 0.85 * fractalNoise(p * 0.15 + 13.7);
+      return field > 0.0 ? 10.5 * (1.0 - exp(-field * ridge * 1.42)) : max(field * 9.0, -5.4);
+    }
+
+    float marchGround(float ground, float water) {
+      float h = 12.0;
+      float surface = max(ground, water);
+      for (int i = 0; i < 7; ++i) {
+        float distanceToSurface = h - surface;
+        if (distanceToSurface < 0.008) break;
+        h -= distanceToSurface * 0.84;
+      }
+      return h;
+    }
+
+    vec3 coastColor(vec2 p, float ground, float water, float depth, vec3 normal) {
+      float time = uTime.x;
+      if (ground > water) {
+        float sandNoise = noise(p * 6.1 + 1.3);
+        float sun = clamp(dot(normal, SUN), 0.0, 1.0);
+        float vegetation = fractalNoise(p * 0.57 + 23.8);
+        vec3 sand = mix(vec3(0.49, 0.47, 0.33), vec3(0.85, 0.80, 0.61), sandNoise);
+        vec3 grass = mix(vec3(0.15, 0.25, 0.17), vec3(0.43, 0.49, 0.28), vegetation);
+        vec3 forest = mix(vec3(0.065, 0.17, 0.13), vec3(0.23, 0.34, 0.20), noise(p * 3.0));
+        vec3 land = mix(grass, forest, smoothstep(0.34, 0.64, vegetation));
+        float rock = smoothstep(0.15, 0.63, 1.0 - normal.y) * smoothstep(2.5, 5.5, ground);
+        land = mix(land, vec3(0.36, 0.34, 0.27) * (0.8 + sandNoise * 0.4), rock);
+        land = mix(sand, land, smoothstep(0.10, 0.68, depth));
+        return land * (0.60 + sun * 0.50) + vec3(0.015, 0.03, 0.032);
+      }
+
+      vec2 drift = vec2(time * 0.35, -time * 0.16);
+      float broad = fractalNoise(p * 0.066 + vec2(2.0, 31.0));
+      float chop = noise(p * vec2(1.7, 2.7) + drift);
+      float swell = sin(dot(p, vec2(1.43, 2.27)) + noise(p * 0.48) * 4.3 + time * 1.93);
+      float ripples = (0.5 + 0.5 * swell) * 0.56 + chop * 0.44;
+      vec3 deep = mix(vec3(0.050, 0.218, 0.297), vec3(0.115, 0.397, 0.456), broad);
+      vec3 shallow = mix(vec3(0.12, 0.46, 0.48), vec3(0.33, 0.68, 0.63), broad);
+      vec3 ocean = mix(deep, shallow, 1.0 - smoothstep(0.0, 3.1, depth));
+      ocean = mix(ocean, vec3(0.55, 0.70, 0.57), (1.0 - smoothstep(0.04, 0.55, depth)) * 0.44);
+      ocean += (ripples - 0.50) * vec3(0.046, 0.085, 0.091);
+      float whitecaps = smoothstep(0.88, 0.987, ripples) * smoothstep(0.52, 0.78, noise(p * 0.39 + drift * 0.4));
+      ocean = mix(ocean, vec3(0.69, 0.83, 0.78), whitecaps * 0.23);
+      if (depth >= 1.33) return ocean;
+
+      float surfBand = 0.5 + 0.5 * sin(depth * 14.5 + chop * 3.4 - time * 2.8);
+      float surf = (1.0 - smoothstep(0.04, 1.33, depth)) * smoothstep(0.41, 0.91, surfBand);
+      surf *= smoothstep(0.25, 0.73, noise(p * 6.1 + 1.3) * 0.57 + chop * 0.43);
+      return mix(ocean, vec3(0.86, 0.94, 0.85), surf * 0.90);
+    }
+
+    float ellipsoid(vec3 p, vec3 radii) {
+      return (length(p / radii) - 1.0) * min(radii.x, min(radii.y, radii.z));
+    }
+
+    float roundedBox(vec3 p, vec3 size, float radius) {
+      vec3 q = abs(p) - size;
+      return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0) - radius;
+    }
+
+    float edge(vec2 p, vec2 a, vec2 b) {
+      vec2 side = b - a;
+      vec2 offset = p - a;
+      return (side.y * offset.x - side.x * offset.y) / length(side);
+    }
+
+    float mainWing(vec3 p) {
+      vec2 q = vec2(abs(p.x), p.z);
+      float outline = edge(q, vec2(0.0, -1.62), vec2(4.45, -0.86));
+      outline = max(outline, edge(q, vec2(4.45, -0.86), vec2(4.96, -0.65)));
+      outline = max(outline, edge(q, vec2(4.96, -0.65), vec2(5.08, -0.27)));
+      outline = max(outline, edge(q, vec2(5.08, -0.27), vec2(4.94, 0.22)));
+      outline = max(outline, edge(q, vec2(4.94, 0.22), vec2(4.56, 0.43)));
+      outline = max(outline, edge(q, vec2(4.56, 0.43), vec2(0.0, 1.37)));
+      float wingHeight = -0.25 + q.x * 0.071;
+      float thickness = max(0.032, 0.125 - 0.018 * q.x);
+      return max(outline, abs(p.y - wingHeight) - thickness) - 0.035;
+    }
+
+    float horizontalTail(vec3 p) {
+      vec2 q = vec2(abs(p.x), p.z);
+      float outline = edge(q, vec2(0.0, 2.63), vec2(1.56, 3.12));
+      outline = max(outline, edge(q, vec2(1.56, 3.12), vec2(1.72, 3.46)));
+      outline = max(outline, edge(q, vec2(1.72, 3.46), vec2(1.54, 3.74)));
+      outline = max(outline, edge(q, vec2(1.54, 3.74), vec2(0.0, 3.82)));
+      return max(outline, abs(p.y - 0.13) - 0.054) - 0.024;
+    }
+
+    float verticalTail(vec3 p) {
+      vec2 q = p.yz;
+      float outline = edge(q, vec2(0.12, 2.45), vec2(1.22, 3.38));
+      outline = max(outline, edge(q, vec2(1.22, 3.38), vec2(1.29, 3.78)));
+      outline = max(outline, edge(q, vec2(1.29, 3.78), vec2(0.08, 4.12)));
+      outline = max(outline, edge(q, vec2(0.08, 4.12), vec2(0.12, 2.45)));
+      return max(outline, abs(p.x) - 0.08) - 0.035;
+    }
+
+    void nearer(inout vec2 nearest, float distanceToPart, float material) {
+      if (distanceToPart < nearest.x) nearest = vec2(distanceToPart, material);
+    }
+
+    vec2 airframe(vec3 p) {
+      float body = ellipsoid(p - vec3(0.0, 0.01, -0.95), vec3(0.64, 0.65, 2.61));
+      float taper = ellipsoid(p - vec3(0.0, 0.01, 1.46), vec3(0.42, 0.43, 2.94));
+      float cowling = roundedBox(p - vec3(0.0, 0.0, -2.54), vec3(0.40, 0.36, 1.14), 0.16);
+      vec2 closest = vec2(min(body, min(taper, cowling)), 1.0);
+      nearer(closest, mainWing(p), 2.0);
+      nearer(closest, horizontalTail(p), 2.0);
+      nearer(closest, verticalTail(p), 1.0);
+      nearer(closest, ellipsoid(p - vec3(0.0, 0.57, 0.17), vec3(0.46, 0.50, 1.19)), 3.0);
+      nearer(closest, ellipsoid(p - vec3(0.0, -0.015, -3.95), vec3(0.37, 0.37, 0.64)), 4.0);
+      return closest;
+    }
+
+    vec2 marchAirframe(vec3 origin, vec3 direction) {
+      float distanceAlongRay = 0.0;
+      for (int i = 0; i < 54; ++i) {
+        vec2 hit = airframe(origin + direction * distanceAlongRay);
+        if (hit.x < 0.013) return vec2(distanceAlongRay, hit.y);
+        distanceAlongRay += hit.x * 0.88;
+        if (distanceAlongRay > 11.7) break;
+      }
+      return vec2(-1.0);
+    }
+
+    vec3 airframeNormal(vec3 p) {
+      vec2 e = vec2(0.019, -0.019);
+      return normalize(e.xyy * airframe(p + e.xyy).x + e.yyx * airframe(p + e.yyx).x
+                     + e.yxy * airframe(p + e.yxy).x + e.xxx * airframe(p + e.xxx).x);
+    }
+
+    float crossMark(vec2 p, vec2 size) {
+      vec2 q = abs(p);
+      return min(max(q.x - size.x, q.y - size.y), max(q.x - size.y, q.y - size.x));
+    }
+
+    vec3 airframeColor(vec3 p, float material, vec3 direction, vec3 sun) {
+      vec3 normal = airframeNormal(p);
+      vec3 camoA = vec3(0.31, 0.38, 0.29);
+      vec3 camoB = vec3(0.55, 0.59, 0.45);
+      vec2 panel = vec2(abs(p.x), p.z);
+      float paint = smoothstep(0.41, 0.59, noise(rotation(-0.46) * panel * vec2(0.70, 1.28) + vec2(7.2, 10.3)));
+      vec3 color = mix(camoA, camoB, paint);
+      float gloss = 0.19;
+
+      if (material == 1.0) {
+        vec3 underbody = vec3(0.56, 0.64, 0.60);
+        color = mix(underbody, color, smoothstep(0.04, 0.58, p.y));
+        float nosePaint = 1.0 - smoothstep(-3.15, -3.03, p.z);
+        color = mix(color, vec3(0.95, 0.67, 0.16), nosePaint);
+        float seam = 1.0 - smoothstep(0.012, 0.061, abs(p.z + 2.57));
+        color *= 1.0 - 0.15 * seam;
+      } else if (material == 2.0) {
+        vec2 mark = vec2(abs(p.x) - 3.22, p.z + 0.39);
+        float frame = 1.0 - smoothstep(-0.012, 0.036, crossMark(mark, vec2(0.13, 0.41)));
+        float center = 1.0 - smoothstep(-0.014, 0.025, crossMark(mark, vec2(0.075, 0.35)));
+        color = mix(color, vec3(0.86, 0.87, 0.76), frame);
+        color = mix(color, vec3(0.10, 0.14, 0.14), center);
+        float flap = 1.0 - smoothstep(0.012, 0.055, abs(p.z + abs(p.x) * 0.21 - 0.85));
+        color *= 1.0 - flap * smoothstep(0.7, 1.4, abs(p.x)) * 0.19;
+        color = mix(color, vec3(0.69, 0.71, 0.58), smoothstep(4.80, 5.08, abs(p.x)) * 0.48);
+      } else if (material == 3.0) {
+        float rail = min(abs(p.z + 0.25), abs(p.z - 0.59));
+        float canopyFrame = 1.0 - smoothstep(0.019, 0.064, rail);
+        color = mix(vec3(0.105, 0.205, 0.238), vec3(0.58, 0.64, 0.53), canopyFrame);
+        gloss = 0.68;
+      } else {
+        color = mix(vec3(0.21, 0.25, 0.22), vec3(0.92, 0.66, 0.21), smoothstep(-4.34, -4.20, p.z));
+        gloss = 0.38;
+      }
+
+      float diffuse = clamp(dot(normal, sun), 0.0, 1.0);
+      float specular = pow(clamp(dot(normal, normalize(sun - direction)), 0.0, 1.0), material == 3.0 ? 23.0 : 30.0);
+      float rim = pow(1.0 - clamp(dot(normal, -direction), 0.0, 1.0), 2.0);
+      return color * (0.54 + diffuse * 0.60) + specular * gloss * vec3(0.87, 0.90, 0.82)
+             + rim * vec3(0.032, 0.050, 0.057);
+    }
+
+    void main() {
+      vec2 centered = gl_FragCoord.xy / uResolution - 0.5;
+      vec2 world = uView.xy + centered * vec2(uView.z, -uView.w);
+      mat2 heading = rotation(-uPlane.z);
+      vec2 relative = world - uPlane.xy;
+
+    #ifdef DRAW_TERRAIN
+      float ground = landHeight(world);
+      vec2 slope = vec2(dFdx(ground), -dFdy(ground)) * uResolution / uView.zw;
+      vec3 normal = normalize(vec3(-slope.x, 1.0, -slope.y));
+      float water = sin(dot(world, vec2(0.67, 1.05)) + uTime.x * 1.2) * 0.038;
+      float surface = marchGround(ground, water);
+      vec3 color = coastColor(world, ground, water, abs(surface - min(ground, water)), normal);
+
+      vec2 shadow = heading * (relative - vec2(6.7, 4.8));
+      float wingWidth = 3.1 * cos(uPlane.w) + 0.9;
+      float wingShadow = exp(-dot(shadow / vec2(wingWidth, 1.30), shadow / vec2(wingWidth, 1.30)));
+      float bodyShadow = exp(-dot(shadow / vec2(1.3, 3.8), shadow / vec2(1.3, 3.8)));
+      color *= 1.0 - max(wingShadow, bodyShadow) * 0.29;
+
+      vec2 cloudPoint = world * vec2(0.046, 0.061) + vec2(uTime.x * 0.014, 9.7);
+      float haze = smoothstep(0.53, 0.80, fractalNoise(cloudPoint));
+      color = mix(color, vec3(0.84, 0.90, 0.87), haze * 0.45);
+      pixel = vec4(clamp(color, 0.0, 1.0), 1.0);
+    #else
+      if (dot(relative, relative) >= 31.4) discard;
+
+      vec2 offset = heading * relative;
+      mat2 unroll = rotation(uPlane.w);
+      vec3 direction = vec3(unroll * vec2(0.0, -1.0), 0.0);
+      vec3 origin = vec3(unroll * vec2(offset.x, 5.65), offset.y);
+      vec2 hit = marchAirframe(origin, direction);
+      if (hit.x >= 0.0) {
+        vec2 flatSun = heading * SUN.xz;
+        vec3 sun = vec3(unroll * vec2(flatSun.x, SUN.y), flatSun.y);
+        vec3 color = airframeColor(origin + direction * hit.x, hit.y, direction, sun);
+        pixel = vec4(clamp(color, 0.0, 1.0), 1.0);
+      } else {
+        float propeller = 1.0 - smoothstep(0.035, 0.142, abs(offset.y + 4.08));
+        float blade = 1.0 - smoothstep(0.43, 1.57, abs(offset.x));
+        float flutter = 0.72 + 0.28 * sin(uTime.x * (52.0 + uTime.y * 77.0) + offset.x * 10.0);
+        pixel = vec4(0.12, 0.18, 0.17, propeller * blade * flutter * 0.60);
+      }
+    #endif
+    }
+  </script>
+  <script>
+    'use strict';
+
+    const TAU = Math.PI * 2;
+    const MAX_BANK = 55 * Math.PI / 180;
+    const STEP = 1 / 120;
+    const START_THROTTLE = 0.55;
+    const START_SPEED = 365;
+    const LOOK_AHEAD = 7;
+    const CAMERA_FOLLOW = 1 - Math.exp(-STEP / 0.19);
+    const FLIGHT_KEYS = new Set(['KeyW', 'KeyS', 'KeyA', 'KeyD']);
+    const VERTEX_SOURCE = `#version 300 es
+      void main() {
+        vec2 corner = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2);
+        gl_Position = vec4(corner * 2.0 - 1.0, 0.0, 1.0);
+      }`;
+
+    function initialFlight() {
+      return { x: 0, z: 0, heading: 0, bank: 0, throttle: START_THROTTLE, speed: START_SPEED, time: 0 };
+    }
+
+    function stepFlight(flight, throttleInput, turnInput, dt) {
+      flight.throttle = Math.max(0, Math.min(1, flight.throttle + throttleInput * 0.48 * dt));
+      const desiredBank = turnInput * MAX_BANK;
+      flight.bank += (desiredBank - flight.bank) * (1 - Math.exp(-dt / 0.14));
+
+      const bankLoad = (flight.bank / MAX_BANK) ** 2;
+      const targetSpeed = 205 + flight.throttle * 290 - 26 * bankLoad;
+      flight.speed += (targetSpeed - flight.speed) * (1 - Math.exp(-dt / 1.35));
+      const turnRate = Math.max(-1.48, Math.min(1.48, 260 * Math.tan(flight.bank) / flight.speed));
+      flight.heading = (flight.heading + turnRate * dt + TAU) % TAU;
+      const distance = flight.speed * 0.064 * dt;
+      flight.x += Math.sin(flight.heading) * distance;
+      flight.z -= Math.cos(flight.heading) * distance;
+      flight.time += dt;
+    }
+
+    function lerp(start, end, fraction) {
+      return start + (end - start) * fraction;
+    }
+
+    function createRenderer(canvas) {
+      const gl = canvas.getContext('webgl2', { alpha: false, antialias: false, depth: false, stencil: false });
+      if (!gl) throw new Error('WebGL2 is unavailable.');
+
+      function compile(type, source) {
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, source.trim());
+        gl.compileShader(shader);
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+          const message = gl.getShaderInfoLog(shader);
+          gl.deleteShader(shader);
+          throw new Error(message);
+        }
+        return shader;
+      }
+
+      const vertex = compile(gl.VERTEX_SHADER, VERTEX_SOURCE);
+      const fragmentSource = document.getElementById('flight-fragment').textContent;
+
+      function makePass(source) {
+        const fragment = compile(gl.FRAGMENT_SHADER, source);
+        const program = gl.createProgram();
+        gl.attachShader(program, vertex);
+        gl.attachShader(program, fragment);
+        gl.linkProgram(program);
+        gl.deleteShader(fragment);
+        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program));
+        return {
+          program,
+          resolution: gl.getUniformLocation(program, 'uResolution'),
+          view: gl.getUniformLocation(program, 'uView'),
+          plane: gl.getUniformLocation(program, 'uPlane'),
+          time: gl.getUniformLocation(program, 'uTime')
+        };
+      }
+
+      const terrain = makePass(fragmentSource.replace('#version 300 es', '#version 300 es\n#define DRAW_TERRAIN'));
+      const aircraft = makePass(fragmentSource);
+      gl.deleteShader(vertex);
+      gl.bindVertexArray(gl.createVertexArray());
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+      const terrainBuffer = gl.createFramebuffer();
+      const terrainColor = gl.createRenderbuffer();
+
+      let viewWidth;
+      let viewHeight;
+      let terrainWidth = 0;
+      let terrainHeight = 0;
+      let terrainQuality = 1;
+
+      function resizeTerrain() {
+        const scale = Math.min(0.78, Math.sqrt(365000 / (canvas.width * canvas.height))) * terrainQuality;
+        const width = Math.max(1, Math.round(canvas.width * scale));
+        const height = Math.max(1, Math.round(canvas.height * scale));
+        if (width === terrainWidth && height === terrainHeight) return;
+
+        gl.bindRenderbuffer(gl.RENDERBUFFER, terrainColor);
+        gl.renderbufferStorage(gl.RENDERBUFFER, gl.RGBA8, width, height);
+        gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, terrainBuffer);
+        gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, terrainColor);
+        const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        if (status !== gl.FRAMEBUFFER_COMPLETE) throw new Error('Could not allocate the terrain buffer.');
+        terrainWidth = width;
+        terrainHeight = height;
+      }
+
+      function resize() {
+        const width = Math.max(canvas.clientWidth, 1);
+        const height = Math.max(canvas.clientHeight, 1);
+        const aspect = width / height;
+        viewHeight = Math.max(88, 53 / aspect);
+        viewWidth = viewHeight * aspect;
+        const scale = Math.min(window.devicePixelRatio || 1, 1.25, Math.sqrt(950000 / (width * height)));
+        const pixelWidth = Math.max(1, Math.round(width * scale));
+        const pixelHeight = Math.max(1, Math.round(height * scale));
+        if (canvas.width !== pixelWidth) canvas.width = pixelWidth;
+        if (canvas.height !== pixelHeight) canvas.height = pixelHeight;
+        resizeTerrain();
+      }
+
+      function reduceResolution() {
+        if (terrainQuality <= 0.60) return;
+        terrainQuality = Math.max(0.60, terrainQuality * 0.81);
+        resizeTerrain();
+      }
+
+      function drawPass(pass, width, height, flight, camera) {
+        gl.useProgram(pass.program);
+        gl.viewport(0, 0, width, height);
+        gl.uniform2f(pass.resolution, width, height);
+        gl.uniform4f(pass.view, camera.x, camera.z, viewWidth, viewHeight);
+        gl.uniform4f(pass.plane, flight.x, flight.z, flight.heading, flight.bank);
+        gl.uniform2f(pass.time, flight.time, flight.throttle);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+      }
+
+      function draw(flight, camera) {
+        const { width, height } = canvas;
+        gl.bindFramebuffer(gl.FRAMEBUFFER, terrainBuffer);
+        drawPass(terrain, terrainWidth, terrainHeight, flight, camera);
+        gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+        gl.blitFramebuffer(0, 0, terrainWidth, terrainHeight, 0, 0, width, height, gl.COLOR_BUFFER_BIT, gl.LINEAR);
+        gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
+
+        const centerX = (0.5 + (flight.x - camera.x) / viewWidth) * width;
+        const centerY = (0.5 - (flight.z - camera.z) / viewHeight) * height;
+        const radius = Math.ceil(5.7 * Math.max(width / viewWidth, height / viewHeight));
+        gl.enable(gl.SCISSOR_TEST);
+        gl.scissor(Math.floor(centerX) - radius, Math.floor(centerY) - radius, 2 * radius + 2, 2 * radius + 2);
+        gl.enable(gl.BLEND);
+        drawPass(aircraft, width, height, flight, camera);
+        gl.disable(gl.BLEND);
+        gl.disable(gl.SCISSOR_TEST);
+      }
+
+      resize();
+      return { draw, resize, reduceResolution };
+    }
+
+    const canvas = document.getElementById('scene');
+    const pauseButton = document.getElementById('pause');
+    const resetButton = document.getElementById('reset');
+    const resumeButton = document.getElementById('resume');
+    const message = document.getElementById('message');
+    const messageTitle = document.getElementById('message-title');
+    const messageDetail = document.getElementById('message-detail');
+    const headingOutput = document.getElementById('heading');
+    const speedOutput = document.getElementById('speed');
+    const throttleOutput = document.getElementById('throttle');
+    const throttleTrack = document.getElementById('throttle-track');
+    const bankOutput = document.getElementById('bank-angle');
+    const bankGauge = document.getElementById('bank');
+    const compass = document.getElementById('compass');
+    const keycaps = document.querySelectorAll('[data-key]');
+    const keys = new Set();
+
+    let flight = initialFlight();
+    let camera = { x: 0, z: -LOOK_AHEAD };
+    const previousFlight = { ...flight };
+    const previousCamera = { ...camera };
+    const displayFlight = { ...flight };
+    const displayCamera = { ...camera };
+    let renderer;
+    let paused = false;
+    let request = 0;
+    let lastFrame = null;
+    let accumulator = 0;
+    let lastInstrumentsAt = -Infinity;
+    let resolutionTime = 0;
+    let frameCount = 0;
+    let slowFrames = 0;
+
+    function updateInstruments() {
+      const degrees = 180 / Math.PI;
+      const heading = Math.round(flight.heading * degrees) % 360;
+      const bank = Math.round(flight.bank * degrees);
+      headingOutput.value = `${String(heading).padStart(3, '0')}°`;
+      speedOutput.value = String(Math.round(flight.speed));
+      throttleOutput.value = String(Math.round(flight.throttle * 100));
+      bankOutput.value = bank === 0 ? '0°' : `${bank < 0 ? '左' : '右'} ${Math.abs(bank)}°`;
+      bankGauge.style.setProperty('--bank', `${bank * 0.55}deg`);
+      throttleTrack.style.setProperty('--throttle', flight.throttle);
+      compass.style.setProperty('--tape-offset', `${-((flight.heading * degrees * 2.4) % 36)}px`);
+    }
+
+    function clearKeys() {
+      keys.clear();
+      for (const keycap of keycaps) keycap.classList.remove('active');
+    }
+
+    function showMessage(title, detail, canResume) {
+      messageTitle.textContent = title;
+      messageDetail.textContent = detail;
+      messageDetail.hidden = !detail;
+      resumeButton.hidden = !canResume;
+      message.hidden = false;
+    }
+
+    function setPaused(value) {
+      if (!renderer) return;
+      paused = value;
+      clearKeys();
+      lastFrame = null;
+      pauseButton.querySelector('span').textContent = value ? '继续' : '暂停';
+      pauseButton.querySelector('i').className = value ? 'icon icon-play' : 'icon icon-pause';
+      if (value) {
+        cancelAnimationFrame(request);
+        updateInstruments();
+        showMessage('试飞暂停', '', true);
+        resumeButton.focus();
+      } else {
+        message.hidden = true;
+        cancelAnimationFrame(request);
+        request = requestAnimationFrame(frame);
+      }
+    }
+
+    function resetFlight() {
+      if (!renderer) return;
+      flight = initialFlight();
+      camera = { x: 0, z: -LOOK_AHEAD };
+      Object.assign(previousFlight, flight);
+      Object.assign(previousCamera, camera);
+      accumulator = 0;
+      updateInstruments();
+      setPaused(false);
+    }
+
+    function drawInterpolatedFrame() {
+      const fraction = accumulator / STEP;
+      const headingDelta = (flight.heading - previousFlight.heading + TAU * 1.5) % TAU - Math.PI;
+      displayFlight.x = lerp(previousFlight.x, flight.x, fraction);
+      displayFlight.z = lerp(previousFlight.z, flight.z, fraction);
+      displayFlight.heading = previousFlight.heading + headingDelta * fraction;
+      displayFlight.bank = lerp(previousFlight.bank, flight.bank, fraction);
+      displayFlight.throttle = lerp(previousFlight.throttle, flight.throttle, fraction);
+      displayFlight.time = lerp(previousFlight.time, flight.time, fraction);
+      displayCamera.x = lerp(previousCamera.x, camera.x, fraction);
+      displayCamera.z = lerp(previousCamera.z, camera.z, fraction);
+      renderer.draw(displayFlight, displayCamera);
+    }
+
+    function frame(now) {
+      const elapsed = lastFrame === null ? 0 : (now - lastFrame) / 1000;
+      const dt = Math.min(elapsed, 0.1);
+      lastFrame = now;
+      accumulator += dt;
+
+      const throttleInput = Number(keys.has('KeyW')) - Number(keys.has('KeyS'));
+      const turnInput = Number(keys.has('KeyD')) - Number(keys.has('KeyA'));
+      while (accumulator >= STEP) {
+        Object.assign(previousFlight, flight);
+        Object.assign(previousCamera, camera);
+        stepFlight(flight, throttleInput, turnInput, STEP);
+        camera.x = lerp(camera.x, flight.x + Math.sin(flight.heading) * LOOK_AHEAD, CAMERA_FOLLOW);
+        camera.z = lerp(camera.z, flight.z - Math.cos(flight.heading) * LOOK_AHEAD, CAMERA_FOLLOW);
+        accumulator -= STEP;
+      }
+
+      if (elapsed > 0) {
+        resolutionTime += Math.min(elapsed, 0.15);
+        frameCount += 1;
+        slowFrames += Number(elapsed > 0.024);
+        if (resolutionTime >= 0.85) {
+          if (slowFrames > frameCount * 0.22) renderer.reduceResolution();
+          resolutionTime = 0;
+          frameCount = 0;
+          slowFrames = 0;
+        }
+      }
+
+      drawInterpolatedFrame();
+      if (now - lastInstrumentsAt >= 50) {
+        updateInstruments();
+        lastInstrumentsAt = now;
+      }
+      request = requestAnimationFrame(frame);
+    }
+
+    function startRenderer() {
+      try {
+        renderer = createRenderer(canvas);
+        pauseButton.disabled = false;
+        resetButton.disabled = false;
+        setPaused(false);
+      } catch (error) {
+        console.error(error);
+        pauseButton.disabled = true;
+        resetButton.disabled = true;
+        showMessage('无法开始试飞', '请用支持 WebGL2 的桌面浏览器打开此文件，并启用图形加速。', false);
+      }
+    }
+
+    window.addEventListener('keydown', (event) => {
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      if (FLIGHT_KEYS.has(event.code)) {
+        event.preventDefault();
+        if (!renderer || paused) return;
+        keys.add(event.code);
+        document.querySelector(`[data-key="${event.code}"]`).classList.add('active');
+      } else if (event.code === 'Escape' && !event.repeat) {
+        event.preventDefault();
+        setPaused(!paused);
+      } else if (event.code === 'KeyR' && !event.repeat) {
+        event.preventDefault();
+        resetFlight();
+      }
+    });
+
+    window.addEventListener('keyup', (event) => {
+      if (!FLIGHT_KEYS.has(event.code)) return;
+      keys.delete(event.code);
+      document.querySelector(`[data-key="${event.code}"]`).classList.remove('active');
+    });
+
+    window.addEventListener('blur', clearKeys);
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && renderer && !paused) setPaused(true);
+    });
+    window.addEventListener('resize', () => {
+      if (!renderer) return;
+      renderer.resize();
+      if (paused) drawInterpolatedFrame();
+    });
+
+    canvas.addEventListener('webglcontextlost', (event) => {
+      event.preventDefault();
+      cancelAnimationFrame(request);
+      renderer = null;
+      clearKeys();
+      pauseButton.disabled = true;
+      resetButton.disabled = true;
+      showMessage('图形连接中断', '正在等待浏览器恢复画面。', false);
+    });
+    canvas.addEventListener('webglcontextrestored', startRenderer);
+    pauseButton.addEventListener('click', () => setPaused(!paused));
+    resumeButton.addEventListener('click', () => setPaused(false));
+    resetButton.addEventListener('click', resetFlight);
+
+    updateInstruments();
+    startRenderer();
+  </script>
+</body>
+</html>
