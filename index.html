@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Terror of Sky 的 Bf 109 E-1 和 Spitfire Mk Ia 正俯视自由试飞。">
-  <title>Terror of Sky · 自由试飞</title>
+  <meta name="description" content="Terror of Sky 的 MiG-23M 与 F-4E 正俯视导弹训练。">
+  <title>Terror of Sky · 导弹训练</title>
   <style>
     :root {
       color-scheme: dark;
@@ -23,9 +23,10 @@
     button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
     button:disabled, select:disabled { opacity: .55; }
 
-    .game, .scene, .vignette { position: fixed; inset: 0; width: 100%; height: 100%; }
+    .game, .scene, .vignette, .effects { position: fixed; inset: 0; width: 100%; height: 100%; }
     .game { isolation: isolate; }
     .scene { display: block; }
+    .effects { pointer-events: none; }
     .vignette {
       pointer-events: none;
       background:
@@ -69,7 +70,7 @@
       cursor: pointer;
     }
 
-    .compass { display: grid; justify-items: center; gap: 5px; min-width: 145px; }
+    .compass { position: relative; display: grid; justify-items: center; gap: 5px; min-width: 145px; }
     .compass-scale {
       position: relative;
       width: clamp(124px, 17vw, 235px);
@@ -100,6 +101,16 @@
       text-shadow: 0 1px 5px #0b2228;
     }
     .compass-reading output { color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+    .missile-feedback {
+      position: absolute;
+      top: calc(100% + 7px);
+      color: var(--accent);
+      font-size: .875rem;
+      font-weight: 700;
+      white-space: nowrap;
+      text-shadow: 0 1px 5px #0b2228;
+    }
+    .missile-feedback[data-danger] { color: #ff9c86; }
 
     .actions { display: flex; justify-self: end; gap: 6px; pointer-events: auto; }
     .button {
@@ -173,7 +184,7 @@
       transform: scaleX(var(--throttle, .55));
       transform-origin: left;
     }
-    .bank {
+    .telemetry-row {
       grid-column: 1 / -1;
       display: flex;
       justify-content: space-between;
@@ -182,10 +193,12 @@
       padding-top: 5px;
       border-top: 1px solid var(--border);
     }
-    .bank output { font-size: .8125rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+    .telemetry-row output { font-size: .8125rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+    .telemetry-row output[data-empty] { color: var(--accent); }
 
     .controls {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       justify-content: center;
       gap: clamp(8px, 1.5vw, 18px);
@@ -208,6 +221,7 @@
       font-weight: 650;
     }
     kbd.active { color: #152526; border-color: var(--accent); background: var(--accent); }
+    kbd[data-key="Space"] { padding-inline: 5px; }
 
     .minimap { width: clamp(116px, 19vw, 210px); justify-self: end; overflow: hidden; }
     .minimap-header {
@@ -223,10 +237,19 @@
     .minimap-status { color: var(--accent); }
     .minimap-view { position: relative; border-top: 1px solid var(--border); background: #163639; }
     .minimap-terrain { display: block; width: 100%; height: auto; }
-    .minimap-marker {
+    .minimap-marker, .minimap-target {
       position: absolute;
       left: clamp(10px, var(--map-x, 50%), calc(100% - 10px));
       top: clamp(10px, var(--map-z, 50%), calc(100% - 10px));
+    }
+    .minimap-target {
+      width: 8px;
+      height: 8px;
+      border: 1px solid #ffae79;
+      background: #342c2b;
+      transform: translate(-50%, -50%) rotate(45deg);
+    }
+    .minimap-marker {
       width: 14px;
       height: 17px;
       transform: translate(-50%, -50%) rotate(var(--map-heading, 0rad));
@@ -261,13 +284,17 @@
       .actions { grid-area: 1 / 2; }
       .compass { grid-column: 1 / -1; justify-self: center; }
     }
-    @media (max-width: 540px) {
+    @media (max-width: 640px) {
+      .compass { grid-area: 2 / 1; min-width: 0; justify-self: start; }
       .bottom-bar { grid-template-columns: 1fr auto; }
-      .telemetry { grid-area: 2 / 1; }
-      .minimap { grid-area: 2 / 2; }
-      .controls { grid-area: 1 / 1 / 2 / -1; justify-self: center; }
+      .telemetry { grid-area: 1 / 1; }
+      .minimap { grid-area: 1 / 2; }
+      .controls { grid-area: 2 / 1 / 3 / -1; justify-self: center; padding: 6px 8px; }
+      .control-group { gap: 3px; }
+      .control-group span { margin-left: 2px; font-size: .75rem; }
+      .controls kbd { min-width: 18px; height: 21px; font-size: .75rem; }
     }
-    @media (max-width: 540px) and (max-height: 420px) {
+    @media (max-width: 640px) and (max-height: 420px) {
       .controls { display: none; }
     }
     @media (max-width: 380px) {
@@ -277,21 +304,23 @@
   </style>
 </head>
 <body>
-  <main class="game" aria-label="自由试飞">
-    <canvas class="scene" id="scene" role="img" aria-label="正俯视的海岸与玩家飞机"></canvas>
+  <main class="game" aria-label="导弹训练对战">
+    <canvas class="scene" id="scene" role="img" aria-label="正俯视的海岸对战区域"></canvas>
     <div class="vignette" aria-hidden="true"></div>
+    <canvas class="effects" id="effects" aria-hidden="true"></canvas>
 
     <header class="topbar">
       <div class="identity">
         <h1>TERROR OF SKY</h1>
-        <select class="aircraft-select" id="aircraft-select" aria-label="试飞机型" disabled>
-          <option value="0">Bf 109 E-1</option>
-          <option value="1">Spitfire Mk Ia</option>
+        <select class="aircraft-select" id="aircraft-select" aria-label="对战机型" disabled>
+          <option value="0">MiG-23M</option>
+          <option value="1">F-4E</option>
         </select>
       </div>
       <div class="compass" id="compass">
         <div class="compass-scale" aria-hidden="true"></div>
         <div class="compass-reading">航向 <output id="heading" aria-live="off">000°</output></div>
+        <span class="missile-feedback" id="missile-feedback" role="status"></span>
       </div>
       <div class="actions">
         <button class="button" id="pause" type="button" aria-keyshortcuts="Escape">
@@ -307,22 +336,29 @@
       <div class="instrument telemetry" aria-label="飞行仪表">
         <div class="gauge">
           <label class="gauge-label" for="speed">空速</label>
-          <div class="reading"><output id="speed" aria-live="off">365</output><span>km/h</span></div>
+          <div class="reading"><output id="speed" aria-live="off">695</output><span>km/h</span></div>
         </div>
         <div class="gauge">
           <label class="gauge-label" for="throttle">油门</label>
           <div class="reading"><output id="throttle" aria-live="off">55</output><span>%</span></div>
           <div class="throttle-track" id="throttle-track" aria-hidden="true"></div>
         </div>
-        <div class="bank">
+        <div class="telemetry-row">
           <label class="gauge-label" for="bank-angle">侧滚</label><output id="bank-angle" aria-live="off">0°</output>
+        </div>
+        <div class="telemetry-row">
+          <label class="gauge-label" id="missile-name" for="missile-ammo">R-60</label><output id="missile-ammo" aria-live="off">2 枚</output>
+        </div>
+        <div class="telemetry-row">
+          <label class="gauge-label" for="seeker-status">红外引导</label><output id="seeker-status" aria-live="off">待机</output>
         </div>
       </div>
       <div class="instrument controls" aria-label="飞行按键">
         <div class="control-group"><kbd data-key="KeyW">W</kbd><kbd data-key="KeyS">S</kbd><span>油门</span></div>
         <div class="control-group"><kbd data-key="KeyA">A</kbd><kbd data-key="KeyD">D</kbd><span>转向</span></div>
+        <div class="control-group"><kbd data-key="Space">空格</kbd><span>引导 / 发射</span></div>
       </div>
-      <div class="instrument minimap" role="group" aria-label="北向朝上的小地图，黄色箭头为本机">
+      <div class="instrument minimap" role="group" aria-label="北向朝上的小地图，黄色箭头为本机，橙色菱形为对手">
         <div class="minimap-header">
           <span id="minimap-name">海岸</span>
           <span class="minimap-status" id="minimap-status" role="status"></span>
@@ -330,6 +366,7 @@
         </div>
         <div class="minimap-view" aria-hidden="true">
           <canvas class="minimap-terrain" id="minimap-terrain" width="384" height="288"></canvas>
+          <span class="minimap-target" id="minimap-target"></span>
           <span class="minimap-marker" id="minimap-marker"></span>
         </div>
       </div>
@@ -339,24 +376,21 @@
       <section class="instrument message-panel" role="dialog" aria-labelledby="message-title" aria-describedby="message-detail">
         <h2 id="message-title"></h2>
         <p id="message-detail" hidden></p>
-        <button class="button" id="resume" type="button">继续试飞</button>
+        <button class="button" id="resume" type="button">继续训练</button>
       </section>
     </div>
   </main>
 
-  <script id="flight-fragment" type="x-shader/x-fragment">
+  <script id="terrain-fragment" type="x-shader/x-fragment">
     #version 300 es
     precision highp float;
 
     uniform vec2 uResolution;
     uniform vec4 uView;
-    uniform vec4 uPlane;
-    uniform int uAirframe;
-    uniform vec2 uTime;
+    uniform float uTime;
     out vec4 pixel;
 
     const vec3 SUN = vec3(-0.43, 0.85, -0.30);
-    const int SPITFIRE_MK_IA = 1;
 
     mat2 rotation(float angle) {
       float c = cos(angle);
@@ -429,7 +463,7 @@
     }
 
     vec3 coastColor(vec2 p, float ground, float water, float depth, vec3 normal) {
-      float time = uTime.x;
+      float time = uTime;
       if (ground > water) {
         float sandNoise = noise(p * 6.1 + 1.3);
         float sun = clamp(dot(normal, SUN), 0.0, 1.0);
@@ -464,321 +498,26 @@
       return mix(ocean, vec3(0.86, 0.94, 0.85), surf * 0.90);
     }
 
-    float ellipsoid(vec3 p, vec3 radii) {
-      return (length(p / radii) - 1.0) * min(radii.x, min(radii.y, radii.z));
-    }
-
-    float ellipse(vec2 p, vec2 radii) {
-      return (length(p / radii) - 1.0) * min(radii.x, radii.y);
-    }
-
-    float roundedBox(vec3 p, vec3 size, float radius) {
-      vec3 q = abs(p) - size;
-      return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0) - radius;
-    }
-
-    float edge(vec2 p, vec2 a, vec2 b) {
-      vec2 side = b - a;
-      vec2 offset = p - a;
-      return (side.y * offset.x - side.x * offset.y) / length(side);
-    }
-
-    float mainWing(vec3 p) {
-      vec2 q = vec2(abs(p.x), p.z);
-      float outline = edge(q, vec2(0.0, -2.59), vec2(4.87, -2.18));
-      outline = max(outline, edge(q, vec2(4.87, -2.18), vec2(5.00, -2.08)));
-      outline = max(outline, edge(q, vec2(5.00, -2.08), vec2(5.05, -1.84)));
-      outline = max(outline, edge(q, vec2(5.05, -1.84), vec2(5.05, -1.45)));
-      outline = max(outline, edge(q, vec2(5.05, -1.45), vec2(4.97, -1.20)));
-      outline = max(outline, edge(q, vec2(4.97, -1.20), vec2(4.83, -1.11)));
-      outline = max(outline, edge(q, vec2(4.83, -1.11), vec2(0.0, -0.29)));
-      float wingHeight = -0.25 + q.x * 0.071;
-      float thickness = max(0.032, 0.125 - 0.018 * q.x);
-      return max(outline, abs(p.y - wingHeight) - thickness) - 0.035;
-    }
-
-    float horizontalTail(vec3 p) {
-      vec2 q = vec2(abs(p.x), p.z);
-      float outline = edge(q, vec2(0.0, 3.04), vec2(1.28, 3.25));
-      outline = max(outline, edge(q, vec2(1.28, 3.25), vec2(1.45, 3.40)));
-      outline = max(outline, edge(q, vec2(1.45, 3.40), vec2(1.51, 3.59)));
-      outline = max(outline, edge(q, vec2(1.51, 3.59), vec2(1.48, 3.79)));
-      outline = max(outline, edge(q, vec2(1.48, 3.79), vec2(1.35, 3.94)));
-      outline = max(outline, edge(q, vec2(1.35, 3.94), vec2(0.29, 4.06)));
-      outline = max(outline, edge(q, vec2(0.29, 4.06), vec2(0.0, 3.81)));
-      return max(outline, abs(p.y - 0.13) - 0.054) - 0.024;
-    }
-
-    float verticalTail(vec3 p) {
-      vec2 q = p.yz;
-      float outline = edge(q, vec2(0.08, 2.88), vec2(1.01, 3.55));
-      outline = max(outline, edge(q, vec2(1.01, 3.55), vec2(1.18, 3.85)));
-      outline = max(outline, edge(q, vec2(1.18, 3.85), vec2(0.97, 4.17)));
-      outline = max(outline, edge(q, vec2(0.97, 4.17), vec2(0.10, 4.43)));
-      outline = max(outline, edge(q, vec2(0.10, 4.43), vec2(0.08, 2.88)));
-      float halfWidth = mix(0.10, 0.02, smoothstep(3.18, 4.43, p.z));
-      return max(outline, abs(p.x) - halfWidth) - 0.019;
-    }
-
-    float fuselage(vec3 p) {
-      float cowling = smoothstep(-3.92, -3.42, p.z);
-      float rear = clamp((p.z + 1.37) / 5.60, 0.0, 1.0);
-      float halfWidth = mix(mix(0.37, 0.53, cowling), 0.11, rear);
-      float halfHeight = mix(mix(0.34, 0.57, cowling), 0.14, rear);
-      float centerHeight = mix(-0.05, 0.10, rear);
-      float surface = ellipse(vec2(p.x, p.y - centerHeight), vec2(halfWidth, halfHeight));
-      return max(surface, max(-3.92 - p.z, p.z - 4.15));
-    }
-
-    float canopy(vec3 p) {
-      float windscreen = 1.0 - smoothstep(-1.65, -1.32, p.z);
-      float rear = smoothstep(-0.43, -0.06, p.z);
-      float halfWidth = 0.35 - 0.12 * windscreen - 0.11 * rear;
-      float halfHeight = 0.33 - 0.21 * windscreen - 0.24 * rear;
-      float centerHeight = 0.47 - 0.07 * windscreen - 0.115 * rear;
-      float surface = ellipse(vec2(p.x, p.y - centerHeight), vec2(halfWidth, halfHeight));
-      return max(surface, max(-1.65 - p.z, p.z + 0.06));
-    }
-
-    void nearer(inout vec2 nearest, float distanceToPart, float material) {
-      if (distanceToPart < nearest.x) nearest = vec2(distanceToPart, material);
-    }
-
-    float spitfireWing(vec3 p) {
-      float span = abs(p.x);
-      float chord = p.z + 2.02;
-      float outline = ellipse(vec2(p.x, chord), vec2(5.54, chord < 0.0 ? 0.86 : 1.69));
-      float wingHeight = -0.26 + span * 0.087;
-      float thickness = max(0.026, 0.13 - span * 0.020);
-      return max(outline, abs(p.y - wingHeight) - thickness) - 0.016;
-    }
-
-    float spitfireTailplane(vec3 p) {
-      float chord = p.z - 3.72;
-      float outline = ellipse(vec2(p.x, chord), vec2(1.59, chord < 0.0 ? 0.72 : 0.46));
-      float elevatorRoot = p.z - 4.13 + 0.23 - abs(p.x);
-      return max(max(outline, elevatorRoot), abs(p.y - 0.12) - 0.045) - 0.015;
-    }
-
-    float spitfireFin(vec3 p) {
-      vec2 q = p.yz;
-      float outline = edge(q, vec2(0.08, 2.94), vec2(0.88, 3.50));
-      outline = max(outline, edge(q, vec2(0.88, 3.50), vec2(1.17, 3.78)));
-      outline = max(outline, edge(q, vec2(1.17, 3.78), vec2(1.29, 4.03)));
-      outline = max(outline, edge(q, vec2(1.29, 4.03), vec2(1.15, 4.36)));
-      outline = max(outline, edge(q, vec2(1.15, 4.36), vec2(0.67, 4.48)));
-      outline = max(outline, edge(q, vec2(0.67, 4.48), vec2(0.10, 4.49)));
-      outline = max(outline, edge(q, vec2(0.10, 4.49), vec2(0.08, 2.94)));
-      return max(outline, abs(p.x) - mix(0.09, 0.022, smoothstep(3.25, 4.49, p.z))) - 0.018;
-    }
-
-    float spitfireFuselage(vec3 p) {
-      float nose = smoothstep(-4.02, -3.37, p.z);
-      float rear = clamp(p.z / 4.25, 0.0, 1.0);
-      float halfWidth = mix(mix(0.34, 0.55, nose), 0.12, rear);
-      float halfHeight = mix(mix(0.36, 0.59, nose), 0.14, rear);
-      float centerHeight = mix(-0.045, 0.10, rear);
-      float outline = ellipse(vec2(p.x, p.y - centerHeight), vec2(halfWidth, halfHeight));
-      return max(outline, max(-4.02 - p.z, p.z - 4.24));
-    }
-
-    float spitfireCanopy(vec3 p) {
-      float windscreen = 1.0 - smoothstep(-1.39, -1.05, p.z);
-      float rear = smoothstep(-0.38, 0.04, p.z);
-      float halfWidth = 0.33 - 0.14 * windscreen - 0.10 * rear;
-      float halfHeight = 0.34 - 0.25 * windscreen - 0.20 * rear;
-      float centerHeight = 0.52 - 0.075 * windscreen - 0.125 * rear;
-      float outline = ellipse(vec2(p.x, p.y - centerHeight), vec2(halfWidth, halfHeight));
-      return max(outline, max(-1.39 - p.z, p.z - 0.04));
-    }
-
-    vec2 spitfireAirframe(vec3 p) {
-      vec2 closest = vec2(spitfireFuselage(p), 1.0);
-      float wingRoot = ellipsoid(p - vec3(0.0, -0.17, -1.06), vec3(0.76, 0.27, 1.18));
-      nearer(closest, wingRoot, 1.0);
-      nearer(closest, spitfireWing(p), 2.0);
-      nearer(closest, spitfireTailplane(p), 2.0);
-      nearer(closest, spitfireFin(p), 1.0);
-      nearer(closest, spitfireCanopy(p), 3.0);
-      nearer(closest, ellipsoid(p - vec3(0.0, -0.035, -4.00), vec3(0.35, 0.36, 0.63)), 4.0);
-      vec3 exhaust = vec3(abs(p.x) - 0.50, p.y - 0.15, p.z + 3.20);
-      nearer(closest, roundedBox(exhaust, vec3(0.042, 0.046, 0.35), 0.044), 5.0);
-      float radiator = roundedBox(p - vec3(1.56, -0.37, -1.13), vec3(0.29, 0.08, 0.33), 0.070);
-      nearer(closest, radiator, 1.0);
-      return closest;
-    }
-
-    vec2 airframe(vec3 p) {
-      if (uAirframe == SPITFIRE_MK_IA) return spitfireAirframe(p);
-      float chinScoop = roundedBox(p - vec3(0.0, -0.43, -2.92), vec3(0.25, 0.09, 0.48), 0.10);
-      vec2 closest = vec2(min(fuselage(p), chinScoop), 1.0);
-      nearer(closest, mainWing(p), 2.0);
-      nearer(closest, horizontalTail(p), 2.0);
-      nearer(closest, verticalTail(p), 1.0);
-      nearer(closest, canopy(p), 3.0);
-      nearer(closest, ellipsoid(p - vec3(0.0, -0.025, -3.89), vec3(0.39, 0.36, 0.67)), 4.0);
-      return closest;
-    }
-
-    vec2 marchAirframe(vec3 origin, vec3 direction) {
-      float distanceAlongRay = 0.0;
-      for (int i = 0; i < 54; ++i) {
-        vec2 hit = airframe(origin + direction * distanceAlongRay);
-        if (hit.x < 0.013) return vec2(distanceAlongRay, hit.y);
-        distanceAlongRay += hit.x * 0.88;
-        if (distanceAlongRay > 11.7) break;
-      }
-      return vec2(-1.0);
-    }
-
-    vec3 airframeNormal(vec3 p) {
-      vec2 e = vec2(0.019, -0.019);
-      return normalize(e.xyy * airframe(p + e.xyy).x + e.yyx * airframe(p + e.yyx).x
-                     + e.yxy * airframe(p + e.yxy).x + e.xxx * airframe(p + e.xxx).x);
-    }
-
-    float crossMark(vec2 p, vec2 size) {
-      vec2 q = abs(p);
-      return min(max(q.x - size.x, q.y - size.y), max(q.x - size.y, q.y - size.x));
-    }
-
-    vec4 bf109Finish(vec3 p, float material) {
-      vec3 camoDark = vec3(0.25, 0.33, 0.24);
-      vec3 camoLight = vec3(0.44, 0.51, 0.35);
-      float frontPatch = max(p.z + 2.18 - 0.26 * p.x, p.x - 3.28);
-      float rearPatch = max(-0.62 - p.z + 0.29 * p.x, -p.x - 3.85);
-      float splinter = smoothstep(-0.04, 0.04, min(frontPatch, rearPatch));
-      vec3 color = mix(camoLight, camoDark, splinter);
-      float gloss = 0.19;
-
-      if (material == 1.0) {
-        vec3 underbody = vec3(0.48, 0.60, 0.62);
-        color = mix(underbody, color, smoothstep(-0.16, 0.14, p.y));
-        float cowlingPanel = 1.0 - smoothstep(-2.80, -2.55, p.z);
-        color = mix(color, vec3(0.35, 0.41, 0.30), cowlingPanel * smoothstep(0.00, 0.22, p.y));
-        float seam = 1.0 - smoothstep(0.018, 0.067, abs(p.z + 2.62));
-        color *= 1.0 - 0.24 * seam;
-      } else if (material == 2.0) {
-        float span = abs(p.x);
-        vec2 mark = vec2(span - 3.77, p.z + 1.63);
-        float frame = 1.0 - smoothstep(-0.012, 0.036, crossMark(mark, vec2(0.13, 0.41)));
-        float center = 1.0 - smoothstep(-0.014, 0.025, crossMark(mark, vec2(0.075, 0.35)));
-        color = mix(color, vec3(0.86, 0.87, 0.76), frame);
-        color = mix(color, vec3(0.10, 0.14, 0.14), center);
-        float flap = 1.0 - smoothstep(0.013, 0.064, abs(p.z + 0.55 + 0.145 * span));
-        color *= 1.0 - flap * smoothstep(0.62, 0.87, span) * 0.27;
-        float slat = 1.0 - smoothstep(0.018, 0.065, abs(p.z + 2.40 - 0.084 * span));
-        color *= 1.0 - slat * smoothstep(2.32, 2.51, span) * 0.31;
-      } else if (material == 3.0) {
-        float crossbars = min(abs(p.z + 1.27), abs(p.z + 0.44));
-        float sideRails = abs(abs(p.x) - 0.28);
-        float canopyFrame = 1.0 - smoothstep(0.027, 0.074, min(crossbars, sideRails));
-        color = mix(vec3(0.18, 0.31, 0.35), vec3(0.49, 0.53, 0.40), canopyFrame);
-        gloss = 0.68;
-      } else {
-        color = vec3(0.22, 0.28, 0.23);
-        gloss = 0.38;
-      }
-      return vec4(color, gloss);
-    }
-
-    vec4 spitfireFinish(vec3 p, float material) {
-      vec3 darkEarth = vec3(0.49, 0.38, 0.27);
-      vec3 darkGreen = vec3(0.32, 0.39, 0.28);
-      float pattern = sin(p.x * 1.22 + 1.38 * sin(p.z * 1.10)) + 0.36 * sin(p.x * 2.41 - p.z * 1.54);
-      vec3 color = mix(darkGreen, darkEarth, smoothstep(-0.10, 0.10, pattern));
-      vec3 blue = vec3(0.09, 0.17, 0.33);
-      vec3 red = vec3(0.68, 0.19, 0.16);
-      float gloss = 0.20;
-
-      if (material == 1.0) {
-        color = mix(vec3(0.62, 0.69, 0.61), color, smoothstep(-0.19, 0.04, p.y));
-        float side = smoothstep(0.29, 0.38, abs(p.x));
-        float roundel = length(vec2(p.z - 0.88, (p.y + 0.04) * 1.10));
-        color = mix(color, blue, side * (1.0 - smoothstep(0.29, 0.33, roundel)));
-        color = mix(color, vec3(0.82, 0.82, 0.71), side * (1.0 - smoothstep(0.17, 0.20, roundel)));
-        color = mix(color, red, side * (1.0 - smoothstep(0.08, 0.12, roundel)));
-      } else if (material == 2.0) {
-        float span = abs(p.x);
-        float roundel = length(vec2(span - 3.78, p.z + 1.94));
-        color = mix(color, blue, 1.0 - smoothstep(0.65, 0.70, roundel));
-        color = mix(color, red, 1.0 - smoothstep(0.24, 0.29, roundel));
-        float hinge = 1.0 - smoothstep(0.014, 0.065, abs(p.z + 0.55 + span * 0.125));
-        color *= 1.0 - hinge * smoothstep(0.79, 1.13, span) * 0.22;
-      } else if (material == 3.0) {
-        float crossbars = min(abs(p.z + 1.02), abs(p.z + 0.42));
-        float frame = 1.0 - smoothstep(0.024, 0.062, min(crossbars, abs(abs(p.x) - 0.27)));
-        color = mix(vec3(0.20, 0.35, 0.44), vec3(0.46, 0.48, 0.37), frame);
-        gloss = 0.68;
-      } else if (material == 4.0) {
-        color = vec3(0.16, 0.19, 0.18);
-        gloss = 0.38;
-      } else {
-        color = vec3(0.33, 0.23, 0.19);
-      }
-      return vec4(color, gloss);
-    }
-
-    vec3 airframeColor(vec3 p, float material, vec3 direction, vec3 sun) {
-      vec3 normal = airframeNormal(p);
-      vec4 finish = uAirframe == SPITFIRE_MK_IA ? spitfireFinish(p, material) : bf109Finish(p, material);
-      float diffuse = clamp(dot(normal, sun), 0.0, 1.0);
-      float specular = pow(clamp(dot(normal, normalize(sun - direction)), 0.0, 1.0), material == 3.0 ? 23.0 : 30.0);
-      float rim = pow(1.0 - clamp(dot(normal, -direction), 0.0, 1.0), 2.0);
-      return finish.rgb * (0.54 + diffuse * 0.60) + specular * finish.a * vec3(0.87, 0.90, 0.82)
-             + rim * vec3(0.032, 0.050, 0.057);
-    }
-
     void main() {
       vec2 centered = gl_FragCoord.xy / uResolution - 0.5;
       vec2 world = uView.xy + centered * vec2(uView.z, -uView.w);
-      mat2 heading = rotation(-uPlane.z);
-      vec2 relative = world - uPlane.xy;
-
-    #if defined(DRAW_MINIMAP)
       float ground = landHeight(world);
+
+    #ifdef DRAW_MINIMAP
       vec3 water = mix(vec3(0.065, 0.18, 0.22), vec3(0.19, 0.35, 0.35), smoothstep(-4.0, 0.0, ground));
       vec3 land = mix(vec3(0.68, 0.66, 0.47), vec3(0.32, 0.43, 0.30), smoothstep(0.0, 1.7, ground));
       pixel = vec4(mix(water, land, smoothstep(-0.19, 0.19, ground)), 1.0);
-    #elif defined(DRAW_TERRAIN)
-      float ground = landHeight(world);
+    #else
       vec2 slope = vec2(dFdx(ground), -dFdy(ground)) * uResolution / uView.zw;
       vec3 normal = normalize(vec3(-slope.x, 1.0, -slope.y));
-      float water = sin(dot(world, vec2(0.67, 1.05)) + uTime.x * 1.2) * 0.038;
+      float water = sin(dot(world, vec2(0.67, 1.05)) + uTime * 1.2) * 0.038;
       float surface = marchGround(ground, water);
       vec3 color = coastColor(world, ground, water, abs(surface - min(ground, water)), normal);
 
-      vec2 shadow = heading * (relative - vec2(6.7, 4.8));
-      bool spitfire = uAirframe == SPITFIRE_MK_IA;
-      float wingWidth = (spitfire ? 3.45 : 3.1) * cos(uPlane.w) + 0.9;
-      vec2 wingShadowOffset = (shadow + vec2(0.0, spitfire ? 1.77 : 1.49)) / vec2(wingWidth, 1.02);
-      float wingShadow = exp(-dot(wingShadowOffset, wingShadowOffset));
-      float bodyShadow = exp(-dot(shadow / vec2(1.3, 3.8), shadow / vec2(1.3, 3.8)));
-      color *= 1.0 - max(wingShadow, bodyShadow) * 0.29;
-
-      vec2 cloudPoint = world * vec2(0.046, 0.061) + vec2(uTime.x * 0.014, 9.7);
+      vec2 cloudPoint = world * vec2(0.046, 0.061) + vec2(uTime * 0.014, 9.7);
       float haze = smoothstep(0.53, 0.80, fractalNoise(cloudPoint));
       color = mix(color, vec3(0.84, 0.90, 0.87), haze * 0.45);
       pixel = vec4(clamp(color, 0.0, 1.0), 1.0);
-    #else
-      if (dot(relative, relative) >= 37.21) discard;
-
-      vec2 offset = heading * relative;
-      mat2 unroll = rotation(uPlane.w);
-      vec3 direction = vec3(unroll * vec2(0.0, -1.0), 0.0);
-      vec3 origin = vec3(unroll * vec2(offset.x, 5.65), offset.y);
-      vec2 hit = marchAirframe(origin, direction);
-      if (hit.x >= 0.0) {
-        vec2 flatSun = heading * SUN.xz;
-        vec3 sun = vec3(unroll * vec2(flatSun.x, SUN.y), flatSun.y);
-        vec3 color = airframeColor(origin + direction * hit.x, hit.y, direction, sun);
-        pixel = vec4(clamp(color, 0.0, 1.0), 1.0);
-      } else {
-        float propeller = 1.0 - smoothstep(0.035, 0.142, abs(offset.y + 4.08));
-        float blade = 1.0 - smoothstep(0.43, 1.57, abs(offset.x));
-        float flutter = 0.72 + 0.28 * sin(uTime.x * (52.0 + uTime.y * 77.0) + offset.x * 10.0);
-        pixel = vec4(0.12, 0.18, 0.17, propeller * blade * flutter * 0.60);
-      }
     #endif
     }
   </script>
@@ -787,25 +526,35 @@
 
     const COAST_MAP = {
       name: '海岸',
-      bounds: { minX: -240, maxX: 240, minZ: -180, maxZ: 180 },
-      spawn: { x: 0, z: 0, heading: 0 }
+      bounds: { minX: -480, maxX: 480, minZ: -360, maxZ: 360 },
+      spawn: { x: 0, z: 0, heading: 0 },
+      opponentSpawn: { x: 0, z: -63, heading: 0 }
     };
+    const AIRCRAFT = [
+      { name: 'MiG-23M', missile: 'R-60', maxMach: 2.5, maxOverload: 30 },
+      { name: 'F-4E', missile: 'AIM-9E', maxMach: 2.5, maxOverload: 10 }
+    ];
     const TAU = Math.PI * 2;
     const MAX_BANK = 55 * Math.PI / 180;
     const STEP = 1 / 120;
     const START_THROTTLE = 0.55;
-    const START_SPEED = 365;
-    const LOOK_AHEAD = 7;
+    const START_SPEED = 695;
+    const FLIGHT_SPEED_SCALE = 0.064;
+    const MACH_SCALE = 340 * 3.6 * FLIGHT_SPEED_SCALE;
+    const IR_LOCK = { range: 122, acquireAngle: 0.26, holdAngle: 0.39, time: 0.42 };
+    const MISSILE_LIFETIME = 4.8;
+    const AIRCRAFT_HIT_RADIUS = 5.4;
+    const LOOK_AHEAD = 19;
     const CAMERA_FOLLOW = 1 - Math.exp(-STEP / 0.19);
-    const FLIGHT_KEYS = new Set(['KeyW', 'KeyS', 'KeyA', 'KeyD']);
+    const FLIGHT_KEYS = new Set(['KeyW', 'KeyS', 'KeyA', 'KeyD', 'Space']);
     const VERTEX_SOURCE = `#version 300 es
       void main() {
         vec2 corner = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2);
         gl_Position = vec4(corner * 2.0 - 1.0, 0.0, 1.0);
       }`;
 
-    function initialFlight(airframe) {
-      return { ...COAST_MAP.spawn, airframe, bank: 0, throttle: START_THROTTLE, speed: START_SPEED, time: 0 };
+    function initialFlight(airframe, spawn = COAST_MAP.spawn) {
+      return { ...spawn, airframe, bank: 0, throttle: START_THROTTLE, speed: START_SPEED, time: 0 };
     }
 
     function initialCamera(flight) {
@@ -821,23 +570,289 @@
       flight.bank += (desiredBank - flight.bank) * (1 - Math.exp(-dt / 0.14));
 
       const bankLoad = (flight.bank / MAX_BANK) ** 2;
-      const targetSpeed = 205 + flight.throttle * 290 - 26 * bankLoad;
+      const targetSpeed = 435 + flight.throttle * 470 - 32 * bankLoad;
       flight.speed += (targetSpeed - flight.speed) * (1 - Math.exp(-dt / 1.35));
-      const turnRate = Math.max(-1.48, Math.min(1.48, 260 * Math.tan(flight.bank) / flight.speed));
+      const turnRate = clamp(420 * Math.tan(flight.bank) / flight.speed, -1.16, 1.16);
       flight.heading = (flight.heading + turnRate * dt + TAU) % TAU;
-      const distance = flight.speed * 0.064 * dt;
+      const distance = flight.speed * FLIGHT_SPEED_SCALE * dt;
       flight.x += Math.sin(flight.heading) * distance;
       flight.z -= Math.cos(flight.heading) * distance;
       flight.time += dt;
+    }
+
+    function clamp(value, lower, upper) {
+      return Math.max(lower, Math.min(upper, value));
+    }
+
+    function bearing(from, to) {
+      return Math.atan2(to.x - from.x, from.z - to.z);
+    }
+
+    function angleDelta(from, to) {
+      return Math.atan2(Math.sin(to - from), Math.cos(to - from));
+    }
+
+    function initialDuel(airframe) {
+      const opponent = initialFlight(1 - airframe, COAST_MAP.opponentSpawn);
+      return {
+        opponent,
+        previousOpponent: { ...opponent },
+        playerRack: { ammo: 2, armed: false, lock: 0, lastLaunch: -Infinity },
+        opponentRack: { ammo: 2, armed: false, lock: 0, lastLaunch: -Infinity },
+        missiles: [],
+        result: null
+      };
+    }
+
+    function updateLock(rack, plane, target, dt) {
+      if (!rack.armed) return;
+      const distance = Math.hypot(target.x - plane.x, target.z - plane.z);
+      const angle = Math.abs(angleDelta(plane.heading, bearing(plane, target)));
+      const angleLimit = rack.lock >= IR_LOCK.time ? IR_LOCK.holdAngle : IR_LOCK.acquireAngle;
+      rack.lock = distance <= IR_LOCK.range && angle <= angleLimit ? Math.min(IR_LOCK.time, rack.lock + dt) : 0;
+    }
+
+    function launchMissile(duel, rack, plane, fromPlayer) {
+      if (!rack.ammo || rack.lock < IR_LOCK.time) return;
+      const x = plane.x + Math.sin(plane.heading) * 8.8;
+      const z = plane.z - Math.cos(plane.heading) * 8.8;
+      duel.missiles.push({
+        fromPlayer, airframe: plane.airframe, heading: plane.heading,
+        x, z, previousX: x, previousZ: z, bornAt: plane.time,
+        speed: plane.speed * FLIGHT_SPEED_SCALE + 22,
+        trail: [{ x, z }], nextTrailAt: plane.time + 0.055
+      });
+      rack.ammo--;
+      rack.armed = false;
+      rack.lock = 0;
+      rack.lastLaunch = plane.time;
+    }
+
+    function missileContact(missile, target, previousTarget) {
+      // Test the swept segment in the moving target's frame.
+      const x = missile.previousX - previousTarget.x;
+      const z = missile.previousZ - previousTarget.z;
+      const dx = missile.x - target.x - x;
+      const dz = missile.z - target.z - z;
+      const along = clamp(-(x * dx + z * dz) / (dx * dx + dz * dz || 1), 0, 1);
+      return (x + dx * along) ** 2 + (z + dz * along) ** 2 <= AIRCRAFT_HIT_RADIUS ** 2;
+    }
+
+    function stepMissiles(duel, flight, previousFlight, dt) {
+      let playerHit = false;
+      let opponentHit = false;
+      for (let index = duel.missiles.length - 1; index >= 0; index--) {
+        const missile = duel.missiles[index];
+        if (flight.time - missile.bornAt >= MISSILE_LIFETIME) {
+          duel.missiles.splice(index, 1);
+          continue;
+        }
+
+        const target = missile.fromPlayer ? duel.opponent : flight;
+        const previousTarget = missile.fromPlayer ? duel.previousOpponent : previousFlight;
+        const weapon = AIRCRAFT[missile.airframe];
+        const turnLimit = weapon.maxOverload * 0.095 * dt; // Arcade turn budget, scaled by the reference G rating.
+        const desired = angleDelta(missile.heading, bearing(missile, target));
+        missile.heading += clamp(desired, -turnLimit, turnLimit);
+        missile.speed = Math.min(weapon.maxMach * MACH_SCALE, missile.speed + 260 * dt);
+        missile.previousX = missile.x;
+        missile.previousZ = missile.z;
+        missile.x += Math.sin(missile.heading) * missile.speed * dt;
+        missile.z -= Math.cos(missile.heading) * missile.speed * dt;
+
+        if (missileContact(missile, target, previousTarget)) {
+          if (missile.fromPlayer) opponentHit = true;
+          else playerHit = true;
+          duel.missiles.splice(index, 1);
+          continue;
+        }
+        if (flight.time >= missile.nextTrailAt) {
+          missile.trail.push({ x: missile.x, z: missile.z });
+          if (missile.trail.length > 15) missile.trail.shift();
+          missile.nextTrailAt = flight.time + 0.055;
+        }
+      }
+      if (playerHit || opponentHit) duel.result = playerHit ? (opponentHit ? 'draw' : 'lost') : 'won';
+    }
+
+    function stepDuel(duel, flight, previousFlight, activate, dt) {
+      const { opponent, opponentRack, playerRack } = duel;
+      Object.assign(duel.previousOpponent, opponent);
+      const activeOpponent = flight.time >= 3.6;
+      const incoming = duel.missiles.some(missile => missile.fromPlayer && Math.hypot(missile.x - opponent.x, missile.z - opponent.z) < 43);
+      const distance = Math.hypot(opponent.x - flight.x, opponent.z - flight.z);
+      const desiredHeading = bearing(opponent, flight) + (distance < 19 ? 0.75 : 0);
+      const turn = activeOpponent ? (incoming ? 1 : clamp(angleDelta(opponent.heading, desiredHeading) * 1.55, -1, 1)) : 0;
+      const throttle = activeOpponent ? clamp((distance > 100 ? 0.68 : 0.53) - opponent.throttle, -1, 1) : 0;
+      stepFlight(opponent, throttle, turn, dt);
+      stepMissiles(duel, flight, previousFlight, dt);
+      if (duel.result) return;
+
+      updateLock(playerRack, flight, opponent, dt);
+      if (activate && playerRack.ammo) {
+        if (playerRack.armed) launchMissile(duel, playerRack, flight, true);
+        else playerRack.armed = true;
+      }
+
+      if (activeOpponent && opponentRack.ammo && flight.time - opponentRack.lastLaunch >= 1.9) {
+        opponentRack.armed = !incoming;
+        if (incoming) opponentRack.lock = 0;
+        updateLock(opponentRack, opponent, flight, dt);
+        launchMissile(duel, opponentRack, opponent, false);
+      }
+      if (!playerRack.ammo && !opponentRack.ammo && !duel.missiles.length) duel.result = 'draw';
     }
 
     function lerp(start, end, fraction) {
       return start + (end - start) * fraction;
     }
 
-    function createRenderer(canvas, mapCanvas, mapBounds) {
+    function interpolateFlight(display, previous, current, fraction) {
+      display.x = lerp(previous.x, current.x, fraction);
+      display.z = lerp(previous.z, current.z, fraction);
+      display.heading = previous.heading + angleDelta(previous.heading, current.heading) * fraction;
+      display.bank = lerp(previous.bank, current.bank, fraction);
+      display.throttle = lerp(previous.throttle, current.throttle, fraction);
+      display.time = lerp(previous.time, current.time, fraction);
+      display.airframe = current.airframe;
+    }
+
+    const JET_ART = [
+      {
+        hull: new Path2D('M 0 -9.2 Q .7 -8.5 1.08 -6.2 L 1.28 -3.8 2.17 -3.38 2.62 -1.74 6.08 2.34 6.00 3.65 1.43 1.96 1.17 4.92 3.54 6.86 3.34 7.86 .92 7.01 .68 8.51 -.68 8.51 -.92 7.01 -3.34 7.86 -3.54 6.86 -1.17 4.92 -1.43 1.96 -6.00 3.65 -6.08 2.34 -2.62 -1.74 -2.17 -3.38 -1.28 -3.8 -1.08 -6.2 Q -.7 -8.5 0 -9.2 Z'),
+        panel: new Path2D('M 1.66 -1.79 5.74 2.60 5.78 3.24 1.41 1.72 Z M -1.66 -1.79 -5.74 2.60 -5.78 3.24 -1.41 1.72 Z M -.69 3.64 .69 3.64 .63 7.74 -.63 7.74 Z'),
+        nose: new Path2D('M 0 -8.98 Q .64 -8.35 1.01 -6.33 Q 0 -5.96 -1.01 -6.33 Q -.64 -8.35 0 -8.98 Z'),
+        intakes: new Path2D('M 1.17 -3.43 1.94 -3.21 1.93 -2.37 1.23 -2.5 Z M -1.17 -3.43 -1.94 -3.21 -1.93 -2.37 -1.23 -2.5 Z'),
+        canopy: new Path2D('M 0 -5.77 Q .62 -5.43 .64 -4.54 L .51 -3.61 Q 0 -3.35 -.51 -3.61 L -.64 -4.54 Q -.62 -5.43 0 -5.77 Z'),
+        seams: new Path2D('M 1.72 -1.61 4.6 1.97 M -1.72 -1.61 -4.6 1.97 M 0 3.74 0 7.35 M -.56 -4.76 .56 -4.76'),
+        base: '#a1b0ae', secondary: '#627c80', exhausts: [0], tail: 8.17
+      },
+      {
+        hull: new Path2D('M 0 -9.6 Q .7 -9.1 1.06 -7.34 L 1.20 -4.24 1.92 -3.73 2.03 -2.56 5.18 .88 6.51 2.82 6.48 4.40 2.14 3.13 1.95 5.52 1.29 5.76 1.01 6.46 3.19 8.39 3.19 9.01 .59 8.86 0 9.48 -.59 8.86 -3.19 9.01 -3.19 8.39 -1.01 6.46 -1.29 5.76 -1.95 5.52 -2.14 3.13 -6.48 4.40 -6.51 2.82 -5.18 .88 -2.03 -2.56 -1.92 -3.73 -1.20 -4.24 -1.06 -7.34 Q -.7 -9.1 0 -9.6 Z'),
+        panel: new Path2D('M -6.24 2.89 -5.16 1.14 -4.96 3.67 -6.22 4.06 Z M 6.24 2.89 5.16 1.14 4.96 3.67 6.22 4.06 Z M -4.84 1.04 -2.03 -2.10 -.49 -.44 -1.7 1.42 -3.53 2.94 -4.83 3.58 Z M .37 1.14 2.24 -.37 4.79 1.53 4.81 3.57 2.09 2.87 1.6 4.65 .37 4.12 Z M -1.58 4.46 1.58 4.46 1.68 5.36 -1.68 5.36 Z'),
+        nose: new Path2D('M 0 -9.34 Q .68 -8.81 1.00 -7.20 L 1.10 -6.06 Q 0 -5.72 -1.10 -6.06 L -1.00 -7.20 Q -.68 -8.81 0 -9.34 Z'),
+        intakes: new Path2D('M 1.24 -3.74 1.89 -3.51 1.98 -2.64 1.25 -2.76 Z M -1.24 -3.74 -1.89 -3.51 -1.98 -2.64 -1.25 -2.76 Z'),
+        canopy: new Path2D('M 0 -5.89 Q .64 -5.61 .69 -4.61 L .64 -2.83 Q 0 -2.40 -.64 -2.83 L -.69 -4.61 Q -.64 -5.61 0 -5.89 Z'),
+        seams: new Path2D('M -5.1 1.15 -4.93 3.68 M 5.1 1.15 4.93 3.68 M -.65 -4.67 .65 -4.67 M -.64 -3.60 .64 -3.60 M -.93 4.6 -.93 5.5 M .93 4.6 .93 5.5'),
+        base: '#9c9a75', secondary: '#687451', exhausts: [-.78, .78], tail: 5.22
+      }
+    ];
+
+    function drawJet(context, plane) {
+      const art = JET_ART[plane.airframe];
+      context.save();
+      context.translate(plane.x, plane.z);
+      context.rotate(plane.heading);
+      context.scale(Math.cos(plane.bank * 0.78), 1);
+      context.save();
+      context.translate(1.1, 1.7);
+      context.fillStyle = 'rgba(5, 18, 23, .25)';
+      context.fill(art.hull);
+      context.restore();
+      context.fillStyle = art.base;
+      context.strokeStyle = '#233237';
+      context.lineWidth = 0.20;
+      context.fill(art.hull);
+      context.stroke(art.hull);
+      context.fillStyle = art.secondary;
+      context.fill(art.panel);
+      context.fillStyle = '#34464a';
+      context.fill(art.nose);
+      context.fill(art.intakes);
+      context.fillStyle = '#315461';
+      context.fill(art.canopy);
+      context.strokeStyle = '#b5c4be';
+      context.lineWidth = 0.13;
+      context.stroke(art.canopy);
+      context.strokeStyle = '#41565a';
+      context.stroke(art.seams);
+      for (const x of art.exhausts) {
+        context.fillStyle = '#26343a';
+        context.fillRect(x - 0.44, art.tail - 0.66, 0.88, 0.96);
+        context.fillStyle = plane.throttle > 0.75 ? '#f2ae70' : '#8d7762';
+        context.fillRect(x - 0.31, art.tail + 0.03, 0.62, plane.throttle > 0.75 ? 0.66 : 0.22);
+      }
+      context.restore();
+    }
+
+    function drawMissile(context, missile, fraction) {
+      const x = lerp(missile.previousX, missile.x, fraction);
+      const z = lerp(missile.previousZ, missile.z, fraction);
+      context.strokeStyle = missile.fromPlayer ? 'rgba(220, 240, 228, .59)' : 'rgba(249, 161, 119, .68)';
+      context.lineWidth = 0.65;
+      context.beginPath();
+      for (const point of missile.trail) context.lineTo(point.x, point.z);
+      context.lineTo(x, z);
+      context.stroke();
+      context.save();
+      context.translate(x, z);
+      context.rotate(missile.heading);
+      context.fillStyle = '#f5efe1';
+      context.fillRect(-0.32, -2.1, 0.64, 3.25);
+      context.fillStyle = missile.fromPlayer ? '#f7d486' : '#ff8b69';
+      context.fillRect(-0.37, 1.15, 0.74, 1.55);
+      context.restore();
+    }
+
+    function drawLock(context, flight, target, rack, scale) {
+      if (!rack.armed) return;
+      const locked = rack.lock >= IR_LOCK.time;
+      context.strokeStyle = locked ? '#abefbc' : '#eddba1';
+      context.lineWidth = Math.max(0.25, 1 / scale);
+      context.save();
+      context.translate(flight.x, flight.z);
+      context.rotate(flight.heading);
+      context.beginPath();
+      context.moveTo(-3.7, -20);
+      context.lineTo(-9.7, -40);
+      context.moveTo(3.7, -20);
+      context.lineTo(9.7, -40);
+      context.stroke();
+      context.restore();
+      if (!rack.lock) return;
+      const size = 12 - 2 * rack.lock / IR_LOCK.time;
+      context.beginPath();
+      context.rect(target.x - size, target.z - size, size * 2, size * 2);
+      context.stroke();
+    }
+
+    function drawDuel(context, width, height, viewWidth, viewHeight, camera, flight, opponent, duel, fraction) {
+      const scaleX = width / viewWidth;
+      const scaleY = height / viewHeight;
+      context.resetTransform();
+      context.clearRect(0, 0, width, height);
+      context.setTransform(scaleX, 0, 0, scaleY, width / 2 - camera.x * scaleX, height / 2 - camera.z * scaleY);
+      context.lineCap = 'round';
+      context.lineJoin = 'round';
+      for (const missile of duel.missiles) drawMissile(context, missile, fraction);
+      for (const [plane, destroyed] of [[opponent, duel.result === 'won'], [flight, duel.result === 'lost']]) {
+        if (destroyed) {
+          context.beginPath();
+          context.arc(plane.x, plane.z, 8, 0, TAU);
+          context.fillStyle = 'rgba(255, 146, 86, .43)';
+          context.fill();
+        } else {
+          drawJet(context, plane);
+        }
+      }
+      if (duel.result) return;
+
+      const enemyLabel = AIRCRAFT[opponent.airframe].name;
+      context.font = `600 ${Math.max(2.45, 11 / scaleY)}px "Segoe UI", "Microsoft YaHei", sans-serif`;
+      context.textAlign = 'center';
+      context.lineWidth = Math.max(0.50, 2 / scaleY);
+      context.strokeStyle = '#192e32';
+      context.fillStyle = '#ffba90';
+      context.strokeText(enemyLabel, opponent.x, opponent.z + 12.8);
+      context.fillText(enemyLabel, opponent.x, opponent.z + 12.8);
+      drawLock(context, flight, opponent, duel.playerRack, scaleY);
+    }
+
+    function createRenderer(canvas, effectsCanvas, mapCanvas, mapBounds) {
       const gl = canvas.getContext('webgl2', { alpha: false, antialias: false, depth: false, stencil: false });
+      const effects = effectsCanvas.getContext('2d');
       if (!gl) throw new Error('WebGL2 is unavailable.');
+      if (!effects) throw new Error('The effects canvas is unavailable.');
 
       function compile(type, source) {
         const shader = gl.createShader(type);
@@ -852,7 +867,7 @@
       }
 
       const vertex = compile(gl.VERTEX_SHADER, VERTEX_SOURCE);
-      const fragmentSource = document.getElementById('flight-fragment').textContent;
+      const fragmentSource = document.getElementById('terrain-fragment').textContent;
 
       function makePass(source) {
         const fragment = compile(gl.FRAGMENT_SHADER, source);
@@ -866,16 +881,12 @@
           program,
           resolution: gl.getUniformLocation(program, 'uResolution'),
           view: gl.getUniformLocation(program, 'uView'),
-          plane: gl.getUniformLocation(program, 'uPlane'),
-          airframe: gl.getUniformLocation(program, 'uAirframe'),
           time: gl.getUniformLocation(program, 'uTime')
         };
       }
 
-      const terrain = makePass(fragmentSource.replace('#version 300 es', '#version 300 es\n#define DRAW_TERRAIN'));
-      const aircraft = makePass(fragmentSource);
+      const terrain = makePass(fragmentSource);
       gl.bindVertexArray(gl.createVertexArray());
-      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
       const terrainBuffer = gl.createFramebuffer();
       const terrainColor = gl.createRenderbuffer();
@@ -944,13 +955,15 @@
         const width = Math.max(canvas.clientWidth, 1);
         const height = Math.max(canvas.clientHeight, 1);
         const aspect = width / height;
-        viewHeight = Math.max(88, 53 / aspect);
+        viewHeight = Math.max(176, 112 / aspect);
         viewWidth = viewHeight * aspect;
         const scale = Math.min(window.devicePixelRatio || 1, 1.25, Math.sqrt(950000 / (width * height)));
         const pixelWidth = Math.max(1, Math.round(width * scale));
         const pixelHeight = Math.max(1, Math.round(height * scale));
         if (canvas.width !== pixelWidth) canvas.width = pixelWidth;
         if (canvas.height !== pixelHeight) canvas.height = pixelHeight;
+        if (effectsCanvas.width !== pixelWidth) effectsCanvas.width = pixelWidth;
+        if (effectsCanvas.height !== pixelHeight) effectsCanvas.height = pixelHeight;
         resizeTerrain();
       }
 
@@ -965,13 +978,11 @@
         gl.viewport(0, 0, width, height);
         gl.uniform2f(pass.resolution, width, height);
         gl.uniform4f(pass.view, camera.x, camera.z, viewWidth, viewHeight);
-        gl.uniform4f(pass.plane, flight.x, flight.z, flight.heading, flight.bank);
-        gl.uniform1i(pass.airframe, flight.airframe);
-        gl.uniform2f(pass.time, flight.time, flight.throttle);
+        gl.uniform1f(pass.time, flight.time);
         gl.drawArrays(gl.TRIANGLES, 0, 3);
       }
 
-      function draw(flight, camera) {
+      function draw(flight, camera, opponent, duel, fraction) {
         const { width, height } = canvas;
         gl.bindFramebuffer(gl.FRAMEBUFFER, terrainBuffer);
         drawPass(terrain, terrainWidth, terrainHeight, flight, camera);
@@ -979,15 +990,7 @@
         gl.blitFramebuffer(0, 0, terrainWidth, terrainHeight, 0, 0, width, height, gl.COLOR_BUFFER_BIT, gl.LINEAR);
         gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
 
-        const centerX = (0.5 + (flight.x - camera.x) / viewWidth) * width;
-        const centerY = (0.5 - (flight.z - camera.z) / viewHeight) * height;
-        const radius = Math.ceil(6.2 * Math.max(width / viewWidth, height / viewHeight));
-        gl.enable(gl.SCISSOR_TEST);
-        gl.scissor(Math.floor(centerX) - radius, Math.floor(centerY) - radius, 2 * radius + 2, 2 * radius + 2);
-        gl.enable(gl.BLEND);
-        drawPass(aircraft, width, height, flight, camera);
-        gl.disable(gl.BLEND);
-        gl.disable(gl.SCISSOR_TEST);
+        drawDuel(effects, width, height, viewWidth, viewHeight, camera, flight, opponent, duel, fraction);
       }
 
       drawMinimapTerrain();
@@ -997,9 +1000,11 @@
     }
 
     const canvas = document.getElementById('scene');
+    const effectsCanvas = document.getElementById('effects');
     const aircraftSelect = document.getElementById('aircraft-select');
     const minimapCanvas = document.getElementById('minimap-terrain');
     const minimapMarker = document.getElementById('minimap-marker');
+    const minimapTarget = document.getElementById('minimap-target');
     const minimapStatus = document.getElementById('minimap-status');
     document.getElementById('minimap-name').textContent = COAST_MAP.name;
     const pauseButton = document.getElementById('pause');
@@ -1013,18 +1018,25 @@
     const throttleOutput = document.getElementById('throttle');
     const throttleTrack = document.getElementById('throttle-track');
     const bankOutput = document.getElementById('bank-angle');
+    const missileName = document.getElementById('missile-name');
+    const ammoOutput = document.getElementById('missile-ammo');
+    const seekerOutput = document.getElementById('seeker-status');
+    const missileFeedback = document.getElementById('missile-feedback');
     const compass = document.getElementById('compass');
     const keycaps = document.querySelectorAll('[data-key]');
     const keys = new Set();
 
     let flight = initialFlight(Number(aircraftSelect.value));
+    let duel = initialDuel(flight.airframe);
     let camera = initialCamera(flight);
     const previousFlight = { ...flight };
     const previousCamera = { ...camera };
     const displayFlight = { ...flight };
+    const displayOpponent = { ...duel.opponent };
     const displayCamera = { ...camera };
     let renderer;
     let paused = false;
+    let seekerRequested = false;
     let request = 0;
     let lastFrame = null;
     let accumulator = 0;
@@ -1041,23 +1053,45 @@
       speedOutput.value = String(Math.round(flight.speed));
       throttleOutput.value = String(Math.round(flight.throttle * 100));
       bankOutput.value = bank === 0 ? '0°' : `${bank < 0 ? '左' : '右'} ${Math.abs(bank)}°`;
+      const { playerRack } = duel;
+      const locked = playerRack.lock >= IR_LOCK.time;
+      missileName.textContent = AIRCRAFT[flight.airframe].missile;
+      ammoOutput.value = `${playerRack.ammo} 枚`;
+      ammoOutput.toggleAttribute('data-empty', playerRack.ammo === 0);
+      seekerOutput.value = locked ? '已锁定' : playerRack.armed ? (playerRack.lock ? '锁定中' : '搜索') : '待机';
+      const incoming = duel.missiles.some(missile => !missile.fromPlayer);
+      let feedback = '';
+      if (incoming) feedback = '来袭导弹';
+      else if (locked) feedback = '空格发射';
+      else if (playerRack.armed) feedback = '机头指向对手';
+      else if (flight.time - playerRack.lastLaunch < 0.65) feedback = '导弹已发射';
+      if (missileFeedback.textContent !== feedback) missileFeedback.textContent = feedback;
+      missileFeedback.toggleAttribute('data-danger', incoming);
       throttleTrack.style.setProperty('--throttle', flight.throttle);
       compass.style.setProperty('--tape-offset', `${-((flight.heading * degrees * 2.4) % 36)}px`);
     }
 
-    function updateMinimap(position) {
+    function placeOnMinimap(marker, worldX, worldZ) {
       const { minX, maxX, minZ, maxZ } = COAST_MAP.bounds;
-      const x = (position.x - minX) / (maxX - minX);
-      const z = (position.z - minZ) / (maxZ - minZ);
-      minimapMarker.style.setProperty('--map-x', `${x * 100}%`);
-      minimapMarker.style.setProperty('--map-z', `${z * 100}%`);
+      const x = (worldX - minX) / (maxX - minX);
+      const z = (worldZ - minZ) / (maxZ - minZ);
+      marker.style.setProperty('--map-x', `${x * 100}%`);
+      marker.style.setProperty('--map-z', `${z * 100}%`);
+      return x >= 0 && x <= 1 && z >= 0 && z <= 1;
+    }
+
+    function updateMinimap(position, opponent) {
+      const inBounds = placeOnMinimap(minimapMarker, position.x, position.z);
       minimapMarker.style.setProperty('--map-heading', `${position.heading}rad`);
-      const status = x < 0 || x > 1 || z < 0 || z > 1 ? '地图外' : '';
+      const status = inBounds ? '' : '地图外';
       if (minimapStatus.textContent !== status) minimapStatus.textContent = status;
+      placeOnMinimap(minimapTarget, opponent.x, opponent.z);
+      minimapTarget.hidden = duel.result === 'won';
     }
 
     function clearKeys() {
       keys.clear();
+      seekerRequested = false;
       for (const keycap of keycaps) keycap.classList.remove('active');
     }
 
@@ -1069,8 +1103,17 @@
       message.hidden = false;
     }
 
+    function showDuelResult() {
+      clearKeys();
+      updateInstruments();
+      resumeButton.textContent = '再来一局';
+      const title = { won: '击毁对手', lost: '本机被击毁', draw: '本轮平局' }[duel.result];
+      showMessage(title, '按 R 重新开始。', true);
+      resumeButton.focus();
+    }
+
     function setPaused(value) {
-      if (!renderer) return;
+      if (!renderer || duel.result) return;
       paused = value;
       clearKeys();
       lastFrame = null;
@@ -1079,9 +1122,11 @@
       if (value) {
         cancelAnimationFrame(request);
         updateInstruments();
-        showMessage('试飞暂停', '', true);
+        resumeButton.textContent = '继续训练';
+        showMessage('训练暂停', '', true);
         resumeButton.focus();
       } else {
+        resumeButton.blur();
         message.hidden = true;
         cancelAnimationFrame(request);
         request = requestAnimationFrame(frame);
@@ -1091,6 +1136,7 @@
     function resetFlight() {
       if (!renderer) return;
       flight = initialFlight(Number(aircraftSelect.value));
+      duel = initialDuel(flight.airframe);
       camera = initialCamera(flight);
       Object.assign(previousFlight, flight);
       Object.assign(previousCamera, camera);
@@ -1101,19 +1147,13 @@
     }
 
     function drawInterpolatedFrame() {
-      const fraction = accumulator / STEP;
-      const headingDelta = (flight.heading - previousFlight.heading + TAU * 1.5) % TAU - Math.PI;
-      displayFlight.airframe = flight.airframe;
-      displayFlight.x = lerp(previousFlight.x, flight.x, fraction);
-      displayFlight.z = lerp(previousFlight.z, flight.z, fraction);
-      displayFlight.heading = previousFlight.heading + headingDelta * fraction;
-      displayFlight.bank = lerp(previousFlight.bank, flight.bank, fraction);
-      displayFlight.throttle = lerp(previousFlight.throttle, flight.throttle, fraction);
-      displayFlight.time = lerp(previousFlight.time, flight.time, fraction);
+      const fraction = duel.result ? 1 : accumulator / STEP;
+      interpolateFlight(displayFlight, previousFlight, flight, fraction);
+      interpolateFlight(displayOpponent, duel.previousOpponent, duel.opponent, fraction);
       displayCamera.x = lerp(previousCamera.x, camera.x, fraction);
       displayCamera.z = lerp(previousCamera.z, camera.z, fraction);
-      renderer.draw(displayFlight, displayCamera);
-      updateMinimap(displayFlight);
+      renderer.draw(displayFlight, displayCamera, displayOpponent, duel, fraction);
+      updateMinimap(displayFlight, displayOpponent);
     }
 
     function frame(now) {
@@ -1128,9 +1168,12 @@
         Object.assign(previousFlight, flight);
         Object.assign(previousCamera, camera);
         stepFlight(flight, throttleInput, turnInput, STEP);
+        stepDuel(duel, flight, previousFlight, seekerRequested, STEP);
+        seekerRequested = false;
         camera.x = lerp(camera.x, flight.x + Math.sin(flight.heading) * LOOK_AHEAD, CAMERA_FOLLOW);
         camera.z = lerp(camera.z, flight.z - Math.cos(flight.heading) * LOOK_AHEAD, CAMERA_FOLLOW);
         accumulator -= STEP;
+        if (duel.result) break;
       }
 
       if (elapsed > 0) {
@@ -1146,6 +1189,10 @@
       }
 
       drawInterpolatedFrame();
+      if (duel.result) {
+        showDuelResult();
+        return;
+      }
       if (now - lastInstrumentsAt >= 50) {
         updateInstruments();
         lastInstrumentsAt = now;
@@ -1155,11 +1202,15 @@
 
     function startRenderer() {
       try {
-        renderer = createRenderer(canvas, minimapCanvas, COAST_MAP.bounds);
+        renderer = createRenderer(canvas, effectsCanvas, minimapCanvas, COAST_MAP.bounds);
+        effectsCanvas.hidden = false;
         aircraftSelect.disabled = false;
         pauseButton.disabled = false;
         resetButton.disabled = false;
-        setPaused(false);
+        if (duel.result) {
+          drawInterpolatedFrame();
+          showDuelResult();
+        } else setPaused(false);
       } catch (error) {
         console.error(error);
         aircraftSelect.disabled = true;
@@ -1172,8 +1223,13 @@
     window.addEventListener('keydown', (event) => {
       if (event.ctrlKey || event.metaKey || event.altKey || event.target === aircraftSelect) return;
       if (FLIGHT_KEYS.has(event.code)) {
+        if (event.code === 'Space' && event.target instanceof HTMLButtonElement && event.target.matches(':focus-visible')) return;
         event.preventDefault();
-        if (!renderer || paused) return;
+        if (!renderer || paused || duel.result) return;
+        if (event.code === 'Space') {
+          if (event.repeat) return;
+          seekerRequested = true;
+        }
         keys.add(event.code);
         document.querySelector(`[data-key="${event.code}"]`).classList.add('active');
       } else if (event.code === 'Escape' && !event.repeat) {
@@ -1198,7 +1254,7 @@
     window.addEventListener('resize', () => {
       if (!renderer) return;
       renderer.resize();
-      if (paused) drawInterpolatedFrame();
+      if (paused || duel.result) drawInterpolatedFrame();
     });
 
     canvas.addEventListener('webglcontextlost', (event) => {
@@ -1206,6 +1262,7 @@
       cancelAnimationFrame(request);
       renderer = null;
       clearKeys();
+      effectsCanvas.hidden = true;
       aircraftSelect.disabled = true;
       pauseButton.disabled = true;
       resetButton.disabled = true;
@@ -1213,7 +1270,10 @@
     });
     canvas.addEventListener('webglcontextrestored', startRenderer);
     pauseButton.addEventListener('click', () => setPaused(!paused));
-    resumeButton.addEventListener('click', () => setPaused(false));
+    resumeButton.addEventListener('click', () => {
+      if (duel.result) resetFlight();
+      else setPaused(false);
+    });
     resetButton.addEventListener('click', resetFlight);
     aircraftSelect.addEventListener('change', () => {
       aircraftSelect.blur();
