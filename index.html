@@ -14,13 +14,17 @@
       --glass: rgb(11 28 34 / 91%);
       --border: rgb(199 227 219 / 25%);
       --gutter: clamp(14px, 2.6vw, 40px);
+      --hud-top: clamp(120px, 32vh, 340px);
+      --hud-bottom: clamp(10px, 3.2vh, 28px);
+      --hud-panel-width: clamp(132px, 17.5vw, 208px);
+      --hud-numerals: "Cascadia Mono", Consolas, monospace;
       font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
     }
 
     *, *::before, *::after { box-sizing: border-box; }
     body { margin: 0; overflow: hidden; color: var(--ink); background: #123943; }
     button, select { font: inherit; }
-    button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+    button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
     button:disabled, select:disabled { opacity: .55; }
 
     .game, .scene, .vignette, .effects { position: fixed; inset: 0; width: 100%; height: 100%; }
@@ -44,6 +48,7 @@
       box-shadow: 0 0 3px #102529;
       content: "";
     }
+    .missile-view[data-impact]::before { display: none; }
     .missile-view span {
       position: absolute;
       bottom: 20px;
@@ -61,7 +66,7 @@
         radial-gradient(ellipse at 52% 52%, transparent 53%, rgb(4 15 23 / 23%));
     }
 
-    .topbar, .bottom-bar {
+    .topbar, .cockpit {
       position: absolute;
       left: var(--gutter);
       right: var(--gutter);
@@ -71,10 +76,19 @@
       align-items: start;
       pointer-events: none;
     }
-    .topbar { top: clamp(14px, 3vh, 28px); }
-    .bottom-bar { bottom: clamp(14px, 3.4vh, 33px); gap: 10px; align-items: end; }
+    .topbar { z-index: 1; top: clamp(14px, 3vh, 28px); }
+    .cockpit {
+      top: var(--hud-top);
+      bottom: var(--hud-bottom);
+      grid-template-columns: var(--hud-panel-width) minmax(0, 1fr) var(--hud-panel-width);
+      grid-template-rows: minmax(0, 1fr) auto;
+      grid-template-areas: "rwr . radar" "flight stores map";
+      gap: 12px;
+      align-items: end;
+    }
 
-    .identity { display: grid; gap: 7px; justify-items: start; }
+    .identity { position: relative; display: grid; gap: 7px; justify-items: start; }
+    .identity-actions { display: flex; align-items: center; gap: 6px; }
     .identity h1 {
       margin: 0;
       font-size: clamp(19px, 2vw, 28px);
@@ -97,25 +111,32 @@
       cursor: pointer;
     }
 
-    .compass { position: relative; display: grid; justify-items: center; gap: 5px; min-width: 145px; }
+    .compass { position: relative; display: grid; justify-items: center; gap: 4px; min-width: 0; }
     .compass-scale {
       position: relative;
-      width: clamp(124px, 17vw, 235px);
-      height: 14px;
-      background-image:
-        repeating-linear-gradient(90deg, rgb(232 246 236 / 62%) 0 1px, transparent 1px 12px),
-        repeating-linear-gradient(90deg, #e8f6ec 0 1px, transparent 1px 36px);
-      background-position: var(--tape-offset, 0) 0;
-      background-size: auto 6px, auto 11px;
-      background-repeat: no-repeat;
-      mask-image: linear-gradient(90deg, transparent, black 20% 80%, transparent);
+      width: clamp(154px, 23vw, 305px);
+      height: 23px;
+      overflow: hidden;
+      mask-image: linear-gradient(90deg, transparent, black 11% 89%, transparent);
     }
+    .compass-mark {
+      position: absolute;
+      top: 0;
+      left: var(--mark-x);
+      padding-top: 9px;
+      transform: translateX(-50%);
+      color: #dbf0e9;
+      font: 600 .65rem var(--hud-numerals);
+      text-shadow: 0 1px 4px #072628;
+    }
+    .compass-mark::before { position: absolute; inset: 0 auto auto calc(50% - .5px); width: 1px; height: 7px; background: #a5d8c9; content: ""; }
+    .compass-mark:empty::before { height: 4px; opacity: .64; }
     .compass-scale::after {
       position: absolute;
       top: 0;
       left: calc(50% - 1px);
       width: 2px;
-      height: 14px;
+      height: 8px;
       content: "";
       background: var(--accent);
     }
@@ -125,9 +146,12 @@
       align-items: baseline;
       color: var(--muted);
       font-size: .875rem;
-      text-shadow: 0 1px 5px #0b2228;
+      padding: 3px 9px;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      background: var(--glass);
     }
-    .compass-reading output { color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+    .compass-reading output { color: #cbf4e7; font: 700 .98rem var(--hud-numerals); }
     .team-counts {
       display: flex;
       gap: 12px;
@@ -141,7 +165,6 @@
     }
     .team-uk { color: #a6e3e6; }
     .team-france { color: #ffba90; }
-    .battle-distance { color: #dfebe6; font-size: .75rem; text-shadow: 0 1px 5px #0b2228; }
     .missile-feedback {
       position: absolute;
       top: calc(100% + 7px);
@@ -212,114 +235,212 @@
     .debug-totals { display: grid; gap: 4px; padding-top: 8px; border-top: 1px solid var(--border); }
     .flight-debug .button { min-height: 30px; margin-top: 9px; font-size: .75rem; }
     .telemetry {
-      display: grid;
-      grid-template-columns: auto auto;
-      gap: 9px clamp(12px, 2.1vw, 24px);
-      justify-self: start;
-      padding: 10px clamp(9px, 1.5vw, 15px) 8px;
+      grid-area: flight;
+      padding: 9px 10px;
+      color: var(--ink);
     }
-    .gauge { display: grid; align-content: start; gap: 5px; }
-    .gauge-title { display: flex; align-items: baseline; justify-content: space-between; gap: 5px; }
-    .gauge-label { color: var(--muted); font-size: .75rem; }
-    .throttle-mode { color: var(--accent); font-size: .75rem; font-weight: 650; white-space: nowrap; }
-    .throttle-mode[data-afterburner] { color: #ffab70; }
-    .throttle-mode[data-airbrake] { color: #a6e3e6; }
-    .reading {
+    .hud-panel { border-color: rgb(146 206 197 / 38%); border-radius: 6px; background: rgb(7 26 32 / 93%); }
+    .hud-heading {
       display: flex;
       align-items: baseline;
-      gap: 4px;
+      justify-content: space-between;
+      gap: 6px;
+      margin: 0;
+      color: #bde0d7;
+      font-size: .75rem;
+      font-weight: 650;
       white-space: nowrap;
-      line-height: 1;
     }
-    .reading output { font-size: clamp(1.25rem, 2.65vw, 1.875rem); font-weight: 650; font-variant-numeric: tabular-nums; }
-    .reading span { font-size: .75rem; color: var(--muted); }
+    .hud-heading output { font-weight: 550; }
+    .flight-gauges {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: stretch;
+      margin-top: 5px;
+    }
+    .speed-gauge { position: relative; display: grid; align-self: center; justify-self: center; width: 100%; max-width: 144px; }
+    .speed-gauge canvas { display: block; width: 100%; height: auto; }
+    .speed-reading {
+      position: absolute;
+      top: 54%;
+      left: 50%;
+      display: grid;
+      justify-items: center;
+      gap: 3px;
+      transform: translate(-50%, -50%);
+      color: #c6f1e4;
+      line-height: 1;
+      white-space: nowrap;
+    }
+    .speed-reading output {
+      font: 700 clamp(1rem, 2.2vw, 1.8rem)/1 var(--hud-numerals);
+      font-variant-numeric: tabular-nums;
+    }
+    .speed-reading span, .throttle-gauge label { color: var(--muted); font-size: .625rem; }
+    .airbrake-indicator {
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      padding: 1px 4px;
+      border: 1px solid rgb(166 227 230 / 42%);
+      border-radius: 3px;
+      transform: translateX(-50%);
+      color: #a6e3e6;
+      background: #081f25;
+      white-space: nowrap;
+      font-size: .625rem;
+      line-height: 1.05;
+    }
+    .throttle-gauge {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      justify-items: center;
+      align-items: center;
+      gap: 7px;
+      min-width: 29px;
+      margin-block: 3px 5px;
+    }
     .throttle-track {
       position: relative;
-      height: 4px;
-      margin-top: 2px;
-      overflow: hidden;
-      border-radius: 2px;
-      background: rgb(202 231 226 / 22%);
+      width: 19px;
+      height: 100%;
+      min-height: 25px;
+      color: #a9e3cf;
+      background: repeating-linear-gradient(to bottom, rgb(151 220 207 / 42%) 0 1px, transparent 1px 25%);
+    }
+    .throttle-track::before {
+      position: absolute;
+      inset: -3px 7px;
+      border: 1px solid #41615f;
+      border-radius: 3px;
+      background: #041519;
+      content: "";
     }
     .throttle-track::after {
       position: absolute;
-      inset: 0;
+      top: calc((1 - var(--throttle, .55)) * 100%);
+      left: 50%;
+      width: 16px;
+      height: 7px;
+      border: 1px solid currentColor;
+      border-radius: 2px;
+      background: linear-gradient(to bottom, currentColor 0 2px, #162f36 2px 4px, currentColor 4px);
+      transform: translate(-50%, -50%);
       content: "";
-      background: var(--accent);
-      transform: scaleX(var(--throttle, .55));
-      transform-origin: left;
     }
-    .throttle-track[data-afterburner]::after { background: #ffab70; }
-    .telemetry-row {
-      grid-column: 1 / -1;
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      gap: 10px;
-      padding-top: 5px;
+    .throttle-track[data-afterburner] { color: #ffab70; }
+    .throttle-track[data-airbrake] { color: #a6e3e6; }
+    .throttle-reading { white-space: nowrap; font: 700 .75rem var(--hud-numerals); }
+    .throttle-reading span { color: var(--muted); font-size: .625rem; }
+    .throttle-mode { color: var(--accent); font-size: .6875rem; white-space: nowrap; }
+    .throttle-mode[data-afterburner] { color: #ffab70; }
+    .flight-meta, .countermeasures {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      padding-top: 6px;
       border-top: 1px solid var(--border);
     }
-    .telemetry-row output { font-size: .8125rem; font-weight: 650; font-variant-numeric: tabular-nums; }
-    .telemetry-row output[data-empty] { color: var(--accent); }
+    .flight-meta { margin-top: 4px; }
+    .countermeasures { margin-top: 6px; }
+    .flight-stat { display: grid; gap: 3px; align-content: start; min-width: 0; }
+    .flight-stat label { color: var(--muted); white-space: nowrap; font-size: .625rem; }
+    .flight-stat output { font: 650 .75rem/1.1 var(--hud-numerals); }
+    .flight-meta output { white-space: nowrap; }
+    .flight-meta output[data-strained] { color: #ffab70; }
+    .flight-stat output[data-empty] { color: #ffad84; }
+    .countermeasures kbd {
+      margin-left: 2px;
+      min-width: 12px;
+      height: 14px;
+      border-radius: 2px;
+      color: #b6d3cb;
+      font-size: .625rem;
+    }
 
-    .controls {
-      display: flex;
-      flex-wrap: wrap;
+    .loadout {
+      grid-area: stores;
+      justify-self: center;
+      width: min(100%, 414px);
+      min-width: 0;
+      padding: 8px 10px 9px;
+    }
+    .loadout .hud-heading output { color: var(--muted); }
+    .loadout .hud-heading output[data-locked] { color: var(--accent); }
+    .weapon-racks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-top: 6px; }
+    .weapon-rack {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 4px 7px;
       align-items: center;
-      justify-content: center;
-      gap: clamp(8px, 1.5vw, 18px);
-      padding: 9px 12px;
+      padding: 5px 7px;
+      border: 1px solid rgb(150 204 193 / 24%);
+      border-radius: 3px;
+      background: rgb(10 36 41 / 77%);
+      color: #b4cbc8;
+    }
+    .weapon-rack[data-selected] {
+      border-color: #a6e2cd;
+      color: #d4f5e6;
+      background: rgb(30 70 68 / 75%);
+    }
+    .weapon-rack[data-empty] { color: #a6b4b0; }
+    .weapon-class { justify-self: end; font-size: .625rem; color: var(--muted); white-space: nowrap; }
+    .weapon-name { font: 650 clamp(.7rem, 1.2vw, .9rem) var(--hud-numerals); white-space: nowrap; }
+    .weapon-slots { display: flex; align-items: center; gap: 4px; height: 17px; }
+    .weapon-slot {
+      width: 9px;
+      height: 16px;
+      clip-path: polygon(50% 0, 67% 20%, 67% 58%, 96% 83%, 96% 92%, 67% 86%, 67% 100%, 33% 100%, 33% 86%, 4% 92%, 4% 83%, 33% 58%, 33% 20%);
+      background: currentColor;
+      opacity: .20;
+    }
+    .weapon-slot[data-loaded] { opacity: 1; }
+    .weapon-ammo { justify-self: end; font: 700 .9rem var(--hud-numerals); }
+
+    .control-help { pointer-events: auto; }
+    .control-help summary { min-height: 31px; padding-inline: 8px; font-size: .75rem; list-style: none; }
+    .control-help summary::-webkit-details-marker { display: none; }
+    .control-help[open] summary { border-color: var(--accent); color: var(--accent); }
+    .controls {
+      position: absolute;
+      z-index: 1;
+      top: calc(100% + 8px);
+      left: 0;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 9px;
+      width: min(310px, calc(100vw - 2 * var(--gutter)));
+      max-height: calc(100dvh - 100px);
+      padding: 12px;
+      overflow: auto;
       white-space: nowrap;
     }
-    .control-group { display: flex; align-items: center; gap: 4px; }
-    .control-group span { margin-left: 3px; color: var(--muted); font-size: .875rem; }
+    .control-group { display: flex; align-items: center; gap: 3px; }
+    .control-group span { margin-left: 3px; color: var(--muted); font-size: .75rem; }
     kbd {
       display: inline-grid;
-      min-width: 21px;
-      height: 22px;
+      min-width: 20px;
+      height: 21px;
       place-items: center;
       border: 1px solid var(--border);
       border-radius: 4px;
       color: var(--ink);
       background: rgb(210 236 228 / 8%);
-      font-family: inherit;
-      font-size: .8125rem;
-      font-weight: 650;
+      font: 650 .75rem var(--hud-numerals);
     }
     kbd.active { color: #152526; border-color: var(--accent); background: var(--accent); }
     kbd[data-key="Space"], .mouse-key { padding-inline: 5px; }
 
-    .sensor-panels {
-      position: absolute;
-      inset: clamp(87px, 16vh, 135px) var(--gutter) auto;
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      pointer-events: none;
-    }
-    .sensor-panel { width: clamp(108px, 17vw, 190px); padding: 6px 8px; }
-    .sensor-panel header { display: flex; justify-content: space-between; align-items: baseline; gap: 4px; font-size: .75rem; }
-    .sensor-panel header output { color: #addec0; white-space: nowrap; }
-    .sensor-panel header output[data-alert] { color: #ff9e7f; }
-    .sensor-panel canvas { display: block; width: 100%; height: auto; margin-top: 5px; }
-    .sensor-panel footer { color: var(--muted); text-align: right; font-size: .6875rem; }
-    @media (max-height: 650px) {
-      .telemetry { row-gap: 5px; padding-block: 7px; }
-      .telemetry-row { padding-top: 3px; }
-      .telemetry-secondary { display: none; }
-    }
-    @media (max-height: 540px) { .sensor-panel { width: 103px; } }
-    @media (max-width: 640px) {
-      .sensor-panels { top: 150px; }
-      .sensor-panel { padding: 4px 7px; }
-      .sensor-panel canvas { max-height: 49px; margin-top: 4px; object-fit: contain; }
-    }
-    @media (max-width: 640px) and (max-height: 460px) {
-      .sensor-panels { top: clamp(96px, calc(100vh - 274px), 150px); }
-      .sensor-panel canvas { max-height: 43px; }
-    }
-
-    .minimap { width: clamp(116px, 19vw, 210px); justify-self: end; }
+    .sensor-panel { align-self: start; min-width: 0; padding: 7px 8px; }
+    .rwr-panel { grid-area: rwr; }
+    .radar-panel { grid-area: radar; }
+    .sensor-panel .hud-heading output { color: #b0e9cc; font-size: .6875rem; }
+    .sensor-panel .hud-heading output[data-alert] { color: #ff9e7f; }
+    .sensor-panel canvas { display: block; width: 100%; height: auto; margin-top: 5px; object-fit: contain; }
+    .sensor-panel footer { color: var(--muted); text-align: right; white-space: nowrap; font: .65rem var(--hud-numerals); }
+    .minimap { grid-area: map; width: 100%; justify-self: end; }
     .minimap-header {
       display: flex;
       justify-content: space-between;
@@ -333,6 +454,15 @@
     .minimap-status { color: var(--accent); }
     .minimap-view { position: relative; border-top: 1px solid var(--border); background: #163639; }
     .minimap-terrain { display: block; width: 100%; height: auto; }
+    .minimap-grid {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(to right, rgb(199 232 222 / 38%) 1px, transparent 1px),
+        linear-gradient(to bottom, rgb(199 232 222 / 38%) 1px, transparent 1px);
+      background-size: calc(100% / 6) calc(100% / 6);
+      pointer-events: none;
+    }
     .minimap-marker, .minimap-target {
       position: absolute;
       left: clamp(10px, var(--map-x, 50%), calc(100% - 10px));
@@ -364,6 +494,7 @@
       color: #eff4df;
       font-size: .75rem;
       font-weight: 650;
+      white-space: nowrap;
       text-shadow: 0 1px 4px #101e18;
       transform: translate(-50%, -50%);
     }
@@ -411,29 +542,86 @@
     .message-panel .button { margin-top: 18px; padding-inline: 16px; color: #1a2322; background: var(--accent); }
     .message-panel .button[hidden] { display: none; }
 
+    @media (max-height: 560px) {
+      :root { --hud-top: clamp(88px, 28vh, 152px); }
+      .telemetry { padding-block: 6px; }
+      .speed-gauge { width: min(100%, 107px); justify-self: center; }
+      .sensor-panel canvas { max-height: 20vh; }
+      .minimap { width: min(100%, 27vh); }
+      .flight-meta, .countermeasures { padding-top: 4px; margin-top: 4px; }
+    }
+    @media (max-height: 445px) {
+      :root { --hud-top: 91px; --hud-panel-width: clamp(105px, 16.5vw, 160px); }
+      .cockpit { row-gap: 6px; }
+      .sensor-panel { padding-block: 4px; }
+      .sensor-panel canvas { max-height: 17vh; }
+      .speed-gauge { width: min(100%, 78px); }
+      .flight-stat { gap: 1px; }
+      .flight-stat output { font-size: .7rem; }
+    }
     @media (max-width: 700px) {
       .topbar { grid-template-columns: 1fr auto; gap: 12px; }
       .identity { grid-area: 1 / 1; }
+      .identity h1 { font-size: clamp(13px, 3.6vw, 18px); letter-spacing: .08em; }
       .actions { grid-area: 1 / 2; }
-      .compass { grid-column: 1 / -1; justify-self: center; }
-    }
-    @media (max-width: 640px) {
-      .compass { grid-area: 2 / 1; min-width: 0; justify-self: start; }
-      .bottom-bar { grid-template-columns: 1fr auto; }
-      .telemetry { grid-area: 1 / 1; }
-      .minimap { grid-area: 1 / 2; }
-      .controls { grid-area: 2 / 1 / 3 / -1; justify-self: center; padding: 6px 8px; }
-      .control-group { gap: 3px; }
-      .control-group span { margin-left: 2px; font-size: .75rem; }
-      .controls kbd { min-width: 18px; height: 21px; font-size: .75rem; }
-    }
-    @media (max-width: 640px) and (max-height: 420px) {
-      .controls { display: none; }
-    }
-    @media (max-width: 380px) {
-      .identity h1 { font-size: clamp(16px, 5vw, 19px); letter-spacing: .055em; }
       .actions .button { padding-inline: 8px; }
       .actions .icon { display: none; }
+      .compass { grid-area: 2 / 1 / 3 / -1; justify-self: center; }
+      .compass-scale { width: 168px; }
+      .cockpit {
+        grid-template-rows: minmax(0, 1fr) auto auto;
+        grid-template-areas: "rwr . radar" "flight . map" "stores stores stores";
+        column-gap: 6px;
+        row-gap: 8px;
+      }
+      :root { --hud-panel-width: clamp(112px, 26vw, 166px); --hud-top: max(165px, 31vh); }
+    }
+    @media (max-width: 700px) and (max-height: 560px) {
+      :root { --hud-top: 148px; --hud-panel-width: clamp(104px, 23vw, 146px); }
+      .sensor-panel canvas { max-height: 17vh; }
+    }
+    @media (min-width: 481px) and (max-width: 700px) and (max-height: 505px) {
+      :root { --hud-top: 91px; --hud-panel-width: clamp(96px, 18vw, 136px); }
+      .topbar { grid-template-columns: 1fr auto 1fr; }
+      .compass { grid-area: 1 / 2; }
+      .compass-scale { width: min(168px, 26vw); }
+      .actions { grid-area: 1 / 3; }
+      .cockpit {
+        grid-template-rows: minmax(0, 1fr) auto;
+        grid-template-areas: "rwr . radar" "flight stores map";
+      }
+    }
+    @media (max-width: 480px) {
+      .telemetry { padding-inline: 7px; }
+      .flight-gauges { gap: 4px; }
+      .flight-meta { gap: 4px; }
+      .flight-stat output { font-size: .6875rem; }
+    }
+    @media (max-width: 480px) and (max-height: 620px) {
+      :root { --hud-top: 166px; }
+      .compass { gap: 3px; }
+      .compass-scale { height: 20px; }
+      .sensor-panel canvas { max-height: 13vh; }
+      .speed-gauge { width: min(100%, 74px); }
+      .flight-meta { display: block; margin-top: 2px; padding-top: 2px; }
+      .flight-meta .flight-stat { display: flex; justify-content: space-between; align-items: baseline; }
+      .flight-meta .bank-stat { display: none; }
+    }
+    @media (max-width: 480px) and (max-height: 500px) {
+      .cockpit { row-gap: 5px; }
+      .sensor-panel { padding: 4px 6px; }
+      .sensor-panel canvas { max-height: 10vh; margin-top: 3px; }
+      .loadout { padding-block: 4px; }
+      .weapon-rack { padding-block: 3px; }
+      .weapon-slots, .weapon-slot { height: 13px; }
+      .telemetry { padding: 4px 7px; }
+      .speed-gauge { width: min(100%, 57px); }
+      .throttle-gauge { gap: 4px; margin-block: 2px; }
+      .throttle-track { min-height: 16px; }
+      .flight-gauges { margin-top: 0; }
+      .countermeasures { padding-top: 3px; margin-top: 3px; }
+      .minimap { width: min(100%, 18vh); }
+      .minimap-header, .minimap-footer { padding: 3px 4px; font-size: .625rem; }
     }
   </style>
 </head>
@@ -447,19 +635,37 @@
     <header class="topbar">
       <div class="identity">
         <h1>TERROR OF SKY</h1>
-        <select class="aircraft-select" id="aircraft-select" aria-label="对战机型" disabled>
-          <option value="0">F-15A</option>
-          <option value="1">Su-27</option>
-        </select>
+        <div class="identity-actions">
+          <select class="aircraft-select" id="aircraft-select" aria-label="对战机型" disabled>
+            <option value="0">F-15A</option>
+            <option value="1">Su-27</option>
+          </select>
+          <details class="control-help">
+            <summary class="button">按键</summary>
+            <div class="instrument controls" aria-label="飞行、武器与视角按键">
+              <div class="control-group"><kbd data-key="KeyW">W</kbd><kbd data-key="KeyS">S</kbd><span>油门</span></div>
+              <div class="control-group"><kbd data-key="KeyB">B</kbd><span>开关减速板</span></div>
+              <div class="control-group"><kbd data-key="KeyA">A</kbd><kbd data-key="KeyD">D</kbd><span>转向</span></div>
+              <div class="control-group"><kbd data-key="Space">空格</kbd><span>引导 / 发射</span></div>
+              <div class="control-group"><kbd data-key="KeyQ">Q</kbd><span>切弹</span></div>
+              <div class="control-group"><kbd data-key="KeyY">Y</kbd><span>选目标</span></div>
+              <div class="control-group"><kbd data-key="KeyT">T</kbd><span>锁定 / 脱锁</span></div>
+              <div class="control-group"><kbd data-key="KeyG">G</kbd><span>雷达模式</span></div>
+              <div class="control-group"><kbd data-key="KeyX">X</kbd><span>热诱弹</span></div>
+              <div class="control-group"><kbd data-key="KeyC">C</kbd><span>干扰箔</span></div>
+              <div class="control-group"><kbd data-key="KeyU">U</kbd><span>按住跟弹</span></div>
+              <div class="control-group"><kbd class="mouse-key">右键</kbd><span>看向鼠标</span></div>
+            </div>
+          </details>
+        </div>
       </div>
       <div class="compass" id="compass">
-        <div class="compass-scale" aria-hidden="true"></div>
+        <div class="compass-scale" id="compass-scale" aria-hidden="true"></div>
         <div class="compass-reading">航向 <output id="heading" aria-live="off">000°</output></div>
         <div class="team-counts" role="group" aria-label="两侧剩余飞机">
           <span class="team-uk">英国侧 <output id="uk-remaining">4</output></span>
           <span class="team-france">法国侧 <output id="france-remaining">4</output></span>
         </div>
-        <span class="battle-distance" id="battle-distance"></span>
         <span class="missile-feedback" id="missile-feedback" role="status"></span>
       </div>
       <div class="actions">
@@ -496,79 +702,71 @@
       </div>
     </header>
 
-    <div class="sensor-panels">
-      <section class="instrument sensor-panel" aria-label="雷达告警接收机">
-        <header><span>RWR</span><output id="rwr-status" aria-live="off">静默</output></header>
-        <canvas id="rwr-scope" width="210" height="164" aria-label="雷达告警方位，机头朝上" role="img"></canvas>
+    <div class="cockpit">
+      <section class="instrument hud-panel sensor-panel rwr-panel" aria-label="雷达告警接收机">
+        <header class="hud-heading"><span>RWR</span><output id="rwr-status" aria-live="off">静默</output></header>
+        <canvas id="rwr-scope" width="240" height="160" aria-label="雷达告警方位，机头朝上" role="img"></canvas>
       </section>
-      <section class="instrument sensor-panel" aria-label="机载雷达">
-        <header><span>雷达</span><output id="radar-status" aria-live="off">搜索</output></header>
-        <canvas id="radar-scope" width="300" height="170" aria-label="横向为相对机头的方位，纵向为距离" role="img"></canvas>
+      <section class="instrument hud-panel sensor-panel radar-panel" aria-label="机载雷达">
+        <header class="hud-heading"><span>雷达</span><output id="radar-status" aria-live="off">搜索</output></header>
+        <canvas id="radar-scope" width="320" height="205" aria-label="方位角和距离雷达，横轴为相对机头的角度，纵轴为公里" role="img"></canvas>
         <footer id="radar-range"></footer>
       </section>
-    </div>
 
-    <footer class="bottom-bar">
-      <div class="instrument telemetry" aria-label="飞行仪表">
-        <div class="gauge">
-          <label class="gauge-label" for="speed">真空速</label>
-          <div class="reading"><output id="speed" aria-live="off">695</output><span>km/h</span></div>
-        </div>
-        <div class="gauge">
-          <div class="gauge-title">
-            <label class="gauge-label" for="throttle">油门</label>
-            <output class="throttle-mode" id="throttle-mode" hidden></output>
+      <section class="instrument hud-panel telemetry" aria-label="飞机状态">
+        <header class="hud-heading"><span>飞机状态</span><output class="throttle-mode" id="throttle-mode" hidden></output></header>
+        <div class="flight-gauges">
+          <div class="speed-gauge">
+            <canvas id="speed-dial" width="200" height="200" aria-hidden="true"></canvas>
+            <div class="speed-reading"><output id="speed" aria-label="真空速，千米每小时" aria-live="off">695</output><span>km/h</span></div>
+            <output class="airbrake-indicator" id="airbrake-status" aria-label="减速板已开启" aria-live="off" hidden>减速板</output>
           </div>
-          <div class="reading"><output id="throttle" aria-live="off">55</output><span>%</span></div>
-          <div class="throttle-track" id="throttle-track" aria-hidden="true"></div>
+          <div class="throttle-gauge">
+            <label for="throttle">油门</label>
+            <div class="throttle-track" id="throttle-track" aria-hidden="true"></div>
+            <div class="throttle-reading"><output id="throttle" aria-live="off">55</output><span>%</span></div>
+          </div>
         </div>
-        <div class="telemetry-row telemetry-secondary">
-          <label class="gauge-label" for="altitude">高度</label><output id="altitude" aria-live="off">3,000 m</output>
+        <div class="flight-meta">
+          <div class="flight-stat"><label id="load-factor-label" for="load-factor">过载</label><output id="load-factor" aria-live="off">1.0 G</output></div>
+          <div class="flight-stat bank-stat"><label for="bank-angle">侧滚</label><output id="bank-angle" aria-live="off">0°</output></div>
         </div>
-        <div class="telemetry-row telemetry-secondary">
-          <label class="gauge-label" for="bank-angle">侧滚</label><output id="bank-angle" aria-live="off">0°</output>
+        <div class="countermeasures" role="group" aria-label="反制措施余量">
+          <div class="flight-stat"><label for="flare-ammo">热诱弹 <kbd>X</kbd></label><output id="flare-ammo" aria-live="off">6 枚</output></div>
+          <div class="flight-stat"><label for="chaff-ammo">干扰箔 <kbd>C</kbd></label><output id="chaff-ammo" aria-live="off">6 组</output></div>
         </div>
-        <div class="telemetry-row">
-          <label class="gauge-label" id="missile-name" for="missile-ammo">AIM-9M</label><output id="missile-ammo" aria-live="off">2 枚</output>
+      </section>
+
+      <section class="instrument hud-panel loadout" aria-label="武器挂载">
+        <header class="hud-heading"><span>挂载</span><output id="seeker-status" aria-live="off">红外 · 待机</output></header>
+        <div class="weapon-racks">
+          <div class="weapon-rack" data-weapon="ir" data-selected>
+            <span id="ir-weapon-name" class="weapon-name">AIM-9M</span><span class="weapon-class">红外</span>
+            <div class="weapon-slots" aria-hidden="true"></div><output class="weapon-ammo" aria-labelledby="ir-weapon-name" aria-live="off">02</output>
+          </div>
+          <div class="weapon-rack" data-weapon="sarh">
+            <span id="sarh-weapon-name" class="weapon-name">AIM-7M</span><span class="weapon-class">半主动雷达</span>
+            <div class="weapon-slots" aria-hidden="true"></div><output class="weapon-ammo" aria-labelledby="sarh-weapon-name" aria-live="off">02</output>
+          </div>
         </div>
-        <div class="telemetry-row">
-          <label class="gauge-label" id="seeker-label" for="seeker-status">红外引导</label><output id="seeker-status" aria-live="off">待机</output>
-        </div>
-        <div class="telemetry-row">
-          <label class="gauge-label" for="flare-ammo">热诱弹</label><output id="flare-ammo" aria-live="off">6 枚</output>
-        </div>
-        <div class="telemetry-row">
-          <label class="gauge-label" for="chaff-ammo">干扰箔</label><output id="chaff-ammo" aria-live="off">6 组</output>
-        </div>
-      </div>
-      <div class="instrument controls" aria-label="飞行、武器与视角按键">
-        <div class="control-group"><kbd data-key="KeyW">W</kbd><kbd data-key="KeyS">S</kbd><span>油门</span></div>
-        <div class="control-group"><kbd data-key="KeyA">A</kbd><kbd data-key="KeyD">D</kbd><span>转向</span></div>
-        <div class="control-group"><kbd data-key="Space">空格</kbd><span>引导 / 发射</span></div>
-        <div class="control-group"><kbd data-key="KeyQ">Q</kbd><span>切弹</span></div>
-        <div class="control-group"><kbd data-key="KeyY">Y</kbd><span>选目标</span></div>
-        <div class="control-group"><kbd data-key="KeyT">T</kbd><span>锁定 / 脱锁</span></div>
-        <div class="control-group"><kbd data-key="KeyG">G</kbd><span>雷达模式</span></div>
-        <div class="control-group"><kbd data-key="KeyX">X</kbd><span>热诱弹</span></div>
-        <div class="control-group"><kbd data-key="KeyC">C</kbd><span>干扰箔</span></div>
-        <div class="control-group"><kbd data-key="KeyU">U</kbd><span>按住跟弹</span></div>
-        <div class="control-group"><kbd class="mouse-key">右键</kbd><span>看向鼠标</span></div>
-      </div>
-      <div class="instrument minimap" role="group" aria-label="多佛海峡北向小地图，黄色箭头为本机，青色为队友，橙色为对手">
+      </section>
+
+      <div class="instrument hud-panel minimap" role="group" aria-label="多佛海峡北向小地图，黄色箭头为本机，青色为队友，橙色为对手">
         <div class="minimap-header">
           <span id="minimap-name">多佛白崖</span>
           <span class="minimap-status" id="minimap-status" role="status"></span>
           <span class="minimap-north" aria-hidden="true">↑ N</span>
         </div>
         <div class="minimap-view" aria-hidden="true">
-          <canvas class="minimap-terrain" id="minimap-terrain" width="384" height="288"></canvas>
+          <canvas class="minimap-terrain" id="minimap-terrain" width="384" height="384"></canvas>
+          <div class="minimap-grid"></div>
           <span class="minimap-region kent">英国</span>
           <span class="minimap-region france">法国</span>
           <div id="minimap-traffic"></div>
           <span class="minimap-marker" id="minimap-marker"></span>
         </div>
         <div class="minimap-footer">
-          <span>60 × 60 km</span>
+          <span title="全图 60 × 60 km">10 km / 格</span>
           <details class="map-credit">
             <summary>数据</summary>
             <div class="instrument map-credit-note">
@@ -579,7 +777,7 @@
           </details>
         </div>
       </div>
-    </footer>
+    </div>
 
     <div class="message-overlay" id="message" hidden>
       <section class="instrument message-panel" role="dialog" aria-labelledby="message-title" aria-describedby="message-detail">
@@ -4269,6 +4467,10 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
 
     const TAU = Math.PI * 2;
     const MAX_BANK = 55 * Math.PI / 180;
+    const MAX_HEADING_LEAD = 20 * Math.PI / 180;
+    const COURSE_RESPONSE_SECONDS = 0.16;
+    const PILOT_COMFORT_G = 7;
+    const PILOT_STRAIN_THRESHOLD = 0.5;
     const STEP = 1 / 120;
     const START_THROTTLE = 0.55;
     const START_SPEED = 695;
@@ -4283,15 +4485,20 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     const MIN_LEVEL_SPEED_KPH = 300;
     const THRUST_MULTIPLIER = 2;
     const AFTERBURNER_SPOOL_MULTIPLIER = 0.3;
-    const AIRBRAKE_DRAG_MULTIPLIER = 2;
+    const AIRBRAKE_REFERENCE_KPH = 700;
+    const AIRBRAKE_REFERENCE_DRAG_KN = 155;
+    const AIRBRAKE_MAX_DRAG_KN = 235;
+    const AIRBRAKE_TRAVEL_SECONDS = 0.32;
+    const AIRBRAKE_FULL_ANGLE = Math.PI / 3;
     const DEFAULT_FLIGHT_TUNING = { thrust: 1, straightDrag: 1, turnDrag: 1 };
     // War Thunder vehicle cards: f_15a and su_27. Reference mass uses 30% internal fuel.
-    // These thrust curves and keyboard response are tuned for the planar game.
+    // Thrust and nose response [TAS km/h, degrees/second] are tuned for the planar game.
     const AIRCRAFT = [
       {
         name: 'F-15A', ir: 'AIM-9M', sarh: 'AIM-7M', radarName: 'APG-63', launchWarning: true,
         flight: {
           massKg: 14406, limitIasKph: 1629, limitMach: 2.4, turnSeconds: 20.5, spoolSeconds: 0.12,
+          noseResponse: [[300, 20], [450, 25], [600, 27], [730, 23], [900, 16.5], [1200, 12], [1950, 7.5]],
           liftAreaByMach: [[0.35, 75], [0.8, 75], [1.15, 66]],
           dryThrottle: [[0, 0.05], [0.3, 0.22], [0.55, 0.50], [0.90, 0.82], [1, 1]],
           thrust: [
@@ -4303,6 +4510,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         name: 'Su-27', ir: 'R-73', sarh: 'R-27R', radarName: 'N001', launchWarning: true,
         flight: {
           massKg: 18810, limitIasKph: 1540, limitMach: 2.35, turnSeconds: 23.5, spoolSeconds: 0.12,
+          noseResponse: [[300, 25], [450, 30], [560, 29], [680, 21], [900, 14.5], [1200, 10.5], [1850, 7]],
           liftAreaByMach: [[0.35, 105], [0.8, 95], [1.15, 84]],
           dryThrottle: [[0, 0.05], [0.3, 0.22], [0.55, 0.50], [0.90, 0.82], [1, 1]],
           thrust: [
@@ -4315,7 +4523,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     for (const { flight: profile } of AIRCRAFT) {
       profile.topSpeedKph = Math.min(profile.limitIasKph * TAS_PER_IAS, profile.limitMach * MACH_ONE_KPH);
       profile.dragAtTopKn = sampleCurve(profile.thrust, profile.topSpeedKph, 2);
-      // Calibrate the simplified 2D turn at the reference speed with full engine power.
+      // Use the reference turn to scale the additional drag.
       profile.turnAccelerationAtReference = (TAU / profile.turnSeconds) * (TURN_REFERENCE_KPH / 3.6);
       profile.turnDragAtReferenceKn = sampleCurve(profile.thrust, TURN_REFERENCE_KPH, 2) - levelDragKn(profile, TURN_REFERENCE_KPH);
     }
@@ -4342,6 +4550,11 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       'R-27R': { ...MISSILE_DEFAULTS, guidance: 'sarh', mach: 3.5, g: 35, boostSeconds: 6, lifetime: 15, launchRangeKm: 12 }
     };
     const MISSILE_SMOKE = { interval: 0.055, lifetime: 0.75 };
+    const EXPLOSION_SECONDS = 1.2;
+    const MISSILE_IMPACT_VIEW_SECONDS = 1;
+    const PLAYER_WRECK_VIEW_SECONDS = 1.15;
+    const WING_VORTEX = { interval: 0.04, lifetime: 0.62 };
+    const SONIC_BOOM = { lifetime: 0.52, rearmRatio: 0.98 };
     const MISSILE_AIM_PREVIEW_SECONDS = 0.8;
     const AIRCRAFT_HIT_RADIUS = 6.1;
     const FLARE = { capacity: 6, cooldown: 0.8, lifetime: 1.35, attractionRadius: 96 };
@@ -4375,7 +4588,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     const MAX_VIEW_OFFSET = 0.5;
     const VIEW_RETURN_SECONDS = 0.22;
     const BATTLE_KEYS = new Set(['Space', 'KeyQ', 'KeyT', 'KeyY', 'KeyG', 'KeyX', 'KeyC']);
-    const FLIGHT_KEYS = new Set(['KeyW', 'KeyS', 'KeyA', 'KeyD', 'KeyU', ...BATTLE_KEYS]);
+    const FLIGHT_KEYS = new Set(['KeyW', 'KeyS', 'KeyA', 'KeyD', 'KeyB', 'KeyU', ...BATTLE_KEYS]);
     const VERTEX_SOURCE = `#version 300 es
       void main() {
         vec2 corner = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2);
@@ -4384,8 +4597,10 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
 
     function initialFlight(airframe, spawn) {
       return {
-        ...spawn, airframe, bank: 0, speed: START_SPEED,
-        throttle: START_THROTTLE, enginePower: START_THROTTLE, afterburner: false
+        ...spawn, airframe, bank: 0, speed: START_SPEED, course: spawn.heading,
+        turnAcceleration: 0, loadFactor: 1, liftUse: 0, pilotStrain: 0,
+        throttle: START_THROTTLE, enginePower: START_THROTTLE, afterburner: false,
+        airbrake: false, airbrakeExtension: 0
       };
     }
 
@@ -4393,40 +4608,53 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       const profile = AIRCRAFT[flight.airframe].flight;
       flight.throttle = Math.max(0, Math.min(1, flight.throttle + throttleInput * 0.48 * dt));
       if (flight.throttle < 1) flight.afterburner = false;
+      const brakeTravel = dt / AIRBRAKE_TRAVEL_SECONDS;
+      flight.airbrakeExtension = clamp(Number(flight.airbrake), flight.airbrakeExtension - brakeTravel, flight.airbrakeExtension + brakeTravel);
       const spoolSeconds = flight.afterburner ? profile.spoolSeconds * AFTERBURNER_SPOOL_MULTIPLIER : profile.spoolSeconds;
       flight.enginePower += (flight.throttle - flight.enginePower) * (1 - Math.exp(-dt / spoolSeconds));
-      const desiredBank = turnInput * MAX_BANK;
+      const pilotAuthority = 1 - Math.max(0, flight.pilotStrain - PILOT_STRAIN_THRESHOLD);
+      const desiredBank = turnInput * pilotAuthority * MAX_BANK;
       flight.bank += (desiredBank - flight.bank) * (1 - Math.exp(-dt / 0.14));
 
-      const turnAcceleration = levelTurnAcceleration(profile, flight.speed, flight.bank / MAX_BANK);
-      const { acceleration } = flightForces(profile, flight, turnAcceleration, tuning);
-      flight.speed = clamp(flight.speed + acceleration * 3.6 * dt, MIN_LEVEL_SPEED_KPH, profile.topSpeedKph);
+      // The nose can move ahead of the course while lift bends the flight path.
+      const noseRate = sampleCurve(profile.noseResponse, flight.speed) * Math.PI / 180;
+      const desiredHeading = flight.heading + noseRate * (flight.bank / MAX_BANK) * dt;
+      const headingLead = clamp(angleDelta(flight.course, desiredHeading), -MAX_HEADING_LEAD, MAX_HEADING_LEAD);
+      flight.heading = (flight.course + headingLead + TAU) % TAU;
+      const speedMps = flight.speed / 3.6;
+      const maxLift = maxLiftAcceleration(profile, flight.speed);
+      // A level turn reserves enough lift to balance gravity.
+      const availableAcceleration = Math.sqrt(Math.max(0, maxLift ** 2 - GRAVITY ** 2));
+      const requestedAcceleration = speedMps * headingLead / COURSE_RESPONSE_SECONDS;
+      flight.turnAcceleration = clamp(requestedAcceleration, -availableAcceleration, availableAcceleration);
+      flight.course = (flight.course + flight.turnAcceleration / speedMps * dt + TAU) % TAU;
 
-      const turnRate = turnAcceleration / (flight.speed / 3.6);
-      flight.heading = (flight.heading + turnRate * dt + TAU) % TAU;
+      flight.loadFactor = Math.hypot(1, flight.turnAcceleration / GRAVITY);
+      flight.liftUse = flight.loadFactor * GRAVITY / Math.max(maxLift, GRAVITY);
+      const strainRate = clamp((flight.loadFactor - PILOT_COMFORT_G) / 4, -0.28, 0.75);
+      flight.pilotStrain = clamp(flight.pilotStrain + strainRate * dt, 0, 1);
+
+      const { acceleration } = flightForces(profile, flight, tuning);
+      flight.speed = clamp(flight.speed + acceleration * 3.6 * dt, MIN_LEVEL_SPEED_KPH, profile.topSpeedKph);
       const distance = flight.speed * FLIGHT_SPEED_SCALE * dt;
-      flight.x += Math.sin(flight.heading) * distance;
-      flight.z -= Math.cos(flight.heading) * distance;
+      flight.x += Math.sin(flight.course) * distance;
+      flight.z -= Math.cos(flight.course) * distance;
     }
 
-    function flightForces(profile, flight, turnAcceleration, tuning = DEFAULT_FLIGHT_TUNING) {
-      const turnLoadRatio = turnAcceleration / profile.turnAccelerationAtReference;
+    function flightForces(profile, flight, tuning = DEFAULT_FLIGHT_TUNING) {
+      const turnLoadRatio = flight.turnAcceleration / profile.turnAccelerationAtReference;
       const turnDragKn = profile.turnDragAtReferenceKn * (turnLoadRatio * TURN_REFERENCE_KPH / flight.speed) ** 2 * tuning.turnDrag;
-      const straightDragKn = levelDragKn(profile, flight.speed, flight.throttle === 0) * tuning.straightDrag;
+      const straightDragKn = levelDragKn(profile, flight.speed, flight.airbrakeExtension) * tuning.straightDrag;
       const dragKn = straightDragKn + turnDragKn;
       const thrustKn = engineThrustKn(profile, flight.speed, flight.enginePower, flight.afterburner) * tuning.thrust;
       const acceleration = (thrustKn - dragKn) * 1000 / profile.massKg;
       return { thrustKn, straightDragKn, turnDragKn, dragKn, acceleration };
     }
 
-    function levelTurnAcceleration(profile, speedKph, bankFraction) {
+    function maxLiftAcceleration(profile, speedKph) {
       const speedMps = speedKph / 3.6;
       const liftArea = sampleCurve(profile.liftAreaByMach, speedKph / MACH_ONE_KPH);
-      const liftAcceleration = 0.5 * AIR_DENSITY * speedMps ** 2 * liftArea / profile.massKg;
-      // A level turn reserves enough lift to balance gravity.
-      const lateralLimit = Math.sqrt(Math.max(0, liftAcceleration ** 2 - GRAVITY ** 2));
-      const requested = profile.turnAccelerationAtReference * bankFraction;
-      return clamp(requested, -lateralLimit, lateralLimit);
+      return 0.5 * AIR_DENSITY * speedMps ** 2 * liftArea / profile.massKg;
     }
 
     function sampleCurve(points, value, column = 1) {
@@ -4449,11 +4677,11 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       return THRUST_MULTIPLIER * (dryThrust + boostThrust);
     }
 
-    function levelDragKn(profile, speedKph, airbrakeOpen = false) {
+    function levelDragKn(profile, speedKph, airbrakeExtension = 0) {
       const relativeSpeed = speedKph / profile.topSpeedKph;
       const transonic = Math.max(0, 1 - Math.abs(speedKph - MACH_ONE_KPH) / 220);
-      const dragMultiplier = airbrakeOpen ? AIRBRAKE_DRAG_MULTIPLIER : 1;
-      return profile.dragAtTopKn * (dragMultiplier * relativeSpeed ** 2 + 0.16 * transonic ** 2);
+      const brakeDragKn = Math.min(AIRBRAKE_REFERENCE_DRAG_KN * (speedKph / AIRBRAKE_REFERENCE_KPH) ** 2, AIRBRAKE_MAX_DRAG_KN);
+      return profile.dragAtTopKn * (relativeSpeed ** 2 + 0.16 * transonic ** 2) + brakeDragKn * airbrakeExtension;
     }
 
     function clamp(value, lower, upper) {
@@ -4489,7 +4717,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
             team, slot, flight, previous: { ...flight }, display: { ...flight },
             rack: initialMissileRack(AIRCRAFT[model].ir),
             radarRack: initialMissileRack(AIRCRAFT[model].sarh),
-            weapon: 'ir', destroyedAt: null,
+            weapon: 'ir', destroyedAt: null, wingWake: [], boomArmed: true,
             ai: { phase: 'opening', target: null, exitHeading: 0, extendUntil: 0 },
             radar: { mode: 'src', echoes: new Map(), sweep: -RADAR.scanAngle, selected: null,
               pending: null, target: null, progress: 0, trackId: 0, lostAt: -Infinity }
@@ -4497,8 +4725,8 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         });
       });
       return {
-        aircraft, player: aircraft[0], missiles: [], flares: [], chaff: [], time: 0, result: null,
-        missileOutcome: null,
+        aircraft, player: aircraft[0], missiles: [], flares: [], chaff: [], explosions: [], time: 0, result: null,
+        missileOutcome: null, nextWakeSampleAt: 0, sonicBooms: [],
         flareRack: { ammo: FLARE.capacity, readyAt: 0, lastRedirect: -Infinity },
         chaffRack: { ammo: CHAFF.capacity, readyAt: 0 }
       };
@@ -4667,7 +4895,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         boostAcceleration: boostSpeedGain / profile.boostSeconds,
         sustainAcceleration: sustainSeconds ? (topSpeed - speed - boostSpeedGain) / sustainSeconds : 0,
         trail: [{ x, z, time: battle.time }], nextTrailAt: battle.time + MISSILE_SMOKE.interval,
-        flareContacts: new Set(), lostAt: null
+        flareContacts: new Set(), lostAt: null, endedAt: null
       });
       rack.ammo--;
       rack.armed = false;
@@ -4739,28 +4967,42 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       if (missile.source === battle.player) battle.missileOutcome = { text, time: battle.time };
     }
 
+    function detonateMissile(battle, index, status, struckAircraft) {
+      const missile = battle.missiles[index];
+      missile.endedAt = battle.time;
+      missile.endStatus = status;
+      const center = struckAircraft ? struckAircraft.flight : missile;
+      if (struckAircraft) struckAircraft.destroyedAt = battle.time;
+      missile.explosion = {
+        x: center.x, z: center.z, time: battle.time,
+        size: struckAircraft ? 13 : 5.6, direction: missile.heading
+      };
+      battle.explosions.push(missile.explosion);
+      reportMissileOutcome(battle, missile, status);
+      battle.missiles.splice(index, 1);
+    }
+
     function stepMissiles(battle, dt) {
+      while (battle.explosions.length && battle.time - battle.explosions[0].time >= EXPLOSION_SECONDS) {
+        battle.explosions.shift();
+      }
       for (let index = battle.missiles.length - 1; index >= 0; index--) {
         const missile = battle.missiles[index];
         const profile = MISSILES[missile.type];
         const target = missile.target;
-        const lostTrack = missile.flare ? battle.time - missile.flare.bornAt >= FLARE.lifetime : !isAlive(target);
-        if (lostTrack || battle.time - missile.bornAt >= profile.lifetime) {
-          if (missile.lostAt === null) reportMissileOutcome(battle, missile, lostTrack ? '导弹目标消失' : '导弹飞行超时');
-          battle.missiles.splice(index, 1);
+        if (battle.time - missile.bornAt >= profile.lifetime) {
+          detonateMissile(battle, index, '导弹自爆');
           continue;
         }
 
-        if (profile.guidance === 'sarh' && missile.lostAt === null && !hasMissileTrack(missile)) {
+        const targetLost = missile.flare ? battle.time - missile.flare.bornAt >= FLARE.lifetime : !target || !isAlive(target);
+        const lockLost = profile.guidance === 'sarh' && !hasMissileTrack(missile);
+        if (missile.lostAt === null && (targetLost || lockLost)) {
           missile.lostAt = battle.time;
-          reportMissileOutcome(battle, missile, '雷达弹脱锁');
-        }
-        if (missile.lostAt !== null && battle.time - missile.lostAt >= 0.65) {
-          battle.missiles.splice(index, 1);
-          continue;
+          reportMissileOutcome(battle, missile, targetLost ? '目标丢失 · 导弹继续飞行' : '雷达弹脱锁 · 继续飞行');
         }
 
-        if (!missile.flare && profile.guidance === 'ir' && target === battle.player) {
+        if (missile.lostAt === null && !missile.flare && profile.guidance === 'ir' && target === battle.player) {
           const flare = battle.flares.findLast(candidate => !missile.flareContacts.has(candidate)
             && Math.hypot(candidate.x - missile.x, candidate.z - missile.z) <= FLARE.attractionRadius);
           if (flare) missile.flareContacts.add(flare);
@@ -4769,13 +5011,13 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
             battle.flareRack.lastRedirect = battle.time;
           }
         }
-        const destination = missile.flare ?? target.flight;
-        const previousDestination = missile.flare?.previous ?? target.previous;
+        const destination = missile.lostAt === null ? missile.flare ?? target.flight : null;
+        const previousDestination = destination ? missile.flare?.previous ?? target.previous : null;
         const stepStart = battle.time - dt;
         const boostTime = clamp(missile.boostUntil - stepStart, 0, dt);
         const sustainTime = Math.max(0, Math.min(battle.time, missile.poweredUntil) - Math.max(stepStart, missile.boostUntil));
         missile.speed += missile.boostAcceleration * boostTime + missile.sustainAcceleration * sustainTime;
-        if (missile.lostAt === null) {
+        if (destination) {
           // Convert the lateral acceleration limit to the same world units as speed.
           const lateralAcceleration = profile.g * GRAVITY * WORLD_UNITS_PER_METER;
           const turnLimit = lateralAcceleration / missile.speed * dt;
@@ -4794,13 +5036,17 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         missile.x += Math.sin(missile.heading) * missile.speed * dt;
         missile.z -= Math.cos(missile.heading) * missile.speed * dt;
 
-        if (missile.lostAt === null && missileContact(missile, destination, previousDestination)) {
-          if (!missile.flare) {
-            target.destroyedAt = battle.time;
-            reportMissileOutcome(battle, missile, '导弹命中');
-          }
-          battle.missiles.splice(index, 1);
+        if (destination && missileContact(missile, destination, previousDestination)) {
+          detonateMissile(battle, index, missile.flare ? '导弹被诱偏' : '导弹命中', missile.flare ? null : target);
           continue;
+        }
+        if (!destination) {
+          const struckAircraft = battle.aircraft.find(aircraft =>
+            aircraft.team !== missile.team && isAlive(aircraft) && missileContact(missile, aircraft.flight, aircraft.previous));
+          if (struckAircraft) {
+            detonateMissile(battle, index, '导弹命中', struckAircraft);
+            continue;
+          }
         }
         if (battle.time < missile.poweredUntil && battle.time >= missile.nextTrailAt) {
           missile.trail.push({ x: missile.x, z: missile.z, time: battle.time });
@@ -4884,7 +5130,8 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         if (launchMissile(battle, aircraft)) return;
       }
       const canFireRadar = aircraft.slot === 0 || aircraft.ai.phase !== 'opening';
-      if (canFireRadar && radarRack.ammo && !battle.missiles.some(missile => missile.source === aircraft && MISSILES[missile.type].guidance === 'sarh')) {
+      if (canFireRadar && radarRack.ammo && !battle.missiles.some(missile =>
+        missile.source === aircraft && missile.lostAt === null && MISSILES[missile.type].guidance === 'sarh')) {
         launchMissile(battle, aircraft, radarRack);
       }
     }
@@ -4930,120 +5177,582 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       display.z = lerp(previous.z, current.z, fraction);
       display.heading = previous.heading + angleDelta(previous.heading, current.heading) * fraction;
       display.bank = lerp(previous.bank, current.bank, fraction);
+      display.speed = lerp(previous.speed, current.speed, fraction);
+      display.airbrakeExtension = lerp(previous.airbrakeExtension, current.airbrakeExtension, fraction);
+      display.liftUse = lerp(previous.liftUse, current.liftUse, fraction);
+      display.loadFactor = lerp(previous.loadFactor, current.loadFactor, fraction);
       display.afterburner = current.afterburner;
       display.airframe = current.airframe;
     }
 
-    // Nose-up planforms use the same drawing scale and a simplified paint scheme.
-    const JET_ART = [
+    // Mesh coordinates are right, up and aft, in the same units as the flight map.
+    // Loft sections are [z, height, half width, half height, lateral offset, roundness].
+    // Wing sections are [span, height, leading edge, trailing edge, thickness].
+    // Fin sections use the same order with height and lateral offset in the first two slots.
+    const JET_MODELS = [
       {
-        // F-15A: boxed inlets, clipped wings and stabilators aft of the close-set nozzles.
-        hull: new Path2D(`
-          M0 -9.85 Q.56 -8.9 .72 -7.55 L.76 -4.21 L1.59 -4.21 L1.63 -3.74
-          L1.8 -3.72 L1.74 -2.3 Q2.04 -1.32 2.03 -.43
-          L6.35 3.8 Q6.65 4.14 6.54 4.52 L5.71 5.76 L3.91 5.42 L2.07 5.38
-          Q2.04 6.02 1.86 6.41 L3.02 7.35 L2.72 7.35 L4.26 9.34
-          Q4.52 9.73 3.81 10 L1.69 9.5 L1.42 8.32 L.12 8.32 L.11 7.63
-          L-.11 7.63 L-.12 8.32 L-1.42 8.32 L-1.69 9.5 L-3.81 10
-          Q-4.52 9.73 -4.26 9.34 L-2.72 7.35 L-3.02 7.35 L-1.86 6.41
-          Q-2.04 6.02 -2.07 5.38 L-3.91 5.42 L-5.71 5.76 L-6.54 4.52
-          Q-6.65 4.14 -6.35 3.8 L-2.03 -.43 Q-2.04 -1.32 -1.74 -2.3
-          L-1.8 -3.72 L-1.63 -3.74 L-1.59 -4.21 L-.76 -4.21 L-.72 -7.55
-          Q-.56 -8.9 0 -9.85Z`),
-        panel: new Path2D(`
-          M2.07 1.05 L5.94 4.26 L5.53 5.16 L3.88 4.87 L2.07 4.87Z
-          M-2.07 1.05 L-5.94 4.26 L-5.53 5.16 L-3.88 4.87 L-2.07 4.87Z
-          M1.76 6.72 L3.88 9.35 L1.98 9.03Z M-1.76 6.72 L-3.88 9.35 L-1.98 9.03Z`),
-        nacelles: new Path2D(`
-          M.79 -4.15 L1.59 -4.15 L1.69 -2.52 L1.32 -.65 L1.38 6.95 L.27 6.95 L.3 2.3 L.77 -.1Z
-          M-.79 -4.15 L-1.59 -4.15 L-1.69 -2.52 L-1.32 -.65 L-1.38 6.95 L-.27 6.95 L-.3 2.3 L-.77 -.1Z`),
-        fins: new Path2D(`
-          M1.64 5.64 Q1.92 6.35 1.84 8.02 L1.78 9.14 L1.52 9.11 L1.45 7.48Z
-          M-1.64 5.64 Q-1.92 6.35 -1.84 8.02 L-1.78 9.14 L-1.52 9.11 L-1.45 7.48Z`),
-        nose: new Path2D('M0 -9.85 Q.56 -8.9 .72 -7.55 Q0 -7.43 -.72 -7.55 Q-.56 -8.9 0 -9.85Z'),
-        canopy: new Path2D('M0 -6.67 C.5 -6.67 .52 -6.1 .51 -5.55 L.47 -4.03 Q.39 -3.05 0 -2.9 Q-.39 -3.05 -.47 -4.03 L-.51 -5.55 C-.52 -6.1 -.5 -6.67 0 -6.67Z'),
-        seams: new Path2D(`
-          M-.47 -5.77 Q0 -5.59 .47 -5.77 M.83 -3.8 L1.6 -3.8 M-.83 -3.8 L-1.6 -3.8
-          M.99 -2.5 L1.66 -2.5 M-.99 -2.5 L-1.66 -2.5 M2.02 3.92 L4.01 3.93 L5.47 4.35
-          M-2.02 3.92 L-4.01 3.93 L-5.47 4.35 M0 2.85 V7.36`),
-        base: '#afb8ba', secondary: '#98a4a8', engine: '#8c999b', fin: '#657680', radome: '#849196',
-        nozzleOffset: 0.77, nozzleEnd: 8.3, nozzleWidth: 1.29
+        // F-15A planform traced against NASA's EG-0031-01 three-view, excluding the test boom.
+        colors: { body: 0xb3b8bb, wing: 0xaeb6ba, controls: 0x98a4ab, fin: 0x999fa4, engine: 0xa0a9ae, intake: 0x65757e, nose: 0x8c989d, brake: 0x8e9ca4 },
+        nose: [[-9.85, 0.14, 0.025, 0.025], [-9.46, 0.17, 0.22, 0.21], [-8.69, 0.20, 0.46, 0.39],
+               [-7.50, 0.24, 0.67, 0.58]],
+        body: [[-7.50, 0.24, 0.67, 0.58], [-6.80, 0.26, 0.74, 0.65], [-5.42, 0.24, 0.79, 0.72],
+               [-4.07, 0.20, 0.82, 0.78], [-2.58, 0.17, 0.99, 0.83], [-1.28, 0.13, 1.28, 0.88, 0, 0.83],
+               [-0.68, 0.10, 1.47, 0.91, 0, 0.78], [1.15, 0.08, 1.55, 0.88, 0, 0.75],
+               [3.48, 0.08, 1.42, 0.79, 0, 0.76], [5.40, 0.10, 1.23, 0.64], [6.56, 0.11, 0.84, 0.46],
+               [7.52, 0.10, 0.17, 0.21]],
+        canopy: [[-6.72, 0.82, 0.025, 0.035], [-6.44, 0.90, 0.27, 0.28], [-5.81, 0.93, 0.40, 0.50],
+                 [-5.24, 0.94, 0.47, 0.56], [-4.48, 0.95, 0.46, 0.53], [-3.56, 0.96, 0.37, 0.36],
+                 [-2.88, 0.98, 0.20, 0.19], [-2.55, 0.98, 0.04, 0.045]],
+        speedBrake: [[-0.77, 1.04, 0.35], [-0.54, 1.042, 0.53], [0.86, 1.006, 0.48], [1.11, 1, 0.36]],
+        intake: [[-4.19, 0.22, 0.45, 0.55, 1.08, 0.23], [-4.02, 0.23, 0.47, 0.58, 1.09, 0.25]],
+        engine: [[-4.02, 0.23, 0.47, 0.58, 1.09, 0.25], [-3.60, 0.21, 0.49, 0.60, 1.11, 0.27],
+                 [-2.70, 0.15, 0.57, 0.66, 1.15, 0.31], [-1.28, 0.10, 0.73, 0.74, 1.15, 0.49],
+                 [-0.25, 0.06, 0.82, 0.79, 1.11, 0.58], [2.35, 0.02, 0.85, 0.81, 0.99, 0.68],
+                 [4.62, -0.01, 0.76, 0.77, 0.87, 0.83], [6.40, -0.02, 0.70, 0.70, 0.79, 0.92],
+                 [8.33, -0.02, 0.66, 0.64, 0.76]],
+        nozzle: [8.33, -0.02, 0.64, 0.76],
+        wing: [[1.75, 0.44, -0.65, 5.38, 0.31], [2.16, 0.43, -0.19, 5.47, 0.28],
+               [3.60, 0.37, 1.21, 5.47, 0.22], [5.38, 0.30, 3.00, 5.88, 0.15],
+               [5.99, 0.29, 3.62, 5.94, 0.11], [6.26, 0.29, 4.00, 5.52, 0.10],
+               [6.49, 0.28, 4.31, 5.23, 0.071], [6.58, 0.28, 4.57, 4.97, 0.046]],
+        tail: [[1.36, 0.18, 6.13, 9.44, 0.18], [1.89, 0.17, 6.62, 9.61, 0.16],
+               [2.57, 0.16, 7.40, 9.76, 0.13], [2.64, 0.16, 7.06, 9.77, 0.13],
+               [3.62, 0.14, 8.33, 9.98, 0.10], [4.02, 0.14, 8.83, 9.89, 0.08],
+               [4.27, 0.13, 9.12, 9.66, 0.047]],
+        fin: [[0.38, 1.55, 5.63, 9.49, 0.23], [0.94, 1.57, 5.96, 9.33, 0.19],
+              [2.72, 1.61, 7.10, 9.10, 0.13], [3.27, 1.63, 7.65, 9.02, 0.085],
+              [3.36, 1.63, 7.78, 8.91, 0.058]]
       },
       {
-        // Su-27S: blended wing roots, wingtip rails and a tail sting between the engine pods.
-        hull: new Path2D(`
-          M0 -11.05 Q.57 -10.23 .64 -8.61 Q.84 -6.67 1.15 -4.5 Q1.5 -2.18 2.21 -1.01
-          L7.15 3.75 L7.22 2.86 Q7.35 2.55 7.43 2.91 L7.47 5.92 L7.16 5.92 L2.22 4.56
-          L2.24 5.35 L4.88 8.19 L4.43 9.02 L2.19 8.87 L1.92 8.68
-          L1.83 9.15 Q1.22 9.28 .65 9.15 L.57 10.37 L0 11.03 L-.57 10.37
-          L-.65 9.15 Q-1.22 9.28 -1.83 9.15 L-1.92 8.68 L-2.19 8.87 L-4.43 9.02
-          L-4.88 8.19 L-2.24 5.35 L-2.22 4.56 L-7.16 5.92 L-7.47 5.92 L-7.43 2.91
-          Q-7.35 2.55 -7.22 2.86 L-7.15 3.75 L-2.21 -1.01 Q-1.5 -2.18 -1.15 -4.5
-          Q-.84 -6.67 -.64 -8.61 Q-.57 -10.23 0 -11.05Z`),
-        panel: new Path2D(`
-          M-1.08 -4.4 Q-.73 -3.8 -.44 -3.3 Q-.06 -2.45 .99 -2.26 L1.84 -1.37
-          Q.52 -1.36 .17 -.47 Q-.47 .35 -1.19 -.18 L-2.43 -.78 Q-1.57 -2.39 -1.08 -4.4Z
-          M3.92 .84 L6.03 2.82 Q5.77 3.61 4.64 3.82 Q3.66 4.05 3.31 3.39 Q2.88 2.52 3.92 .84Z
-          M-5.06 1.74 Q-3.91 2.35 -4.55 3.18 Q-5.17 4.05 -6.87 3.99 L-6.91 3.53Z
-          M-6.99 5.55 L-4.64 4.92 Q-4.44 4.4 -4.93 4.3 Q-5.97 4.16 -7.14 4.79Z
-          M3.11 6.32 Q3.62 7.06 4.77 8.13 L4.43 8.96 L3.32 8.89 Q3.65 8.31 3.14 8.02Z`),
-        nacelles: new Path2D(`
-          M.92 .84 Q1.56 .65 2.1 1.41 L2 5.84 L1.83 8.98 Q1.25 9.15 .65 8.99
-          L.61 6.81 Q.54 3.64 .92 .84Z
-          M-.92 .84 Q-1.56 .65 -2.1 1.41 L-2 5.84 L-1.83 8.98 Q-1.25 9.15 -.65 8.99
-          L-.61 6.81 Q-.54 3.64 -.92 .84Z`),
-        fins: new Path2D(`
-          M2.18 3.92 Q2.59 4.59 2.54 5.8 L2.45 7.78 L2.08 7.91 L1.96 6.46Z
-          M-2.18 3.92 Q-2.59 4.59 -2.54 5.8 L-2.45 7.78 L-2.08 7.91 L-1.96 6.46Z`),
-        nose: new Path2D('M0 -11.05 Q.57 -10.23 .64 -8.61 Q0 -8.44 -.64 -8.61 Q-.57 -10.23 0 -11.05Z'),
-        canopy: new Path2D('M0 -8.37 Q.55 -8.34 .55 -7.34 L.52 -6.31 Q.43 -5.36 0 -5.16 Q-.43 -5.36 -.52 -6.31 L-.55 -7.34 Q-.55 -8.34 0 -8.37Z'),
-        seams: new Path2D(`
-          M-.52 -7.57 Q0 -7.32 .52 -7.57 M2.35 3.74 L6.97 5.04 M-2.35 3.74 L-6.97 5.04
-          M-.51 -1.14 Q0 -1.42 .51 -1.14 L.48 1.09 Q0 1.53 -.48 1.09Z M0 6.56 V10.04`),
-        base: '#acc5d3', secondary: '#739cb9', engine: '#83a1b1', fin: '#53758d', radome: '#e3e3d8',
-        nozzleOffset: 1.22, nozzleEnd: 9.13, nozzleWidth: 1.17
+        // Su-27: drooped radome, blended wing roots, separate engine pods and center tail boom.
+        colors: { body: 0xa6c5d8, wing: 0x759db9, controls: 0x91b3c7, fin: 0x6c93ad, engine: 0x7897aa, intake: 0x607a8b, nose: 0xd6dcd7, brake: 0x7f9cb0 },
+        nose: [[-11.05, -0.05, 0.025, 0.025], [-10.60, -0.03, 0.23, 0.19],
+               [-9.78, 0.06, 0.44, 0.36], [-8.57, 0.23, 0.68, 0.52]],
+        body: [[-8.57, 0.23, 0.68, 0.52], [-7.46, 0.29, 0.79, 0.64], [-6.13, 0.26, 0.96, 0.70],
+               [-4.58, 0.22, 1.23, 0.67], [-2.68, 0.18, 1.73, 0.66], [-0.89, 0.15, 2.02, 0.65],
+               [2.18, 0.13, 2.13, 0.58], [4.35, 0.15, 1.86, 0.48], [6.08, 0.17, 1.00, 0.42],
+               [7.20, 0.14, 0.65, 0.36], [8.72, 0.12, 0.57, 0.31], [10.31, 0.09, 0.35, 0.21],
+               [11.03, 0.07, 0.065, 0.065]],
+        canopy: [[-8.42, 0.70, 0.04, 0.06], [-8.04, 0.83, 0.28, 0.27], [-7.52, 0.88, 0.53, 0.51],
+                 [-7.01, 0.88, 0.57, 0.56], [-6.32, 0.91, 0.49, 0.55], [-5.70, 0.89, 0.36, 0.37],
+                 [-5.06, 0.89, 0.065, 0.075]],
+        speedBrake: [[-4.21, 0.936, 0.41], [-3.93, 0.930, 0.65], [-1.48, 0.872, 0.66], [-1.22, 0.856, 0.51]],
+        intake: [[-3.15, -0.45, 0.58, 0.51, 1.14, 0.42], [-2.82, -0.43, 0.66, 0.54, 1.24, 0.46]],
+        engine: [[-2.82, -0.43, 0.66, 0.54, 1.24, 0.46], [-1.43, -0.49, 0.77, 0.64, 1.38, 0.57],
+                 [0.23, -0.43, 0.85, 0.72, 1.48, 0.69], [2.62, -0.33, 0.88, 0.78, 1.60, 0.82],
+                 [5.42, -0.25, 0.79, 0.71, 1.65, 0.93], [7.68, -0.23, 0.69, 0.64, 1.67, 0.97],
+                 [9.04, -0.22, 0.62, 0.59, 1.66]],
+        nozzle: [9.04, -0.22, 0.61, 1.66],
+        wing: [[0.88, 0.27, -6.00, 4.21, 0.29], [1.30, 0.28, -4.72, 4.38, 0.33],
+               [1.70, 0.33, -2.90, 4.57, 0.35], [2.32, 0.34, -1.58, 4.67, 0.34],
+               [3.12, 0.32, -0.27, 4.97, 0.29], [5.27, 0.24, 2.15, 5.50, 0.18],
+               [7.15, 0.16, 3.78, 5.91, 0.10], [7.29, 0.16, 3.92, 5.85, 0.055]],
+        tail: [[1.50, 0.13, 4.97, 8.57, 0.20], [2.49, 0.15, 5.87, 8.82, 0.17],
+               [4.52, 0.13, 7.80, 9.05, 0.10], [4.85, 0.12, 8.22, 8.80, 0.055]],
+        fin: [[0.42, 2.05, 3.65, 8.18, 0.22], [0.86, 2.13, 4.38, 8.09, 0.21],
+              [2.73, 2.48, 5.45, 7.86, 0.15], [3, 2.56, 5.69, 7.72, 0.074]],
+        rail: [[2.75, 0.14, 0.055, 0.06, 7.28], [3.20, 0.14, 0.17, 0.15, 7.30],
+               [5.65, 0.14, 0.17, 0.14, 7.31], [6.18, 0.14, 0.09, 0.08, 7.30]]
       }
     ];
 
-    function drawJet(context, plane) {
-      const art = JET_ART[plane.airframe];
+    const JET_AIRFOIL = [
+      [0, 0], [0.05, 0.51], [0.16, 0.88], [0.30, 1], [0.52, 0.83], [0.68, 0.58],
+      [0.84, 0.27], [1, 0], [0.76, -0.31], [0.51, -0.49], [0.25, -0.54], [0.08, -0.36]
+    ];
+
+    function buildJetMesh(model) {
+      const vertices = [];
+      const subtract = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+      const cross = (a, b) => [
+        a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]
+      ];
+
+      function face(points, color, glow = 0, normals) {
+        const flatNormal = normals ? null : cross(subtract(points[1], points[0]), subtract(points[2], points[0]));
+        const red = (color >> 16) / 255;
+        const green = ((color >> 8) & 255) / 255;
+        const blue = (color & 255) / 255;
+        for (let i = 1; i < points.length - 1; i++) {
+          for (const index of [0, i, i + 1]) {
+            vertices.push(...points[index], ...(normals ? normals[index] : flatNormal), red, green, blue, glow);
+          }
+        }
+      }
+
+      function ringNormals(rings, reverse = false) {
+        return rings.map((ring, i) => {
+          const sides = ring.length;
+          const ahead = rings[Math.max(0, i - 1)];
+          const aft = rings[Math.min(rings.length - 1, i + 1)];
+          return ring.map((_, j) => {
+            const around = subtract(ring[(j + 1) % sides], ring[(j + sides - 1) % sides]);
+            const along = reverse ? subtract(ahead[j], aft[j]) : subtract(aft[j], ahead[j]);
+            return cross(around, along);
+          });
+        });
+      }
+
+      function loft(sections, color, side = 1, glow = 0) {
+        const sides = 24;
+        const rings = sections.map(([z, y, rx, ry, offset = 0, roundness = 1]) => {
+          const shape = value => Math.sign(value) * Math.abs(value) ** roundness;
+          return Array.from({ length: sides }, (_, index) => {
+            const angle = TAU * index / sides;
+            return [side * offset + rx * shape(Math.cos(angle)), y + ry * shape(Math.sin(angle)), z];
+          });
+        });
+
+        const normals = ringNormals(rings);
+
+        for (let i = 1; i < rings.length; i++) {
+          const front = rings[i - 1], back = rings[i];
+          const frontNormals = normals[i - 1], backNormals = normals[i];
+          for (let j = 0; j < sides; j++) {
+            const next = (j + 1) % sides;
+            face([front[j], front[next], back[next], back[j]], color, glow,
+              [frontNormals[j], frontNormals[next], backNormals[next], backNormals[j]]);
+          }
+        }
+
+        face([...rings[0]].reverse(), color, glow);
+        face(rings[rings.length - 1], color, glow);
+      }
+
+      function pairedAirfoil(sections, color, trailingColor, vertical = false) {
+        for (const side of [1, -1]) {
+          const reverse = vertical ? side > 0 : side < 0;
+          const rings = sections.map(([span, center, leading, trailing, thickness]) =>
+            JET_AIRFOIL.map(([fraction, camber]) => {
+              const offset = center + camber * thickness;
+              const z = lerp(leading, trailing, fraction);
+              return vertical ? [side * offset, span, z] : [side * span, offset, z];
+            })
+          );
+          const normals = ringNormals(rings, reverse);
+          for (let i = 1; i < rings.length; i++) {
+            const root = rings[i - 1], tip = rings[i];
+            const rootNormals = normals[i - 1], tipNormals = normals[i];
+            for (let j = 0; j < JET_AIRFOIL.length; j++) {
+              const next = (j + 1) % JET_AIRFOIL.length;
+              const shell = [root[j], root[next], tip[next], tip[j]];
+              const shellNormals = [rootNormals[j], rootNormals[next], tipNormals[next], tipNormals[j]];
+              if (reverse) {
+                shell.reverse();
+                shellNormals.reverse();
+              }
+              face(shell, j >= 5 && j <= 7 ? trailingColor : color, 0, shellNormals);
+            }
+          }
+          face(reverse ? rings[0] : [...rings[0]].reverse(), color);
+          const tip = rings[rings.length - 1];
+          face(reverse ? [...tip].reverse() : tip, color);
+        }
+      }
+
+      const { colors } = model;
+      loft(model.nose, colors.nose);
+      loft(model.body, colors.body);
+      loft(model.canopy, 0x23495b);
+      pairedAirfoil(model.wing, colors.wing, colors.controls);
+      pairedAirfoil(model.tail, colors.wing, colors.controls);
+      pairedAirfoil(model.fin, colors.fin, colors.controls, true);
+      const [nozzleZ, nozzleY, radius, offset] = model.nozzle;
+      for (const side of [1, -1]) {
+        loft(model.intake, colors.intake, side);
+        loft(model.engine, colors.engine, side);
+        loft([[nozzleZ - 0.68, nozzleY, radius + 0.12, radius + 0.035, offset],
+              [nozzleZ - 0.31, nozzleY, radius + 0.06, radius, offset],
+              [nozzleZ + 0.16, nozzleY, radius, radius * 0.91, offset]], 0x576572, side);
+        loft([[nozzleZ + 0.15, nozzleY, radius * 0.69, radius * 0.63, offset],
+              [nozzleZ + 0.39, nozzleY, radius * 0.56, radius * 0.53, offset],
+              [nozzleZ + 0.62, nozzleY, radius * 0.34, radius * 0.31, offset]], 0x877564, side, 1);
+        if (model.rail) loft(model.rail, colors.fin, side);
+      }
+      function brakeSurface(heightOffset, color, underside = false) {
+        const rows = model.speedBrake.map(([z, y, width]) => {
+          const top = y + heightOffset;
+          return [[-width, top - 0.061, z], [0, top, z], [width, top - 0.061, z]];
+        });
+        for (let i = 1; i < rows.length; i++) {
+          const front = rows[i - 1], rear = rows[i];
+          for (const side of [0, 1]) {
+            const panel = [front[side], rear[side], rear[side + 1], front[side + 1]];
+            if (underside) panel.reverse();
+            face(panel, color);
+          }
+        }
+      }
+
+      brakeSurface(-0.018, 0x435762);
+      const bodyVertexCount = vertices.length / 10;
+      brakeSurface(0, colors.brake);
+      brakeSurface(-0.06, 0x59727e, true);
+      return { vertices: new Float32Array(vertices), bodyVertexCount };
+    }
+
+    const JET_VERTEX_SOURCE = `#version 300 es
+      layout(location = 0) in vec3 aPosition;
+      layout(location = 1) in vec3 aNormal;
+      layout(location = 2) in vec4 aMaterial;
+      uniform vec2 uViewSpan;
+      uniform vec4 uPose; // Camera-relative x, z, heading and bank.
+      uniform vec3 uSpeedBrake; // Hinge height, aft coordinate and deployment angle.
+      out vec3 vNormal;
+      flat out vec4 vMaterial;
+
+      vec3 orient(vec3 point) {
+        float bankCos = cos(uPose.w);
+        float bankSin = sin(uPose.w);
+        vec2 rolled = mat2(bankCos, -bankSin, bankSin, bankCos) * point.xy;
+        float headingCos = cos(uPose.z);
+        float headingSin = sin(uPose.z);
+        vec2 horizontal = mat2(headingCos, headingSin, -headingSin, headingCos) * vec2(rolled.x, point.z);
+        return vec3(horizontal.x, rolled.y, horizontal.y);
+      }
+
+      void main() {
+        vec3 position = aPosition;
+        vec3 normal = aNormal;
+        if (uSpeedBrake.z > 0.0) {
+          float angleCos = cos(uSpeedBrake.z);
+          float angleSin = sin(uSpeedBrake.z);
+          mat2 rotateBrake = mat2(angleCos, -angleSin, angleSin, angleCos);
+          position.yz = uSpeedBrake.xy + rotateBrake * (position.yz - uSpeedBrake.xy);
+          normal.yz = rotateBrake * normal.yz;
+        }
+        vec3 point = orient(position);
+        vec2 screen = 2.0 * (point.xz + uPose.xy) / uViewSpan;
+        gl_Position = vec4(screen.x, -screen.y, -point.y / 16.0, 1.0);
+        vNormal = normalize(orient(normal));
+        vMaterial = aMaterial;
+      }`;
+
+    const JET_FRAGMENT_SOURCE = `#version 300 es
+      precision highp float;
+      in vec3 vNormal;
+      flat in vec4 vMaterial;
+      uniform float uAfterburner;
+      out vec4 color;
+      void main() {
+        vec3 normal = normalize(vNormal);
+        vec3 light = normalize(vec3(-0.55, 0.82, -0.24));
+        vec3 halfVector = normalize(light + vec3(0.0, 1.0, 0.0));
+        float diffuse = max(0.0, dot(normal, light));
+        float highlight = pow(max(0.0, dot(normal, halfVector)), 24.0);
+        vec3 hull = vMaterial.rgb * (0.61 + 0.39 * diffuse) + highlight * vec3(0.09, 0.11, 0.12);
+        vec3 exhaust = mix(vMaterial.rgb, vec3(1.0, 0.66, 0.34), uAfterburner);
+        color = vec4(mix(hull, exhaust, vMaterial.a), 1.0);
+      }`;
+
+    function vortexStrength(plane) {
+      // Use lift demand as the high-angle-of-attack cue in the planar flight model.
+      const nearLimit = clamp((plane.liftUse - 0.76) / 0.22, 0, 1);
+      const maneuver = clamp((plane.loadFactor - 1.18) / 0.50, 0, 1);
+      return nearLimit ** 2 * (3 - 2 * nearLimit) * maneuver;
+    }
+
+    function wingWakeSample(plane, time, strength) {
+      const [span, height, , trailing] = JET_MODELS[plane.airframe].wing.at(-1);
+      const sideX = Math.cos(plane.heading);
+      const sideZ = Math.sin(plane.heading);
+      const rollSpan = span * Math.cos(plane.bank);
+      const rollHeight = height * Math.sin(plane.bank);
+      const tips = [-1, 1].map(side => {
+        const across = side * rollSpan + rollHeight;
+        return {
+          x: plane.x + across * sideX - trailing * sideZ,
+          z: plane.z + across * sideZ + trailing * sideX
+        };
+      });
+      return { time, strength, sideX, sideZ, tips };
+    }
+
+    function sampleWingWakes(battle) {
+      const { time } = battle;
+      if (time < battle.nextWakeSampleAt) return;
+      battle.nextWakeSampleAt = time + WING_VORTEX.interval;
+      for (const aircraft of battle.aircraft) {
+        const { flight, wingWake } = aircraft;
+        while (wingWake.length && time - wingWake[0].time >= WING_VORTEX.lifetime) wingWake.shift();
+        if (!isAlive(aircraft)) continue;
+        const strength = vortexStrength(flight);
+        if (strength > 0.02) wingWake.push(wingWakeSample(flight, time, strength));
+      }
+    }
+
+    function wakePosition(sample, index, progress) {
+      const tip = sample.tips[index];
+      const side = index * 2 - 1;
+      const curl = Math.sin(sample.time * 11 - progress * 4.5) * 0.26;
+      const spread = side * progress * (1.5 + curl);
+      return { x: tip.x + sample.sideX * spread, z: tip.z + sample.sideZ * spread };
+    }
+
+    function drawWakeSegment(context, older, newer, time) {
+      if (newer.time - older.time > WING_VORTEX.interval * 1.6) return;
+      const age = (time - older.time) / WING_VORTEX.lifetime;
+      const recentAge = (time - newer.time) / WING_VORTEX.lifetime;
+      const fade = (1 - age) ** 1.6 * (older.strength + newer.strength) / 2;
+      context.beginPath();
+      for (const index of [0, 1]) {
+        const start = wakePosition(older, index, age);
+        const end = wakePosition(newer, index, recentAge);
+        context.moveTo(start.x, start.z);
+        context.lineTo(end.x, end.z);
+      }
+      context.lineWidth = 1.55 + age * 2.4;
+      context.strokeStyle = '#a9d7e7';
+      context.globalAlpha = fade * 0.25;
+      context.stroke();
+      context.lineWidth = 0.50 + age * 0.55;
+      context.strokeStyle = '#e4f6f7';
+      context.globalAlpha = fade * 0.76;
+      context.stroke();
+    }
+
+    function drawWingWake(context, aircraft, time) {
+      if (!aircraft.wingWake.length) return;
+      context.save();
+      let older;
+      for (const sample of aircraft.wingWake) {
+        if (sample.time > time) break;
+        if (time - sample.time >= WING_VORTEX.lifetime) continue;
+        if (older) drawWakeSegment(context, older, sample, time);
+        older = sample;
+      }
+      const plane = aircraft.display;
+      const strength = vortexStrength(plane);
+      if (older && strength > 0.02 && isAlive(aircraft)) {
+        drawWakeSegment(context, older, wingWakeSample(plane, time, strength), time);
+      }
+      context.restore();
+    }
+
+    function drawAirbrakeWake(context, plane, time) {
+      const strength = plane.airbrakeExtension * clamp(plane.speed / AIRBRAKE_REFERENCE_KPH, 0, 1);
+      const start = JET_MODELS[plane.airframe].speedBrake[3][0];
+      const length = 17 + strength * 14;
       context.save();
       context.translate(plane.x, plane.z);
       context.rotate(plane.heading);
-      context.scale(Math.cos(plane.bank * 0.78), 1);
-      context.save();
-      context.translate(1.1, 1.7);
-      context.fillStyle = 'rgba(5, 18, 23, .25)';
-      context.fill(art.hull);
+      const vapor = context.createLinearGradient(0, start, 0, start + length);
+      vapor.addColorStop(0, 'rgba(222, 238, 243, 0.10)');
+      vapor.addColorStop(0.28, 'rgba(220, 239, 244, 0.78)');
+      vapor.addColorStop(0.65, 'rgba(205, 231, 239, 0.47)');
+      vapor.addColorStop(1, 'rgba(196, 222, 235, 0)');
+      context.strokeStyle = vapor;
+      for (const side of [-1, 1]) {
+        const sway = Math.sin(time * 7 + side) * 0.55;
+        context.beginPath();
+        context.moveTo(side * 0.8, start);
+        context.bezierCurveTo(side * 2.2, start + length * 0.37, side * 8.2 + sway, start + length * 0.47, side * 7.5, start + length);
+        context.lineWidth = 3.2;
+        context.globalAlpha = strength * 0.25;
+        context.stroke();
+        context.lineWidth = 1.15;
+        context.globalAlpha = strength;
+        context.stroke();
+      }
       context.restore();
-      context.fillStyle = art.base;
-      context.strokeStyle = '#233237';
-      context.lineWidth = 0.20;
-      context.fill(art.hull);
-      context.stroke(art.hull);
-      context.fillStyle = art.secondary;
-      context.fill(art.panel);
-      context.fillStyle = art.engine;
-      context.fill(art.nacelles);
-      context.fillStyle = art.fin;
-      context.fill(art.fins);
-      context.fillStyle = art.radome;
-      context.fill(art.nose);
-      context.fillStyle = '#29454e';
-      context.fill(art.canopy);
-      context.strokeStyle = '#b5c4be';
-      context.lineWidth = 0.13;
-      context.stroke(art.canopy);
-      context.strokeStyle = '#41565a';
-      context.stroke(art.seams);
-      const { nozzleOffset, nozzleEnd, nozzleWidth } = art;
-      for (const x of [-nozzleOffset, nozzleOffset]) {
-        context.fillStyle = '#667075';
-        context.fillRect(x - nozzleWidth / 2, nozzleEnd - 1.24, nozzleWidth, 0.81);
-        context.fillStyle = '#26343a';
-        context.fillRect(x - nozzleWidth / 2, nozzleEnd - 0.43, nozzleWidth, 0.46);
-        context.fillStyle = plane.afterburner ? '#f2ae70' : '#8d7762';
-        context.fillRect(x - nozzleWidth * 0.36, nozzleEnd + 0.03, nozzleWidth * 0.72, plane.afterburner ? 0.66 : 0.22);
+    }
+
+    function traceExhaust(context, x, z, radius, length) {
+      context.beginPath();
+      context.moveTo(x - radius * 0.65, z);
+      context.bezierCurveTo(x - radius * 1.45, z + length * 0.26, x - radius * 0.64, z + length * 0.78, x, z + length);
+      context.bezierCurveTo(x + radius * 0.64, z + length * 0.78, x + radius * 1.45, z + length * 0.26, x + radius * 0.65, z);
+      context.closePath();
+    }
+
+    function drawAfterburner(context, plane, time) {
+      const [nozzleZ, height, radius, offset] = JET_MODELS[plane.airframe].nozzle;
+      const z = nozzleZ + 0.17;
+      const bankSpan = offset * Math.cos(plane.bank);
+      const bankHeight = height * Math.sin(plane.bank);
+      context.save();
+      context.translate(plane.x, plane.z);
+      context.rotate(plane.heading);
+      for (const side of [-1, 1]) {
+        const x = side * bankSpan + bankHeight;
+        const phase = time * 39 + side * 0.65;
+        const length = 12.6 + 1.1 * Math.sin(phase) + 0.65 * Math.sin(phase * 1.79);
+        const glow = context.createLinearGradient(x, z, x, z + length * 1.13);
+        glow.addColorStop(0, 'rgba(255, 171, 100, 0.35)');
+        glow.addColorStop(0.45, 'rgba(230, 121, 115, 0.24)');
+        glow.addColorStop(1, 'rgba(252, 106, 56, 0)');
+        context.fillStyle = glow;
+        traceExhaust(context, x, z, radius * 2.4, length * 1.13);
+        context.fill();
+
+        const flame = context.createLinearGradient(x, z, x, z + length);
+        flame.addColorStop(0, 'rgba(255, 221, 145, 0.98)');
+        flame.addColorStop(0.16, 'rgba(218, 208, 255, 0.94)');
+        flame.addColorStop(0.45, 'rgba(177, 150, 243, 0.78)');
+        flame.addColorStop(0.70, 'rgba(255, 142, 75, 0.56)');
+        flame.addColorStop(1, 'rgba(255, 134, 52, 0)');
+        context.fillStyle = flame;
+        traceExhaust(context, x, z, radius * 1.10, length);
+        context.fill();
+
+        context.fillStyle = 'rgba(255, 231, 189, 0.78)';
+        for (const position of [0.16, 0.38, 0.58]) {
+          const center = z + length * position;
+          const width = radius * (0.67 - position * 0.58);
+          context.beginPath();
+          context.moveTo(x, center - 0.57);
+          context.lineTo(x + width, center);
+          context.lineTo(x, center + 0.90);
+          context.lineTo(x - width, center);
+          context.fill();
+        }
+      }
+      context.restore();
+    }
+
+    function sampleSonicBooms(battle) {
+      const { time, sonicBooms } = battle;
+      while (sonicBooms.length && time - sonicBooms[0].time >= SONIC_BOOM.lifetime) sonicBooms.shift();
+      for (const aircraft of battle.aircraft) {
+        if (!isAlive(aircraft)) continue;
+        const { flight, previous } = aircraft;
+        if (flight.speed <= MACH_ONE_KPH * SONIC_BOOM.rearmRatio) aircraft.boomArmed = true;
+        if (!aircraft.boomArmed || previous.speed >= MACH_ONE_KPH || flight.speed < MACH_ONE_KPH) continue;
+        aircraft.boomArmed = false;
+        const fraction = (MACH_ONE_KPH - previous.speed) / (flight.speed - previous.speed);
+        sonicBooms.push({
+          x: lerp(previous.x, flight.x, fraction),
+          z: lerp(previous.z, flight.z, fraction),
+          heading: previous.heading + angleDelta(previous.heading, flight.heading) * fraction,
+          time: time - STEP * (1 - fraction)
+        });
+      }
+    }
+
+    function drawSonicBoom(context, boom, time) {
+      const age = (time - boom.time) / SONIC_BOOM.lifetime;
+      if (age < 0 || age >= 1) return;
+      const expansion = 1 - (1 - age) ** 2;
+      const fade = (1 - age) ** 1.65 * Math.min(1, 0.5 + age * 7);
+      context.save();
+      context.translate(boom.x, boom.z);
+      context.rotate(boom.heading);
+      context.translate(0, 2.5 + expansion * 6);
+      context.scale(9 + expansion * 25, 3 + expansion * 10);
+      const mist = context.createRadialGradient(0, 0, 0.36, 0, 0, 1);
+      mist.addColorStop(0, 'rgba(215, 242, 247, 0)');
+      mist.addColorStop(0.42, 'rgba(229, 247, 249, 0.22)');
+      mist.addColorStop(0.70, 'rgba(250, 253, 255, 0.82)');
+      mist.addColorStop(0.84, 'rgba(222, 246, 250, 0.47)');
+      mist.addColorStop(1, 'rgba(215, 242, 247, 0)');
+      context.globalAlpha = fade;
+      context.fillStyle = mist;
+      context.beginPath();
+      context.arc(0, 0, 1, 0, TAU);
+      context.fill();
+      context.restore();
+    }
+
+    const WRECK_PARTS = [
+      { x: 0, z: 0, spreadX: 2, spreadZ: -7, angle: 0.24, fill: '#303539', seam: [[-0.8, -4], [0.5, -1.3], [0.7, 2.3]],
+        points: [[-1, -7], [1.5, -5.5], [1.1, -3], [2.8, -0.5], [2.4, 4], [0.2, 5.8],
+          [-0.8, 3.9], [-2.5, 5], [-2.2, 0], [-1.2, -2.8], [-1.9, -4.7]] },
+      { x: -3, z: 1, spreadX: -11, spreadZ: 6, angle: -0.68, fill: '#434745', seam: [[0.5, -1.7], [-1.7, 0.6]],
+        points: [[1.5, -3.4], [2.3, -0.9], [1.1, 0.3], [2.1, 2.6], [-3.2, 1.3], [-3.7, 0.4]] },
+      { x: 3, z: 2, spreadX: 11, spreadZ: 12, angle: 1.2, fill: '#373b3d',
+        points: [[-2, -2], [-0.3, -2.9], [2.8, 0.5], [2.4, 1.6], [-1.5, 1.6], [-0.8, 0.1]] },
+      { x: 0, z: 4, spreadX: -3, spreadZ: 15, angle: 0.83, fill: '#454746',
+        points: [[-1.4, -2.1], [0.8, -2.2], [1.4, 1.2], [0.3, 2.4], [-1.3, 1.2]] },
+      { x: 2, z: 0, spreadX: 19, spreadZ: -10, angle: 1.4, fill: '#4b4b46',
+        points: [[-1.4, -0.7], [0.3, -1.2], [1.2, 0.8], [-0.2, 1.1]] },
+      { x: -2, z: -3, spreadX: -16, spreadZ: -11, angle: -1.8, fill: '#454746',
+        points: [[-0.9, -1.1], [0.9, -0.5], [0.6, 1], [-0.6, 0.8]] }
+    ];
+
+    function drawAircraftWreck(context, aircraft, time) {
+      const age = time - aircraft.destroyedAt;
+      if (age < 0) return;
+      const spread = 1 - (1 - clamp(age / 0.85, 0, 1)) ** 3;
+      const { x, z, heading } = aircraft.flight;
+      context.save();
+      context.translate(x, z);
+      context.rotate(heading);
+      context.strokeStyle = '#75766c';
+      context.lineWidth = 0.45;
+      for (const part of WRECK_PARTS) {
+        context.save();
+        context.translate(part.x + part.spreadX * spread, part.z + part.spreadZ * spread);
+        context.rotate(part.angle * spread);
+        context.beginPath();
+        for (const [partX, partZ] of part.points) context.lineTo(partX, partZ);
+        context.closePath();
+        context.fillStyle = part.fill;
+        context.fill();
+        context.stroke();
+        if (part.seam) {
+          context.strokeStyle = '#9a9283';
+          context.lineWidth = 0.38;
+          context.beginPath();
+          for (const [partX, partZ] of part.seam) context.lineTo(partX, partZ);
+          context.stroke();
+        }
+        context.restore();
+      }
+      context.restore();
+    }
+
+    function drawExplosion(context, explosion, time) {
+      const age = time - explosion.time;
+      if (age < 0 || age >= EXPLOSION_SECONDS) return;
+      const progress = age / EXPLOSION_SECONDS;
+      const size = explosion.size;
+      context.save();
+      context.translate(explosion.x, explosion.z);
+
+      const smoke = size * (0.36 + progress * 0.74);
+      context.globalAlpha = Math.min(age * 5, 1) * (1 - progress) ** 1.4 * 0.63;
+      for (let i = 0; i < 5; i++) {
+        const angle = explosion.direction + i * TAU / 5;
+        const spread = size * (0.08 + progress * (0.60 + (i % 2) * 0.37));
+        const x = Math.cos(angle) * spread;
+        const z = Math.sin(angle) * spread;
+        const puff = context.createRadialGradient(x, z, 0, x, z, smoke);
+        puff.addColorStop(0, 'rgba(59, 67, 71, 0.93)');
+        puff.addColorStop(0.55, 'rgba(104, 104, 100, 0.64)');
+        puff.addColorStop(1, 'rgba(130, 130, 123, 0)');
+        context.fillStyle = puff;
+        context.fillRect(x - smoke, z - smoke, smoke * 2, smoke * 2);
+      }
+
+      const fireAge = clamp(age / 0.48, 0, 1);
+      if (fireAge < 1) {
+        const fire = size * (0.43 + (1 - (1 - fireAge) ** 2) * 0.83);
+        const flash = context.createRadialGradient(0, 0, 0, 0, 0, fire);
+        flash.addColorStop(0, '#fff7da');
+        flash.addColorStop(0.25, '#ffdf96');
+        flash.addColorStop(0.58, 'rgba(255, 136, 54, 0.90)');
+        flash.addColorStop(1, 'rgba(218, 61, 33, 0)');
+        context.globalAlpha = (1 - fireAge) ** 1.8;
+        context.fillStyle = flash;
+        context.fillRect(-fire, -fire, fire * 2, fire * 2);
+        context.beginPath();
+        context.arc(0, 0, size * (0.50 + fireAge * 1.7), 0, TAU);
+        context.lineWidth = 1.15;
+        context.strokeStyle = 'rgba(255, 191, 122, .52)';
+        context.stroke();
+      }
+
+      context.globalAlpha = (1 - progress) ** 2 * 0.90;
+      for (let i = 0; i < 9; i++) {
+        const angle = explosion.direction + i * 2.39996;
+        const radius = size * (0.28 + progress * (1.9 + i % 3 * 0.6));
+        const inner = radius - size * 0.13 * (1 - progress);
+        context.beginPath();
+        context.moveTo(Math.cos(angle) * inner, Math.sin(angle) * inner);
+        context.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
+        context.lineWidth = i % 3 ? 0.85 : 1.45;
+        context.strokeStyle = i % 3 ? '#ffbc74' : '#ffe1a9';
+        context.stroke();
       }
       context.restore();
     }
@@ -5138,7 +5847,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       context.stroke();
     }
 
-    function drawBattle(context, width, height, viewWidth, viewHeight, camera, battle, fraction) {
+    function drawBattle(context, width, height, viewWidth, viewHeight, camera, battle, fraction, renderTime) {
       const scaleX = width / viewWidth;
       const scaleY = height / viewHeight;
       context.resetTransform();
@@ -5146,27 +5855,28 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       context.setTransform(scaleX, 0, 0, scaleY, width / 2 - camera.x * scaleX, height / 2 - camera.z * scaleY);
       context.lineCap = 'round';
       context.lineJoin = 'round';
-      const renderTime = battle.time - STEP * (1 - fraction);
+      for (const boom of battle.sonicBooms) drawSonicBoom(context, boom, renderTime);
+      for (const aircraft of battle.aircraft) {
+        const plane = aircraft.display;
+        if (Math.abs(plane.x - camera.x) > viewWidth / 2 + 100 || Math.abs(plane.z - camera.z) > viewHeight / 2 + 100) continue;
+        drawWingWake(context, aircraft, renderTime);
+        if (isAlive(aircraft)) {
+          if (plane.airbrakeExtension > 0) drawAirbrakeWake(context, plane, renderTime);
+          if (plane.afterburner) drawAfterburner(context, plane, renderTime);
+        } else {
+          drawAircraftWreck(context, aircraft, renderTime);
+        }
+      }
       for (const missile of battle.missiles) drawMissile(context, missile, renderTime, fraction);
-      for (const flare of battle.flares) drawFlare(context, flare, battle.time, fraction, scaleY);
-      for (const cloud of battle.chaff) drawChaff(context, cloud, battle.time, scaleY);
+      for (const flare of battle.flares) drawFlare(context, flare, renderTime, fraction, scaleY);
+      for (const cloud of battle.chaff) drawChaff(context, cloud, renderTime, scaleY);
+      for (const explosion of battle.explosions) drawExplosion(context, explosion, renderTime);
       context.font = `600 ${Math.max(2.45, 11 / scaleY)}px "Segoe UI", "Microsoft YaHei", sans-serif`;
       context.textAlign = 'center';
       for (const aircraft of battle.aircraft) {
         const plane = aircraft.display;
         if (Math.abs(plane.x - camera.x) > viewWidth / 2 + 20 || Math.abs(plane.z - camera.z) > viewHeight / 2 + 20) continue;
-        if (!isAlive(aircraft)) {
-          const age = battle.time - aircraft.destroyedAt;
-          if (age < 1.2) {
-            context.beginPath();
-            context.arc(plane.x, plane.z, 6 + age * 4, 0, TAU);
-            context.fillStyle = `rgba(255, 146, 86, ${0.50 * (1 - age / 1.2)})`;
-            context.fill();
-          }
-          continue;
-        }
-        drawJet(context, plane);
-        if (aircraft === battle.player) continue;
+        if (!isAlive(aircraft) || aircraft === battle.player) continue;
         const label = AIRCRAFT[plane.airframe].name;
         context.lineWidth = Math.max(0.50, 2 / scaleY);
         context.strokeStyle = '#192e32';
@@ -5208,7 +5918,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     }
 
     function createRenderer(canvas, effectsCanvas, mapCanvas, mapBounds, terrainData) {
-      const gl = canvas.getContext('webgl2', { alpha: false, antialias: false, depth: false, stencil: false });
+      const gl = canvas.getContext('webgl2', { alpha: false, antialias: false, depth: true, stencil: false });
       const effects = effectsCanvas.getContext('2d');
       if (!gl) throw new Error('WebGL2 is unavailable.');
       if (!effects) throw new Error('The effects canvas is unavailable.');
@@ -5235,10 +5945,10 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         return shader;
       }
 
-      const vertex = compile(gl.VERTEX_SHADER, VERTEX_SOURCE);
+      const terrainVertex = compile(gl.VERTEX_SHADER, VERTEX_SOURCE);
       const fragmentSource = document.getElementById('terrain-fragment').textContent;
 
-      function makePass(source) {
+      function linkProgram(vertex, source) {
         const fragment = compile(gl.FRAGMENT_SHADER, source);
         const program = gl.createProgram();
         gl.attachShader(program, vertex);
@@ -5246,6 +5956,11 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         gl.linkProgram(program);
         gl.deleteShader(fragment);
         if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program));
+        return program;
+      }
+
+      function makePass(source) {
+        const program = linkProgram(terrainVertex, source);
         const { minX, maxX, minZ, maxZ } = mapBounds;
         gl.useProgram(program);
         gl.uniform1i(gl.getUniformLocation(program, 'uTerrainData'), 0);
@@ -5261,7 +5976,30 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       }
 
       const terrain = makePass(fragmentSource);
-      gl.bindVertexArray(gl.createVertexArray());
+      const terrainVertexArray = gl.createVertexArray();
+      const jetVertex = compile(gl.VERTEX_SHADER, JET_VERTEX_SOURCE);
+      const jetProgram = linkProgram(jetVertex, JET_FRAGMENT_SOURCE);
+      gl.deleteShader(jetVertex);
+      const jetPose = gl.getUniformLocation(jetProgram, 'uPose');
+      const jetViewSpan = gl.getUniformLocation(jetProgram, 'uViewSpan');
+      const jetAfterburner = gl.getUniformLocation(jetProgram, 'uAfterburner');
+      const jetSpeedBrake = gl.getUniformLocation(jetProgram, 'uSpeedBrake');
+      const jetMeshes = JET_MODELS.map(model => {
+        const { vertices, bodyVertexCount } = buildJetMesh(model);
+        const [hingeZ, hingeY] = model.speedBrake[0];
+        const vertexArray = gl.createVertexArray();
+        gl.bindVertexArray(vertexArray);
+        const buffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+        gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+        for (const [location, size] of [3, 3, 4].entries()) {
+          gl.enableVertexAttribArray(location);
+          gl.vertexAttribPointer(location, size, gl.FLOAT, false, 10 * 4, location * 3 * 4);
+        }
+        return { vertexArray, count: vertices.length / 10, bodyVertexCount, hingeZ, hingeY };
+      });
+      gl.bindBuffer(gl.ARRAY_BUFFER, null);
+      gl.bindVertexArray(terrainVertexArray);
 
       const terrainBuffer = gl.createFramebuffer();
       const terrainColor = gl.createRenderbuffer();
@@ -5357,12 +6095,35 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         gl.drawArrays(gl.TRIANGLES, 0, 3);
       }
 
+      function drawAircraft(width, height, camera, aircraft) {
+        gl.viewport(0, 0, width, height);
+        gl.clear(gl.DEPTH_BUFFER_BIT);
+        gl.enable(gl.DEPTH_TEST);
+        gl.useProgram(jetProgram);
+        gl.uniform2f(jetViewSpan, viewWidth, viewHeight);
+        for (const plane of aircraft) {
+          if (!isAlive(plane)) continue;
+          const { x, z, heading, bank, airframe, afterburner, airbrakeExtension } = plane.display;
+          const { vertexArray, count, bodyVertexCount, hingeZ, hingeY } = jetMeshes[airframe];
+          gl.bindVertexArray(vertexArray);
+          gl.uniform4f(jetPose, x - camera.x, z - camera.z, heading, bank);
+          gl.uniform1f(jetAfterburner, Number(afterburner));
+          gl.uniform3f(jetSpeedBrake, 0, 0, 0);
+          gl.drawArrays(gl.TRIANGLES, 0, airbrakeExtension > 0 ? bodyVertexCount : count);
+          if (airbrakeExtension > 0) {
+            gl.uniform3f(jetSpeedBrake, hingeY, hingeZ, airbrakeExtension * AIRBRAKE_FULL_ANGLE);
+            gl.drawArrays(gl.TRIANGLES, bodyVertexCount, count - bodyVertexCount);
+          }
+        }
+        gl.disable(gl.DEPTH_TEST);
+        gl.bindVertexArray(terrainVertexArray);
+      }
+
       const camera = { x: 0, z: 0 };
-      function draw(focus, viewOffset, battle, fraction) {
+      function draw(focus, viewOffset, battle, fraction, time = Math.max(0, battle.time - STEP * (1 - fraction))) {
         camera.x = focus.x + (viewOffset?.x ?? 0) * viewWidth;
         camera.z = focus.z + (viewOffset?.y ?? 0) * viewHeight;
         const { width, height } = canvas;
-        const time = Math.max(0, battle.time - STEP * (1 - fraction));
         gl.bindFramebuffer(gl.FRAMEBUFFER, terrainBuffer);
         drawPass(terrain, terrainWidth, terrainHeight, time, camera);
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -5370,11 +6131,12 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         gl.blitFramebuffer(0, 0, terrainWidth, terrainHeight, 0, 0, width, height, gl.COLOR_BUFFER_BIT, gl.LINEAR);
         gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
 
-        drawBattle(effects, width, height, viewWidth, viewHeight, camera, battle, fraction);
+        drawAircraft(width, height, camera, battle.aircraft);
+        drawBattle(effects, width, height, viewWidth, viewHeight, camera, battle, fraction, time);
       }
 
       drawMinimapTerrain();
-      gl.deleteShader(vertex);
+      gl.deleteShader(terrainVertex);
       resize();
       return { draw, resize, reduceResolution };
     }
@@ -5415,28 +6177,40 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     const messageTitle = document.getElementById('message-title');
     const messageDetail = document.getElementById('message-detail');
     const headingOutput = document.getElementById('heading');
+    const compassScale = document.getElementById('compass-scale');
+    const compassMarks = Array.from({ length: 13 }, () => {
+      const mark = document.createElement('span');
+      mark.className = 'compass-mark';
+      compassScale.append(mark);
+      return mark;
+    });
     const speedOutput = document.getElementById('speed');
+    const speedDial = document.getElementById('speed-dial').getContext('2d');
     const throttleOutput = document.getElementById('throttle');
     const throttleTrack = document.getElementById('throttle-track');
     const throttleMode = document.getElementById('throttle-mode');
-    document.getElementById('altitude').value = `${FLIGHT_ALTITUDE_M.toLocaleString('zh-CN')} m`;
+    const airbrakeStatus = document.getElementById('airbrake-status');
+    const loadFactorLabel = document.getElementById('load-factor-label');
+    const loadFactorOutput = document.getElementById('load-factor');
     const bankOutput = document.getElementById('bank-angle');
-    const missileName = document.getElementById('missile-name');
-    const ammoOutput = document.getElementById('missile-ammo');
     const seekerOutput = document.getElementById('seeker-status');
+    const weaponRacks = Array.from(document.querySelectorAll('.weapon-rack'), panel => ({
+      panel,
+      kind: panel.dataset.weapon,
+      name: panel.querySelector('.weapon-name'),
+      slots: panel.querySelector('.weapon-slots'),
+      ammo: panel.querySelector('.weapon-ammo')
+    }));
     const flareOutput = document.getElementById('flare-ammo');
     const chaffOutput = document.getElementById('chaff-ammo');
-    const seekerLabel = document.getElementById('seeker-label');
     const radarStatus = document.getElementById('radar-status');
     const radarRange = document.getElementById('radar-range');
     const radarScope = document.getElementById('radar-scope').getContext('2d');
     const rwrStatus = document.getElementById('rwr-status');
     const rwrScope = document.getElementById('rwr-scope').getContext('2d');
     const missileFeedback = document.getElementById('missile-feedback');
-    const compass = document.getElementById('compass');
     const ukRemaining = document.getElementById('uk-remaining');
     const franceRemaining = document.getElementById('france-remaining');
-    const battleDistance = document.getElementById('battle-distance');
     const keycaps = document.querySelectorAll('[data-key]');
     const keys = new Set();
     const battleCommands = new Set();
@@ -5447,6 +6221,9 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     let viewReturnTime = 0;
     let terrainData;
     let renderer;
+    let followedMissile = null;
+    let deathAcknowledged = false;
+    let resultElapsed = 0;
     let paused = false;
     let request = 0;
     let lastFrame = null;
@@ -5456,8 +6233,16 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     let frameCount = 0;
     let slowFrames = 0;
 
+    function awaitingWreckView() {
+      return !deathAcknowledged && !isAlive(battle.player);
+    }
+
+    function wreckViewReady() {
+      return battle.time + resultElapsed - battle.player.destroyedAt >= PLAYER_WRECK_VIEW_SECONDS;
+    }
+
     function viewedAircraft() {
-      if (isAlive(battle.player)) return battle.player;
+      if (isAlive(battle.player) || awaitingWreckView()) return battle.player;
       return battle.aircraft.find(aircraft => aircraft.team === 0 && isAlive(aircraft)) ?? battle.player;
     }
 
@@ -5480,35 +6265,52 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     function drawRadarScope(context, aircraft, clouds) {
       const { width, height } = context.canvas;
       const { radar } = aircraft;
-      const pad = 12;
-      const innerWidth = width - pad * 2;
-      const innerHeight = height - pad * 2;
-      const azimuth = angle => pad + (0.5 + angle / (2 * RADAR.trackAngle)) * innerWidth;
-      context.fillStyle = '#0a2428';
+      const left = 40, right = width - 22, top = 16, bottom = height - 32;
+      const innerWidth = right - left, innerHeight = bottom - top;
+      const azimuth = angle => left + (0.5 + angle / (2 * RADAR.trackAngle)) * innerWidth;
+      const distanceY = km => bottom - (km / RADAR.rangeKm) * innerHeight;
+      context.fillStyle = '#061a1f';
       context.fillRect(0, 0, width, height);
-      context.lineWidth = 1.5;
-      context.strokeStyle = '#355856';
-      context.strokeRect(pad, pad, innerWidth, innerHeight);
+      context.lineWidth = 1.25;
+      context.strokeStyle = '#345f59';
+      context.strokeRect(left, top, innerWidth, innerHeight);
       context.beginPath();
-      for (let index = 1; index <= 3; index++) {
-        const y = pad + innerHeight * index / 4;
-        const x = pad + innerWidth * index / 4;
-        context.moveTo(pad, y);
-        context.lineTo(width - pad, y);
-        context.moveTo(x, pad);
-        context.lineTo(x, height - pad);
+      context.fillStyle = '#a5c7b9';
+      context.font = '19px Consolas, monospace';
+      context.textAlign = 'right';
+      context.textBaseline = 'middle';
+      for (let i = 0; i <= 4; i++) {
+        const range = RADAR.rangeKm * i / 4;
+        const y = distanceY(range);
+        context.moveTo(left - 4, y);
+        context.lineTo(right, y);
+        if (i % 2 === 0) context.fillText(String(range), left - 8, y);
+      }
+      context.textAlign = 'center';
+      context.textBaseline = 'top';
+      const limitDegrees = Math.floor(RADAR.trackAngle * 180 / Math.PI / 10) * 10;
+      for (const scale of [-1, -0.5, 0, 0.5, 1]) {
+        const degrees = limitDegrees * scale;
+        const x = azimuth(degrees * Math.PI / 180);
+        context.moveTo(x, top);
+        context.lineTo(x, bottom + 5);
+        if (Number.isInteger(scale)) context.fillText(`${degrees}°`, x, bottom + 10);
       }
       context.stroke();
+      context.save();
+      context.beginPath();
+      context.rect(left, top, innerWidth, innerHeight);
+      context.clip();
       if (!radar.target && !radar.pending) {
-        context.fillStyle = '#6fa58c';
-        context.fillRect(azimuth(radar.sweep), pad, 2, innerHeight);
+        context.fillStyle = '#629e86';
+        context.fillRect(azimuth(radar.sweep), top, 2, innerHeight);
       }
       for (const [target, echo] of radar.echoes) {
         const track = target === radar.target;
         const { angle, range } = radarPosition(aircraft, track ? target.flight : echo);
         if (!isAlive(target) || range > RADAR.rangeKm || Math.abs(angle) > RADAR.trackAngle) continue;
         const x = azimuth(angle);
-        const y = height - pad - (range / RADAR.rangeKm) * innerHeight;
+        const y = distanceY(range);
         context.fillStyle = target.team === aircraft.team ? '#8ed2d9' : '#b9edc4';
         context.fillRect(x - 6, y - 2, 12, 4);
         if (track || target === radar.selected) {
@@ -5520,18 +6322,19 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       for (const cloud of clouds) {
         const { angle, range } = radarPosition(aircraft, cloud);
         if (range > RADAR.rangeKm || Math.abs(angle) > RADAR.scanAngle) continue;
-        const y = height - pad - (range / RADAR.rangeKm) * innerHeight;
+        const y = distanceY(range);
         context.fillStyle = '#9dacaf';
         for (const offset of [-5, 0, 5]) context.fillRect(azimuth(angle) + offset, y, 2, 3);
       }
+      context.restore();
     }
 
     function drawRwrScope(context, warnings) {
       const { width, height } = context.canvas;
       const x = width / 2;
       const y = height / 2;
-      const radius = height * 0.43;
-      context.fillStyle = '#0a2428';
+      const radius = height * 0.42;
+      context.fillStyle = '#061a1f';
       context.fillRect(0, 0, width, height);
       context.strokeStyle = '#41635e';
       context.lineWidth = 1.5;
@@ -5540,6 +6343,14 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         context.arc(x, y, ring, 0, TAU);
         context.stroke();
       }
+      context.beginPath();
+      for (let i = 0; i < 8; i++) {
+        const angle = TAU * i / 8;
+        const dx = Math.sin(angle), dy = -Math.cos(angle);
+        context.moveTo(x + dx * radius, y + dy * radius);
+        context.lineTo(x + dx * (radius + 5), y + dy * (radius + 5));
+      }
+      context.stroke();
       context.fillStyle = '#c3dcd3';
       context.fillRect(x - 2, y - 2, 4, 4);
       context.beginPath();
@@ -5569,7 +6380,11 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       const mode = radar.mode.toUpperCase();
       const state = radar.target ? '跟踪' : radar.pending ? '锁定中' : battle.time - radar.lostAt < 0.8 ? '脱锁' : '搜索';
       radarStatus.value = `${mode} ${state}`;
-      radarRange.textContent = `${AIRCRAFT[aircraft.flight.airframe].radarName} · ${RADAR.rangeKm} km`;
+      const observation = radar.target?.flight ?? radar.echoes.get(radar.selected);
+      const distance = observation && radarPosition(aircraft, observation).range;
+      radarRange.textContent = observation && !battle.result
+        ? `目标 ${distance.toFixed(distance < 1 ? 2 : 1)} km`
+        : `${AIRCRAFT[aircraft.flight.airframe].radarName} · km`;
       drawRadarScope(radarScope, aircraft, battle.chaff);
       const danger = warnings.reduce((level, warning) => Math.max(level, warning.level), 0);
       rwrStatus.value = ['静默', '被搜索', '被锁定', '雷达弹告警'][danger];
@@ -5578,34 +6393,117 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       return danger;
     }
 
+    function updateCompass(heading) {
+      const first = Math.ceil((heading - 30) / 5) * 5;
+      for (let i = 0; i < compassMarks.length; i++) {
+        const bearing = first + i * 5;
+        const mark = compassMarks[i];
+        const label = bearing % 10 === 0 ? String((bearing + 360) % 360).padStart(3, '0') : '';
+        if (mark.textContent !== label) mark.textContent = label;
+        mark.style.setProperty('--mark-x', `${50 + ((bearing - heading) / 60) * 100}%`);
+      }
+    }
+
+    function drawSpeedDial(context, speed, topSpeed) {
+      const { width, height } = context.canvas;
+      const x = width / 2, y = height / 2;
+      const radius = width * 0.43;
+      const start = Math.PI * 0.75;
+      const sweep = Math.PI * 1.5;
+      const maxSpeed = Math.ceil(topSpeed / 500) * 500;
+      const value = start + clamp(speed / maxSpeed, 0, 1) * sweep;
+      context.clearRect(0, 0, width, height);
+      context.lineWidth = 4;
+      context.strokeStyle = '#305655';
+      context.beginPath();
+      context.arc(x, y, radius, start, start + sweep);
+      context.stroke();
+      context.strokeStyle = '#79c8ae';
+      context.beginPath();
+      context.arc(x, y, radius, start, value);
+      context.stroke();
+
+      context.strokeStyle = '#81a9a0';
+      context.fillStyle = '#9fbdb5';
+      context.lineWidth = 2;
+      context.font = '14px Consolas, monospace';
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+      context.beginPath();
+      for (let i = 0; i <= 20; i++) {
+        const angle = start + sweep * i / 20;
+        const dx = Math.cos(angle), dy = Math.sin(angle);
+        const major = i % 5 === 0;
+        const inside = radius - (major ? 14 : 8);
+        context.moveTo(x + dx * radius, y + dy * radius);
+        context.lineTo(x + dx * inside, y + dy * inside);
+        if (major) context.fillText(String((maxSpeed * i) / 20), x + dx * (radius - 29), y + dy * (radius - 29));
+      }
+      context.stroke();
+      context.strokeStyle = '#f7cb6b';
+      context.lineWidth = 4;
+      const dx = Math.cos(value), dy = Math.sin(value);
+      context.beginPath();
+      context.moveTo(x + dx * (radius - 17), y + dy * (radius - 17));
+      context.lineTo(x + dx * (radius + 4), y + dy * (radius + 4));
+      context.stroke();
+    }
+
+    function updateLoadout(player, radarWeapon, seeker, locked) {
+      seekerOutput.value = `${radarWeapon ? '雷达' : '红外'} · ${seeker}`;
+      seekerOutput.toggleAttribute('data-locked', locked);
+      for (const { panel, kind, name, slots, ammo } of weaponRacks) {
+        const rack = kind === 'sarh' ? player.radarRack : player.rack;
+        const capacity = MISSILES[rack.type].capacity;
+        if (name.textContent !== rack.type) name.textContent = rack.type;
+        ammo.value = String(rack.ammo).padStart(2, '0');
+        panel.toggleAttribute('data-selected', kind === player.weapon);
+        panel.toggleAttribute('data-empty', rack.ammo === 0);
+        if (slots.children.length !== capacity) {
+          slots.replaceChildren(...Array.from({ length: capacity }, () => {
+            const slot = document.createElement('span');
+            slot.className = 'weapon-slot';
+            return slot;
+          }));
+        }
+        for (let i = 0; i < slots.children.length; i++) slots.children[i].toggleAttribute('data-loaded', i < rack.ammo);
+      }
+    }
+
     function updateInstruments() {
       const { player } = battle;
       const { flight, radar } = player;
+      const profile = AIRCRAFT[flight.airframe].flight;
       const radarWeapon = player.weapon === 'sarh';
       const rack = radarWeapon ? player.radarRack : player.rack;
       const degrees = 180 / Math.PI;
       const heading = Math.round(flight.heading * degrees) % 360;
       const bank = Math.round(flight.bank * degrees);
       headingOutput.value = `${String(heading).padStart(3, '0')}°`;
+      updateCompass(flight.heading * degrees);
       speedOutput.value = String(Math.round(flight.speed));
+      drawSpeedDial(speedDial, flight.speed, profile.topSpeedKph);
+      loadFactorOutput.value = `${flight.loadFactor.toFixed(1)} G`;
+      const pilotStrained = flight.pilotStrain > PILOT_STRAIN_THRESHOLD;
+      const loadLabel = pilotStrained ? '过载疲劳' : '过载';
+      if (loadFactorLabel.textContent !== loadLabel) loadFactorLabel.textContent = loadLabel;
+      loadFactorOutput.toggleAttribute('data-strained', pilotStrained);
       const fullThrottle = flight.throttle === 1;
-      const airbrakeOpen = flight.throttle === 0;
-      throttleOutput.value = String(airbrakeOpen ? 0 : fullThrottle ? 100 : clamp(Math.round(flight.throttle * 100), 1, 99));
-      const throttleLabel = airbrakeOpen ? '减速板' : flight.afterburner ? '加力' : fullThrottle ? '再按 W' : '';
+      const airbrakeOpen = flight.airbrake || flight.airbrakeExtension > 0;
+      throttleOutput.value = String(flight.throttle === 0 ? 0 : fullThrottle ? 100 : clamp(Math.round(flight.throttle * 100), 1, 99));
+      const throttleLabel = flight.afterburner ? '加力' : fullThrottle ? '再按 W' : '';
       if (throttleMode.value !== throttleLabel) throttleMode.value = throttleLabel;
       throttleMode.hidden = !throttleLabel;
-      throttleMode.toggleAttribute('data-airbrake', airbrakeOpen);
       throttleMode.toggleAttribute('data-afterburner', flight.afterburner);
+      airbrakeStatus.hidden = !airbrakeOpen;
       throttleTrack.toggleAttribute('data-afterburner', flight.afterburner);
+      throttleTrack.toggleAttribute('data-airbrake', airbrakeOpen);
       bankOutput.value = bank === 0 ? '0°' : `${bank < 0 ? '左' : '右'} ${Math.abs(bank)}°`;
       const locked = isAlive(player) && (radarWeapon ? Boolean(radar.target) : rack.lock >= MISSILES[rack.type].lockSeconds);
       const sensors = viewedAircraft();
       const radarDanger = updateSensorDisplays(sensors, radarWarnings(battle, sensors));
-      missileName.textContent = rack.type;
-      ammoOutput.value = `${rack.ammo} 枚`;
-      ammoOutput.toggleAttribute('data-empty', rack.ammo === 0);
-      seekerLabel.textContent = radarWeapon ? '雷达引导' : '红外引导';
-      seekerOutput.value = locked ? '已锁定' : radarWeapon && radar.pending ? '锁定中' : rack.armed ? (rack.lock ? '锁定中' : '搜索') : '待机';
+      const seeker = locked ? '已锁定' : radarWeapon && radar.pending ? '锁定中' : rack.armed ? (rack.lock ? '锁定中' : '搜索') : '待机';
+      updateLoadout(player, radarWeapon, seeker, locked);
       const { flareRack, chaffRack } = battle;
       const flareCooling = flareRack.ammo > 0 && battle.time < flareRack.readyAt;
       const chaffCooling = chaffRack.ammo > 0 && battle.time < chaffRack.readyAt;
@@ -5613,11 +6511,15 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       flareOutput.toggleAttribute('data-empty', flareRack.ammo === 0);
       chaffOutput.value = `${chaffRack.ammo} 组${chaffCooling ? ' · 冷却' : ''}`;
       chaffOutput.toggleAttribute('data-empty', chaffRack.ammo === 0);
-      const infraredIncoming = battle.missiles.some(missile => missile.target === player && !missile.flare && MISSILES[missile.type].guidance === 'ir');
+      const infraredIncoming = battle.missiles.some(missile =>
+        missile.target === player && missile.lostAt === null && !missile.flare && MISSILES[missile.type].guidance === 'ir');
       const lastLaunch = Math.max(player.rack.lastLaunch, player.radarRack.lastLaunch);
       const outcome = battle.missileOutcome;
       let feedback = '';
-      if (!isAlive(player)) feedback = '本机出局 · 观战';
+      if (awaitingWreckView()) {
+        feedback = '本机被击毁';
+        if (wreckViewReady()) feedback += battle.result ? ' · 按任意键查看战果' : ' · 按任意键观战';
+      } else if (!isAlive(player)) feedback = '本机出局 · 观战';
       else if (radarDanger === 3) feedback = chaffRack.ammo > 0 && !chaffCooling ? '雷达弹告警 · C 干扰箔' : '雷达弹告警';
       else if (infraredIncoming) feedback = flareRack.ammo > 0 && !flareCooling ? '红外弹来袭 · X 热诱弹' : '红外弹来袭';
       else if (battle.time - flareRack.lastRedirect < 1.1) feedback = '导弹已被诱偏';
@@ -5634,17 +6536,11 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       if (missileFeedback.textContent !== feedback) missileFeedback.textContent = feedback;
       missileFeedback.toggleAttribute('data-danger', infraredIncoming || radarDanger === 3);
       throttleTrack.style.setProperty('--throttle', flight.throttle);
-      compass.style.setProperty('--tape-offset', `${-((flight.heading * degrees * 2.4) % 36)}px`);
 
       const uk = String(teamCount(battle, 0));
       const france = String(teamCount(battle, 1));
       if (ukRemaining.value !== uk) ukRemaining.value = uk;
       if (franceRemaining.value !== france) franceRemaining.value = france;
-      const viewRadar = sensors.radar;
-      const observation = viewRadar.target?.flight ?? viewRadar.echoes.get(viewRadar.selected);
-      const distance = observation ? radarPosition(sensors, observation).range : 0;
-      const distanceLabel = observation && !battle.result ? `雷达目标 ${distance.toFixed(distance < 1 ? 2 : 1)} km` : '';
-      if (battleDistance.textContent !== distanceLabel) battleDistance.textContent = distanceLabel;
       updateMinimap();
       updateFlightDebug();
     }
@@ -5653,8 +6549,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       if (debugPanel.hidden) return;
       const { flight } = battle.player;
       const profile = AIRCRAFT[flight.airframe].flight;
-      const turnAcceleration = levelTurnAcceleration(profile, flight.speed, flight.bank / MAX_BANK);
-      const forces = flightForces(profile, flight, turnAcceleration, debugTuning);
+      const forces = flightForces(profile, flight, debugTuning);
       debugThrust.value = `${forces.thrustKn.toFixed(1)} kN`;
       debugStraightDrag.value = `${forces.straightDragKn.toFixed(1)} kN`;
       debugTurnDrag.value = `${forces.turnDragKn.toFixed(1)} kN`;
@@ -5770,6 +6665,9 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     function resetFlight() {
       if (!renderer) return;
       battle = initialBattle(Number(aircraftSelect.value));
+      followedMissile = null;
+      deathAcknowledged = false;
+      resultElapsed = 0;
       centerView();
       accumulator = 0;
       updateInstruments();
@@ -5777,23 +6675,38 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       setPaused(false);
     }
 
+    function missileForView(time) {
+      if (awaitingWreckView()) {
+        followedMissile = null;
+        return null;
+      }
+      if (followedMissile?.explosion) {
+        if (time - followedMissile.endedAt < MISSILE_IMPACT_VIEW_SECONDS) return followedMissile;
+        if (keys.has('KeyU')) return null;
+      }
+      followedMissile = keys.has('KeyU') && !battle.result
+        ? battle.missiles.findLast(missile => missile.source === battle.player) ?? null
+        : null;
+      return followedMissile;
+    }
+
     function drawInterpolatedFrame() {
       const fraction = battle.result ? 1 : accumulator / STEP;
+      const time = Math.max(0, battle.time - STEP * (1 - fraction)) + resultElapsed;
       for (const aircraft of battle.aircraft) interpolateFlight(aircraft.display, aircraft.previous, aircraft.flight, fraction);
-      const missile = keys.has('KeyU') && !battle.result
-        ? battle.missiles.findLast(missile => missile.source === battle.player)
-        : null;
+      const missile = missileForView(time);
       missileView.hidden = !missile;
+      missileView.toggleAttribute('data-impact', Boolean(missile?.explosion));
       if (missile) {
-        const label = `${missile.type} 导弹视角`;
+        const label = missile.explosion ? `${missile.type} · ${missile.endStatus}` : `${missile.type} 导弹视角`;
         if (missileViewLabel.textContent !== label) missileViewLabel.textContent = label;
-        const focus = {
+        const focus = missile.explosion ?? {
           x: lerp(missile.previousX, missile.x, fraction),
           z: lerp(missile.previousZ, missile.z, fraction)
         };
-        renderer.draw(focus, null, battle, fraction);
+        renderer.draw(focus, null, battle, fraction, time);
       } else {
-        renderer.draw(viewedAircraft().display, viewOffset, battle, fraction);
+        renderer.draw(viewedAircraft().display, awaitingWreckView() ? null : viewOffset, battle, fraction, time);
       }
     }
 
@@ -5801,16 +6714,24 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       const elapsed = lastFrame === null ? 0 : (now - lastFrame) / 1000;
       const dt = Math.min(elapsed, 0.1);
       lastFrame = now;
-      accumulator += dt;
-
-      const throttleInput = Number(keys.has('KeyW')) - Number(keys.has('KeyS'));
-      const turnInput = Number(keys.has('KeyD')) - Number(keys.has('KeyA'));
-      const playerTuning = debugPanel.hidden ? undefined : debugTuning;
-      while (accumulator >= STEP) {
-        stepBattle(battle, throttleInput, turnInput, battleCommands, STEP, playerTuning);
-        battleCommands.clear();
-        accumulator -= STEP;
-        if (battle.result) break;
+      if (battle.result) resultElapsed += dt;
+      else {
+        accumulator += dt;
+        const wasAlive = isAlive(battle.player);
+        const throttleInput = Number(keys.has('KeyW')) - Number(keys.has('KeyS'));
+        const turnInput = Number(keys.has('KeyD')) - Number(keys.has('KeyA'));
+        const playerTuning = debugPanel.hidden ? undefined : debugTuning;
+        while (accumulator >= STEP && !battle.result) {
+          stepBattle(battle, throttleInput, turnInput, battleCommands, STEP, playerTuning);
+          sampleWingWakes(battle);
+          sampleSonicBooms(battle);
+          battleCommands.clear();
+          accumulator -= STEP;
+        }
+        if (wasAlive && !isAlive(battle.player)) {
+          clearKeys();
+          centerView();
+        }
       }
 
       if (viewReturnTime > 0) {
@@ -5835,7 +6756,9 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
 
       if (battle.result) centerView();
       drawInterpolatedFrame();
-      if (battle.result) {
+      const latestExplosion = battle.explosions.at(-1);
+      const explosionVisible = latestExplosion && battle.time + resultElapsed - latestExplosion.time < EXPLOSION_SECONDS;
+      if (battle.result && !awaitingWreckView() && missileView.hidden && !explosionVisible) {
         showBattleResult();
         return;
       }
@@ -5855,8 +6778,10 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         resetButton.disabled = false;
         debugToggle.disabled = false;
         if (battle.result) {
+          message.hidden = true;
+          lastFrame = null;
           drawInterpolatedFrame();
-          showBattleResult();
+          request = requestAnimationFrame(frame);
         } else setPaused(false);
       } catch (error) {
         console.error(error);
@@ -5880,7 +6805,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
 
     canvas.addEventListener('contextmenu', event => event.preventDefault());
     canvas.addEventListener('pointerdown', (event) => {
-      if (event.button !== 2 || !renderer || paused || battle.result || viewPointerId !== null) return;
+      if (event.button !== 2 || !renderer || paused || battle.result || awaitingWreckView() || viewPointerId !== null) return;
       event.preventDefault();
       viewPointerId = event.pointerId;
       viewReturnTime = 0;
@@ -5907,11 +6832,28 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     });
 
     window.addEventListener('keydown', (event) => {
-      if (event.ctrlKey || event.metaKey || event.altKey || event.target === aircraftSelect) return;
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      if (renderer && !paused && awaitingWreckView()) {
+        event.preventDefault();
+        if (!event.repeat && wreckViewReady()) {
+          deathAcknowledged = true;
+          centerView();
+          drawInterpolatedFrame();
+          if (battle.result) {
+            cancelAnimationFrame(request);
+            showBattleResult();
+          } else updateInstruments();
+        }
+        return;
+      }
+      if (event.target === aircraftSelect) return;
       if (FLIGHT_KEYS.has(event.code)) {
-        if (event.code === 'Space' && event.target instanceof HTMLButtonElement && event.target.matches(':focus-visible')) return;
+        if (event.code === 'Space' && event.target instanceof Element && event.target.closest('button, summary')?.matches(':focus-visible')) return;
         event.preventDefault();
         if (!renderer || paused || battle.result || (event.code !== 'KeyU' && !isAlive(battle.player))) return;
+        if (event.code === 'KeyU' && !event.repeat && !keys.has('KeyU') && !followedMissile?.explosion) {
+          followedMissile = battle.missiles.findLast(missile => missile.source === battle.player) ?? null;
+        }
         const { flight } = battle.player;
         if (BATTLE_KEYS.has(event.code)) {
           if (event.repeat) return;
@@ -5921,6 +6863,8 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
           flight.afterburner = true;
         } else if (event.code === 'KeyS') {
           flight.afterburner = false;
+        } else if (event.code === 'KeyB' && !event.repeat && !keys.has('KeyB')) {
+          flight.airbrake = !flight.airbrake;
         }
         keys.add(event.code);
         document.querySelector(`[data-key="${event.code}"]`).classList.add('active');
@@ -5936,6 +6880,8 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     window.addEventListener('keyup', (event) => {
       if (!FLIGHT_KEYS.has(event.code)) return;
       keys.delete(event.code);
+      if (event.code === 'KeyU' && (!followedMissile?.explosion ||
+        battle.time + resultElapsed - followedMissile.endedAt >= MISSILE_IMPACT_VIEW_SECONDS)) followedMissile = null;
       document.querySelector(`[data-key="${event.code}"]`).classList.remove('active');
     });
 
