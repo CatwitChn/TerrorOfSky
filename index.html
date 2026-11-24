@@ -263,6 +263,36 @@
     kbd.active { color: #152526; border-color: var(--accent); background: var(--accent); }
     kbd[data-key="Space"], .mouse-key { padding-inline: 5px; }
 
+    .sensor-panels {
+      position: absolute;
+      inset: clamp(87px, 16vh, 135px) var(--gutter) auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      pointer-events: none;
+    }
+    .sensor-panel { width: clamp(108px, 17vw, 190px); padding: 6px 8px; }
+    .sensor-panel header { display: flex; justify-content: space-between; align-items: baseline; gap: 4px; font-size: .75rem; }
+    .sensor-panel header output { color: #addec0; white-space: nowrap; }
+    .sensor-panel header output[data-alert] { color: #ff9e7f; }
+    .sensor-panel canvas { display: block; width: 100%; height: auto; margin-top: 5px; }
+    .sensor-panel footer { color: var(--muted); text-align: right; font-size: .6875rem; }
+    @media (max-height: 650px) {
+      .telemetry { row-gap: 5px; padding-block: 7px; }
+      .telemetry-row { padding-top: 3px; }
+      .telemetry-secondary { display: none; }
+    }
+    @media (max-height: 540px) { .sensor-panel { width: 103px; } }
+    @media (max-width: 640px) {
+      .sensor-panels { top: 150px; }
+      .sensor-panel { padding: 4px 7px; }
+      .sensor-panel canvas { max-height: 49px; margin-top: 4px; object-fit: contain; }
+    }
+    @media (max-width: 640px) and (max-height: 460px) {
+      .sensor-panels { top: clamp(96px, calc(100vh - 274px), 150px); }
+      .sensor-panel canvas { max-height: 43px; }
+    }
+
     .minimap { width: clamp(116px, 19vw, 210px); justify-self: end; }
     .minimap-header {
       display: flex;
@@ -391,8 +421,8 @@
       <div class="identity">
         <h1>TERROR OF SKY</h1>
         <select class="aircraft-select" id="aircraft-select" aria-label="对战机型" disabled>
-          <option value="0">MiG-23M</option>
-          <option value="1">F-4E</option>
+          <option value="0">F-15A</option>
+          <option value="1">Su-27</option>
         </select>
       </div>
       <div class="compass" id="compass">
@@ -439,6 +469,18 @@
       </div>
     </header>
 
+    <div class="sensor-panels">
+      <section class="instrument sensor-panel" aria-label="雷达告警接收机">
+        <header><span>RWR</span><output id="rwr-status" aria-live="off">静默</output></header>
+        <canvas id="rwr-scope" width="210" height="164" aria-label="雷达告警方位，机头朝上" role="img"></canvas>
+      </section>
+      <section class="instrument sensor-panel" aria-label="机载雷达">
+        <header><span>雷达</span><output id="radar-status" aria-live="off">搜索</output></header>
+        <canvas id="radar-scope" width="300" height="170" aria-label="横向为相对机头的方位，纵向为距离" role="img"></canvas>
+        <footer id="radar-range"></footer>
+      </section>
+    </div>
+
     <footer class="bottom-bar">
       <div class="instrument telemetry" aria-label="飞行仪表">
         <div class="gauge">
@@ -453,23 +495,35 @@
           <div class="reading"><output id="throttle" aria-live="off">55</output><span>%</span></div>
           <div class="throttle-track" id="throttle-track" aria-hidden="true"></div>
         </div>
-        <div class="telemetry-row">
+        <div class="telemetry-row telemetry-secondary">
           <label class="gauge-label" for="altitude">高度</label><output id="altitude" aria-live="off">3,000 m</output>
         </div>
-        <div class="telemetry-row">
+        <div class="telemetry-row telemetry-secondary">
           <label class="gauge-label" for="bank-angle">侧滚</label><output id="bank-angle" aria-live="off">0°</output>
         </div>
         <div class="telemetry-row">
-          <label class="gauge-label" id="missile-name" for="missile-ammo">R-60</label><output id="missile-ammo" aria-live="off">2 枚</output>
+          <label class="gauge-label" id="missile-name" for="missile-ammo">AIM-9M</label><output id="missile-ammo" aria-live="off">2 枚</output>
         </div>
         <div class="telemetry-row">
-          <label class="gauge-label" for="seeker-status">红外引导</label><output id="seeker-status" aria-live="off">待机</output>
+          <label class="gauge-label" id="seeker-label" for="seeker-status">红外引导</label><output id="seeker-status" aria-live="off">待机</output>
+        </div>
+        <div class="telemetry-row">
+          <label class="gauge-label" for="flare-ammo">热诱弹</label><output id="flare-ammo" aria-live="off">6 枚</output>
+        </div>
+        <div class="telemetry-row">
+          <label class="gauge-label" for="chaff-ammo">干扰箔</label><output id="chaff-ammo" aria-live="off">6 组</output>
         </div>
       </div>
-      <div class="instrument controls" aria-label="飞行与视角按键">
+      <div class="instrument controls" aria-label="飞行、武器与视角按键">
         <div class="control-group"><kbd data-key="KeyW">W</kbd><kbd data-key="KeyS">S</kbd><span>油门</span></div>
         <div class="control-group"><kbd data-key="KeyA">A</kbd><kbd data-key="KeyD">D</kbd><span>转向</span></div>
         <div class="control-group"><kbd data-key="Space">空格</kbd><span>引导 / 发射</span></div>
+        <div class="control-group"><kbd data-key="KeyQ">Q</kbd><span>切弹</span></div>
+        <div class="control-group"><kbd data-key="KeyY">Y</kbd><span>选目标</span></div>
+        <div class="control-group"><kbd data-key="KeyT">T</kbd><span>锁定 / 脱锁</span></div>
+        <div class="control-group"><kbd data-key="KeyG">G</kbd><span>雷达模式</span></div>
+        <div class="control-group"><kbd data-key="KeyX">X</kbd><span>热诱弹</span></div>
+        <div class="control-group"><kbd data-key="KeyC">C</kbd><span>干扰箔</span></div>
         <div class="control-group"><kbd class="mouse-key">右键</kbd><span>看向鼠标</span></div>
       </div>
       <div class="instrument minimap" role="group" aria-label="多佛海峡北向小地图，黄色箭头为本机，青色为队友，橙色为对手">
@@ -4203,44 +4257,35 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     const AFTERBURNER_SPOOL_MULTIPLIER = 0.3;
     const AIRBRAKE_DRAG_MULTIPLIER = 2;
     const DEFAULT_FLIGHT_TUNING = { thrust: 1, straightDrag: 1, turnDrag: 1 };
-    // War Thunder vehicle cards (RB) and FM data 2.61.0.37 (c594d15873c7).
-    // Reference mass uses 30% internal fuel. Thrust rows are [TAS km/h, dry kN, afterburner kN].
-    // Throttle response is tuned for keyboard input.
+    // War Thunder vehicle cards: f_15a and su_27. Reference mass uses 30% internal fuel.
+    // These thrust curves and keyboard response are tuned for the planar game.
     const AIRCRAFT = [
       {
-        name: 'MiG-23M', missile: 'R-60',
+        name: 'F-15A', ir: 'AIM-9M', sarh: 'AIM-7M', radarName: 'APG-63', launchWarning: true,
         flight: {
-          massKg: 12475, limitIasKph: 1470, turnSeconds: 35, spoolSeconds: 0.14,
-          // Wing area times maximum lift coefficient, using the FM's automatic sweep schedule.
-          liftAreaByMach: [[0.35, 37 * 1.05], [0.45, 36.6 * 1.05], [0.80, 36 * 1.05], [1.05, 34 * 1.00]],
-          dryThrottle: [[0, 0.038], [0.45, 0.14], [0.65, 0.23], [0.8, 0.47], [0.9, 0.68], [1, 1]],
+          massKg: 14406, limitIasKph: 1629, limitMach: 2.4, turnSeconds: 20.5, spoolSeconds: 0.12,
+          liftAreaByMach: [[0.35, 75], [0.8, 75], [1.15, 66]],
+          dryThrottle: [[0, 0.05], [0.3, 0.22], [0.55, 0.50], [0.90, 0.82], [1, 1]],
           thrust: [
-            [0, 57.69, 76.15], [200, 56.13, 77.06], [400, 56.13, 80.02],
-            [600, 56.13, 85.95], [800, 57.69, 93.67], [1000, 57.69, 97.48],
-            [1200, 60.81, 106.76], [1400, 62.37, 113.61], [1600, 65.49, 123.62],
-            [1900, 65.49, 129.67]
+            [0, 101, 158], [500, 102, 165], [900, 108, 182], [1400, 119, 201], [1950, 123, 214]
           ]
         }
       },
       {
-        name: 'F-4E', missile: 'AIM-9E',
+        name: 'Su-27', ir: 'R-73', sarh: 'R-27R', radarName: 'N001', launchWarning: true,
         flight: {
-          massKg: 16304.2, limitIasKph: 1458, turnSeconds: 26, spoolSeconds: 0.10,
-          liftAreaByMach: [[0, 49.2 * 1.18]],
-          dryThrottle: [[0, 0.05], [0.3, 0.2], [0.5, 0.5], [0.93, 0.82], [1, 1]],
-          // Combined thrust for both engines, interpolated from the 0 m and 3,048 m rows.
+          massKg: 18810, limitIasKph: 1540, limitMach: 2.35, turnSeconds: 23.5, spoolSeconds: 0.12,
+          liftAreaByMach: [[0.35, 105], [0.8, 95], [1.15, 84]],
+          dryThrottle: [[0, 0.05], [0.3, 0.22], [0.55, 0.50], [0.90, 0.82], [1, 1]],
           thrust: [
-            [0, 77.90, 119.96], [200, 73.79, 113.68], [400, 71.68, 112.64],
-            [600, 69.63, 113.70], [800, 71.65, 123.67], [1000, 73.75, 138.52],
-            [1200, 79.84, 159.72], [1400, 85.93, 179.74], [1600, 90.01, 190.82],
-            [1900, 88.02, 188.93]
+            [0, 114, 185], [500, 113, 193], [900, 119, 212], [1400, 129, 228], [1950, 134, 235]
           ]
         }
       }
     ];
 
     for (const { flight: profile } of AIRCRAFT) {
-      profile.topSpeedKph = profile.limitIasKph * TAS_PER_IAS;
+      profile.topSpeedKph = Math.min(profile.limitIasKph * TAS_PER_IAS, profile.limitMach * MACH_ONE_KPH);
       profile.dragAtTopKn = sampleCurve(profile.thrust, profile.topSpeedKph, 2);
       // Calibrate the simplified 2D turn at the reference speed with full engine power.
       profile.turnAccelerationAtReference = (TAU / profile.turnSeconds) * (TURN_REFERENCE_KPH / 3.6);
@@ -4248,24 +4293,28 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     }
 
     const FLIGHT_SPEED_SCALE = 0.064;
-    // Arcade missile settings in world units, seconds, and radians.
+    // Public War Thunder game cards inform the speed caps and relative turning budgets.
+    // The remaining ranges, lifetimes and sensor rules are tuned for this 2D game.
     const MISSILE_DEFAULTS = {
+      guidance: 'ir',
       capacity: 2,
       launchSpeedBonus: 22,
-      maxSpeed: 195.84,
       acceleration: 260,
-      lifetime: 4.8,
+      lifetime: 6.5,
       lockSeconds: 0.42,
-      tailAngle: Math.PI / 4,
-      acquireAngle: 0.26,
-      holdAngle: 0.39
+      acquireAngle: 0.30,
+      holdAngle: 0.44
     };
     const MISSILES = {
-      // Half of each War Thunder in-game rear-aspect lock distance.
-      'R-60': { ...MISSILE_DEFAULTS, lockRangeKm: 2.5, turnRate: 2.85 },
-      'AIM-9E': { ...MISSILE_DEFAULTS, lockRangeKm: 2.75, turnRate: 0.95 }
+      'AIM-9M': { ...MISSILE_DEFAULTS, mach: 2.5, g: 30, lockRangeKm: 3.4, flareResistance: 2 },
+      'R-73': { ...MISSILE_DEFAULTS, mach: 2.5, g: 40, lockRangeKm: 3.1, acquireAngle: 0.38, flareResistance: 2 },
+      'AIM-7M': { ...MISSILE_DEFAULTS, guidance: 'sarh', mach: 4, g: 25, lifetime: 16, launchRangeKm: 14 },
+      'R-27R': { ...MISSILE_DEFAULTS, guidance: 'sarh', mach: 3.5, g: 35, lifetime: 15, launchRangeKm: 12 }
     };
-    const AIRCRAFT_HIT_RADIUS = 5.4;
+    const AIRCRAFT_HIT_RADIUS = 6.1;
+    const FLARE = { capacity: 6, cooldown: 0.8, lifetime: 1.35, attractionRadius: 96 };
+    const CHAFF = { capacity: 6, cooldown: 1, lifetime: 1.6 };
+    const RADAR = { rangeKm: 22, scanAngle: 0.88, trackAngle: 1.08, scanSeconds: 2.2, memory: 3.2, lockSeconds: 0.35 };
     // FLIGHT_SPEED_SCALE converts a speed in km/h to world units per second.
     const WORLD_UNITS_PER_KILOMETER = 3600 * FLIGHT_SPEED_SCALE;
     const WORLD_UNITS_PER_METER = WORLD_UNITS_PER_KILOMETER / 1000;
@@ -4287,7 +4336,8 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     const MIN_VIEW_SPAN = 2 * (0.5 * WORLD_UNITS_PER_KILOMETER + VIEW_EDGE_MARGIN);
     const MAX_VIEW_OFFSET = 0.5;
     const VIEW_RETURN_SECONDS = 0.22;
-    const FLIGHT_KEYS = new Set(['KeyW', 'KeyS', 'KeyA', 'KeyD', 'Space']);
+    const BATTLE_KEYS = new Set(['Space', 'KeyQ', 'KeyT', 'KeyY', 'KeyG', 'KeyX', 'KeyC']);
+    const FLIGHT_KEYS = new Set(['KeyW', 'KeyS', 'KeyA', 'KeyD', ...BATTLE_KEYS]);
     const VERTEX_SOURCE = `#version 300 es
       void main() {
         vec2 corner = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2);
@@ -4380,8 +4430,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       return Math.atan2(Math.sin(to - from), Math.cos(to - from));
     }
 
-    function initialMissileRack(airframe) {
-      const type = AIRCRAFT[airframe].missile;
+    function initialMissileRack(type) {
       return { type, ammo: MISSILES[type].capacity, armed: false, lock: 0, target: null, lastLaunch: -Infinity };
     }
 
@@ -4400,11 +4449,19 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
           });
           return {
             team, slot, flight, previous: { ...flight }, display: { ...flight },
-            rack: initialMissileRack(model), destroyedAt: null
+            rack: initialMissileRack(AIRCRAFT[model].ir),
+            radarRack: initialMissileRack(AIRCRAFT[model].sarh),
+            weapon: 'ir', destroyedAt: null,
+            radar: { mode: 'src', echoes: new Map(), sweep: -RADAR.scanAngle, selected: null,
+              pending: null, target: null, progress: 0, trackId: 0, lostAt: -Infinity }
           };
         });
       });
-      return { aircraft, player: aircraft[0], missiles: [], time: 0, result: null };
+      return {
+        aircraft, player: aircraft[0], missiles: [], flares: [], chaff: [], time: 0, result: null,
+        flareRack: { ammo: FLARE.capacity, readyAt: 0, lastRedirect: -Infinity },
+        chaffRack: { ammo: CHAFF.capacity, readyAt: 0 }
+      };
     }
 
     function isAlive(aircraft) {
@@ -4429,6 +4486,95 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       return battle.aircraft.filter(aircraft => aircraft.team === team && isAlive(aircraft)).length;
     }
 
+    function radarPosition(aircraft, point) {
+      const { flight } = aircraft;
+      return {
+        angle: angleDelta(flight.heading, bearing(flight, point)),
+        range: Math.hypot(point.x - flight.x, point.z - flight.z) / WORLD_UNITS_PER_KILOMETER
+      };
+    }
+
+    function radarCanTrack(battle, aircraft, target) {
+      if (!isAlive(target)) return false;
+      const { angle, range } = radarPosition(aircraft, target.flight);
+      if (!range || range > RADAR.rangeKm || Math.abs(angle) > RADAR.trackAngle) return false;
+      const clouds = target === battle.player ? battle.chaff.length : 0;
+      // PD rejects one decoy cloud in this game's sensor model.
+      return clouds < (aircraft.radar.mode === 'pd' ? 2 : 1);
+    }
+
+    function clearRadarTrack(radar, time) {
+      if (radar.target) radar.lostAt = time;
+      radar.pending = null;
+      radar.target = null;
+      radar.progress = 0;
+      radar.trackId++;
+    }
+
+    function radarCandidates(aircraft) {
+      return [...aircraft.radar.echoes.keys()]
+        .filter(target => target.team !== aircraft.team && isAlive(target))
+        .sort((a, b) => radarPosition(aircraft, aircraft.radar.echoes.get(a)).range
+          - radarPosition(aircraft, aircraft.radar.echoes.get(b)).range);
+    }
+
+    function stepRadar(battle, aircraft, commands, dt) {
+      const { radar } = aircraft;
+      if (commands?.has('KeyG')) {
+        clearRadarTrack(radar, battle.time);
+        radar.mode = radar.mode === 'src' ? 'pd' : 'src';
+      }
+      if (radar.target && !radarCanTrack(battle, aircraft, radar.target)) clearRadarTrack(radar, battle.time);
+
+      for (const [target, echo] of radar.echoes) {
+        if (!isAlive(target) || battle.time - echo.time > RADAR.memory) radar.echoes.delete(target);
+      }
+      if (radar.target) radar.echoes.set(radar.target, { x: radar.target.flight.x, z: radar.target.flight.z, time: battle.time });
+      if (!radar.target && !radar.pending) {
+        const phase = (battle.time / RADAR.scanSeconds + aircraft.slot * 0.11 + aircraft.team * 0.19) % 1;
+        const sweep = RADAR.scanAngle * (1 - 4 * Math.abs(phase - 0.5));
+        const low = Math.min(radar.sweep, sweep) - 0.025;
+        const high = Math.max(radar.sweep, sweep) + 0.025;
+        radar.sweep = sweep;
+        for (const target of battle.aircraft) {
+          if (target === aircraft || !isAlive(target)) continue;
+          const { angle, range } = radarPosition(aircraft, target.flight);
+          if (range <= RADAR.rangeKm && angle >= low && angle <= high && Math.abs(angle) <= RADAR.scanAngle) {
+            radar.echoes.set(target, { x: target.flight.x, z: target.flight.z, time: battle.time });
+          }
+        }
+      }
+
+      const candidates = radarCandidates(aircraft);
+      if (commands?.has('KeyY') && candidates.length) {
+        radar.selected = candidates[(candidates.indexOf(radar.selected) + 1) % candidates.length];
+      } else if (!radar.echoes.has(radar.selected) && (!radar.target || radar.selected !== radar.target)) {
+        radar.selected = candidates[0] ?? null;
+      }
+      if (commands?.has('KeyT')) {
+        const next = radar.selected;
+        const dropping = next === radar.target || next === radar.pending;
+        clearRadarTrack(radar, battle.time);
+        if (next && !dropping && radar.echoes.has(next)) radar.pending = next;
+      } else if (!commands && !radar.target && !radar.pending && aircraft.radarRack.ammo) {
+        radar.pending = candidates.find(target => radarCanTrack(battle, aircraft, target)) ?? null;
+      }
+
+      if (!radar.pending) return;
+      if (!radarCanTrack(battle, aircraft, radar.pending)) {
+        clearRadarTrack(radar, battle.time);
+        return;
+      }
+      radar.progress += dt;
+      if (radar.progress >= RADAR.lockSeconds) {
+        radar.target = radar.pending;
+        radar.selected = radar.target;
+        radar.echoes.set(radar.target, { x: radar.target.flight.x, z: radar.target.flight.z, time: battle.time });
+        radar.pending = null;
+        radar.trackId++;
+      }
+    }
+
     function updateLock(battle, aircraft, dt) {
       const { rack, flight } = aircraft;
       if (!rack.armed) return;
@@ -4442,8 +4588,6 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         const range = Math.hypot(other.flight.x - flight.x, other.flight.z - flight.z);
         if (range === 0 || range > maxRange) continue;
         const lineOfSight = bearing(flight, other.flight);
-        const tailAngle = Math.abs(angleDelta(other.flight.heading, lineOfSight));
-        if (tailAngle > profile.tailAngle) continue;
         const angle = Math.abs(angleDelta(flight.heading, lineOfSight));
         if (other === rack.target && angle <= hold) {
           target = other;
@@ -4459,23 +4603,27 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       rack.lock = target ? Math.min(profile.lockSeconds, rack.lock + dt) : 0;
     }
 
-    function launchMissile(battle, aircraft) {
-      const { rack, flight, team } = aircraft;
+    function launchMissile(battle, aircraft, rack = aircraft.rack) {
+      const { flight, team, radar } = aircraft;
       const profile = MISSILES[rack.type];
-      if (!rack.ammo || !rack.target || !isAlive(rack.target) || rack.lock < profile.lockSeconds) return;
+      const guidedByRadar = profile.guidance === 'sarh';
+      const target = guidedByRadar ? radar.target : rack.target;
+      if (!rack.ammo || !target || !isAlive(target)) return false;
+      if (guidedByRadar ? radarPosition(aircraft, target.flight).range > profile.launchRangeKm : rack.lock < profile.lockSeconds) return false;
       const x = flight.x + Math.sin(flight.heading) * 8.8;
       const z = flight.z - Math.cos(flight.heading) * 8.8;
       battle.missiles.push({
-        team, target: rack.target, type: rack.type, heading: flight.heading,
+        team, source: aircraft, target, trackId: radar.trackId, type: rack.type, heading: flight.heading,
         x, z, previousX: x, previousZ: z, bornAt: battle.time,
         speed: flight.speed * FLIGHT_SPEED_SCALE + profile.launchSpeedBonus,
-        trail: [{ x, z }], nextTrailAt: battle.time + 0.055
+        trail: [{ x, z }], nextTrailAt: battle.time + 0.055, flareContacts: new Set(), lostAt: null
       });
       rack.ammo--;
       rack.armed = false;
       rack.lock = 0;
       rack.target = null;
       rack.lastLaunch = battle.time;
+      return true;
     }
 
     function missileContact(missile, target, previousTarget) {
@@ -4488,27 +4636,95 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       return (x + dx * along) ** 2 + (z + dz * along) ** 2 <= AIRCRAFT_HIT_RADIUS ** 2;
     }
 
+    function releaseFlare(battle) {
+      const { time, player, flareRack } = battle;
+      if (!isAlive(player) || !flareRack.ammo || time < flareRack.readyAt) return;
+      const { flight } = player;
+      const forwardX = Math.sin(flight.heading);
+      const forwardZ = -Math.cos(flight.heading);
+      const side = flareRack.ammo % 2 ? 1 : -1;
+      const lateralX = -forwardZ * side;
+      const lateralZ = forwardX * side;
+      const x = flight.x - forwardX * 8 + lateralX * 3;
+      const z = flight.z - forwardZ * 8 + lateralZ * 3;
+      battle.flares.push({
+        x, z, previous: { x, z }, bornAt: time,
+        vx: forwardX * 12 + lateralX * 18,
+        vz: forwardZ * 12 + lateralZ * 18
+      });
+      flareRack.ammo--;
+      flareRack.readyAt = time + FLARE.cooldown;
+    }
+
+    function stepFlares(battle, dt) {
+      for (let index = battle.flares.length - 1; index >= 0; index--) {
+        const flare = battle.flares[index];
+        if (battle.time - flare.bornAt >= FLARE.lifetime) {
+          battle.flares.splice(index, 1);
+          continue;
+        }
+        flare.previous.x = flare.x;
+        flare.previous.z = flare.z;
+        flare.x += flare.vx * dt;
+        flare.z += flare.vz * dt;
+      }
+    }
+
+    function releaseChaff(battle) {
+      const { time, player, chaffRack } = battle;
+      if (!isAlive(player) || !chaffRack.ammo || time < chaffRack.readyAt) return;
+      const { x, z, heading } = player.flight;
+      battle.chaff.push({ x: x - Math.sin(heading) * 11, z: z + Math.cos(heading) * 11, bornAt: time });
+      chaffRack.ammo--;
+      chaffRack.readyAt = time + CHAFF.cooldown;
+    }
+
+    function hasMissileTrack(missile) {
+      const { source, target } = missile;
+      return isAlive(source) && source.radar.target === target && source.radar.trackId === missile.trackId;
+    }
+
     function stepMissiles(battle, dt) {
       for (let index = battle.missiles.length - 1; index >= 0; index--) {
         const missile = battle.missiles[index];
         const profile = MISSILES[missile.type];
         const target = missile.target;
-        if (!isAlive(target) || battle.time - missile.bornAt >= profile.lifetime) {
+        const lostTrack = missile.flare ? battle.time - missile.flare.bornAt >= FLARE.lifetime : !isAlive(target);
+        if (lostTrack || battle.time - missile.bornAt >= profile.lifetime) {
           battle.missiles.splice(index, 1);
           continue;
         }
 
-        const turnLimit = profile.turnRate * dt;
-        const desired = angleDelta(missile.heading, bearing(missile, target.flight));
-        missile.heading += clamp(desired, -turnLimit, turnLimit);
-        missile.speed = Math.min(profile.maxSpeed, missile.speed + profile.acceleration * dt);
+        if (profile.guidance === 'sarh' && missile.lostAt === null && !hasMissileTrack(missile)) missile.lostAt = battle.time;
+        if (missile.lostAt !== null && battle.time - missile.lostAt >= 0.65) {
+          battle.missiles.splice(index, 1);
+          continue;
+        }
+
+        if (!missile.flare && profile.guidance === 'ir' && target === battle.player) {
+          const flare = battle.flares.findLast(candidate => !missile.flareContacts.has(candidate)
+            && Math.hypot(candidate.x - missile.x, candidate.z - missile.z) <= FLARE.attractionRadius);
+          if (flare) missile.flareContacts.add(flare);
+          if (flare && missile.flareContacts.size >= profile.flareResistance) {
+            missile.flare = flare;
+            battle.flareRack.lastRedirect = battle.time;
+          }
+        }
+        const destination = missile.flare ?? target.flight;
+        const previousDestination = missile.flare?.previous ?? target.previous;
+        if (missile.lostAt === null) {
+          const turnLimit = profile.g * 0.095 * dt;
+          const desired = angleDelta(missile.heading, bearing(missile, destination));
+          missile.heading += clamp(desired, -turnLimit, turnLimit);
+        }
+        missile.speed = Math.min(profile.mach * MACH_ONE_KPH * FLIGHT_SPEED_SCALE, missile.speed + profile.acceleration * dt);
         missile.previousX = missile.x;
         missile.previousZ = missile.z;
         missile.x += Math.sin(missile.heading) * missile.speed * dt;
         missile.z -= Math.cos(missile.heading) * missile.speed * dt;
 
-        if (missileContact(missile, target.flight, target.previous)) {
-          target.destroyedAt = battle.time;
+        if (missile.lostAt === null && missileContact(missile, destination, previousDestination)) {
+          if (!missile.flare) target.destroyedAt = battle.time;
           battle.missiles.splice(index, 1);
           continue;
         }
@@ -4538,10 +4754,21 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       stepFlight(flight, targetThrottle - flight.throttle, turn, dt);
     }
 
-    function stepWeapons(battle, aircraft, activate, dt) {
-      const rack = aircraft.rack;
-      if (!rack.ammo) return;
+    function stepWeapons(battle, aircraft, commands, dt) {
+      const { rack, radarRack } = aircraft;
       if (aircraft === battle.player) {
+        if (commands.has('KeyQ')) {
+          aircraft.weapon = aircraft.weapon === 'ir' ? 'sarh' : 'ir';
+          rack.armed = false;
+          rack.lock = 0;
+          rack.target = null;
+        }
+        const activate = commands.has('Space');
+        if (aircraft.weapon === 'sarh') {
+          if (activate) launchMissile(battle, aircraft, radarRack);
+          return;
+        }
+        if (!rack.ammo) return;
         const wasArmed = rack.armed;
         if (activate) rack.armed = true;
         updateLock(battle, aircraft, dt);
@@ -4549,14 +4776,18 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         return;
       }
 
-      if (battle.time - rack.lastLaunch >= 1.9) {
+      if (battle.time - Math.max(rack.lastLaunch, radarRack.lastLaunch) < 2.6) return;
+      if (rack.ammo) {
         rack.armed = true;
         updateLock(battle, aircraft, dt);
-        launchMissile(battle, aircraft);
+        if (launchMissile(battle, aircraft)) return;
+      }
+      if (radarRack.ammo && !battle.missiles.some(missile => missile.source === aircraft && MISSILES[missile.type].guidance === 'sarh')) {
+        launchMissile(battle, aircraft, radarRack);
       }
     }
 
-    function stepBattle(battle, throttle, turn, activate, dt, playerTuning) {
+    function stepBattle(battle, throttle, turn, commands, dt, playerTuning) {
       battle.time += dt;
       for (const aircraft of battle.aircraft) Object.assign(aircraft.previous, aircraft.flight);
       for (const aircraft of battle.aircraft) {
@@ -4565,6 +4796,13 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         else stepAiFlight(battle, aircraft, dt);
       }
 
+      stepFlares(battle, dt);
+      while (battle.chaff.length && battle.time - battle.chaff[0].bornAt >= CHAFF.lifetime) battle.chaff.shift();
+      if (commands.has('KeyX')) releaseFlare(battle);
+      if (commands.has('KeyC')) releaseChaff(battle);
+      for (const aircraft of battle.aircraft) {
+        if (isAlive(aircraft)) stepRadar(battle, aircraft, aircraft === battle.player ? commands : null, dt);
+      }
       stepMissiles(battle, dt);
       const uk = teamCount(battle, 0);
       const france = teamCount(battle, 1);
@@ -4574,9 +4812,9 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       }
 
       for (const aircraft of battle.aircraft) {
-        if (isAlive(aircraft)) stepWeapons(battle, aircraft, activate, dt);
+        if (isAlive(aircraft)) stepWeapons(battle, aircraft, commands, dt);
       }
-      if (!battle.missiles.length && !battle.aircraft.some(aircraft => isAlive(aircraft) && aircraft.rack.ammo)) {
+      if (!battle.missiles.length && !battle.aircraft.some(aircraft => isAlive(aircraft) && (aircraft.rack.ammo || aircraft.radarRack.ammo))) {
         battle.result = 'draw';
       }
     }
@@ -4596,22 +4834,22 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
 
     const JET_ART = [
       {
-        hull: new Path2D('M 0 -9.2 Q .7 -8.5 1.08 -6.2 L 1.28 -3.8 2.17 -3.38 2.62 -1.74 6.08 2.34 6.00 3.65 1.43 1.96 1.17 4.92 3.54 6.86 3.34 7.86 .92 7.01 .68 8.51 -.68 8.51 -.92 7.01 -3.34 7.86 -3.54 6.86 -1.17 4.92 -1.43 1.96 -6.00 3.65 -6.08 2.34 -2.62 -1.74 -2.17 -3.38 -1.28 -3.8 -1.08 -6.2 Q -.7 -8.5 0 -9.2 Z'),
-        panel: new Path2D('M 1.66 -1.79 5.74 2.60 5.78 3.24 1.41 1.72 Z M -1.66 -1.79 -5.74 2.60 -5.78 3.24 -1.41 1.72 Z M -.69 3.64 .69 3.64 .63 7.74 -.63 7.74 Z'),
-        nose: new Path2D('M 0 -8.98 Q .64 -8.35 1.01 -6.33 Q 0 -5.96 -1.01 -6.33 Q -.64 -8.35 0 -8.98 Z'),
-        intakes: new Path2D('M 1.17 -3.43 1.94 -3.21 1.93 -2.37 1.23 -2.5 Z M -1.17 -3.43 -1.94 -3.21 -1.93 -2.37 -1.23 -2.5 Z'),
-        canopy: new Path2D('M 0 -5.77 Q .62 -5.43 .64 -4.54 L .51 -3.61 Q 0 -3.35 -.51 -3.61 L -.64 -4.54 Q -.62 -5.43 0 -5.77 Z'),
-        seams: new Path2D('M 1.72 -1.61 4.6 1.97 M -1.72 -1.61 -4.6 1.97 M 0 3.74 0 7.35 M -.56 -4.76 .56 -4.76'),
-        base: '#a1b0ae', secondary: '#627c80', exhausts: [0], tail: 8.17
+        hull: new Path2D('M0 -9.8 Q1.1 -8 1.22 -5 L2.4 -4.2 2.7 -2.7 6.6 1.9 6.54 3.4 2.46 3.1 2.36 4.9 4.2 7 4.16 8.15 2.03 7.7 1.91 9.33 .53 9.33 .58 8.2 -.58 8.2 -.53 9.33 -1.91 9.33 -2.03 7.7 -4.16 8.15 -4.2 7 -2.36 4.9 -2.46 3.1 -6.54 3.4 -6.6 1.9 -2.7 -2.7 -2.4 -4.2 -1.22 -5 Q-1.1 -8 0 -9.8Z'),
+        panel: new Path2D('M1.51 4 2.25 4.4 2.03 8.1 1.4 8.15Z M-1.51 4 -2.25 4.4 -2.03 8.1 -1.4 8.15Z M2.62 -.4 5.94 2.22 5.93 2.94 2.59 2.55Z M-2.62 -.4 -5.94 2.22 -5.93 2.94 -2.59 2.55Z'),
+        nose: new Path2D('M0 -9.63 Q.86 -8.1 1.05 -6.96 L-1.05 -6.96 Q-.86 -8.1 0 -9.63Z'),
+        intakes: new Path2D('M1.29 -4.32 2.35 -4.02 2.5 -2.98 1.38 -3.19Z M-1.29 -4.32 -2.35 -4.02 -2.5 -2.98 -1.38 -3.19Z'),
+        canopy: new Path2D('M0 -6.38 Q.64 -5.93 .65 -4.65 L.5 -3.95 Q0 -3.62 -.5 -3.95 L-.65 -4.65 Q-.64 -5.93 0 -6.38Z'),
+        seams: new Path2D('M-.59 -5.04 .59 -5.04 M0 -3.55 0 3.2 M-1.73 4.98 -1.63 7.76 M1.73 4.98 1.63 7.76'),
+        base: '#a9b5b6', secondary: '#688087', exhausts: [-1.20, 1.20], tail: 8.94
       },
       {
-        hull: new Path2D('M 0 -9.6 Q .7 -9.1 1.06 -7.34 L 1.20 -4.24 1.92 -3.73 2.03 -2.56 5.18 .88 6.51 2.82 6.48 4.40 2.14 3.13 1.95 5.52 1.29 5.76 1.01 6.46 3.19 8.39 3.19 9.01 .59 8.86 0 9.48 -.59 8.86 -3.19 9.01 -3.19 8.39 -1.01 6.46 -1.29 5.76 -1.95 5.52 -2.14 3.13 -6.48 4.40 -6.51 2.82 -5.18 .88 -2.03 -2.56 -1.92 -3.73 -1.20 -4.24 -1.06 -7.34 Q -.7 -9.1 0 -9.6 Z'),
-        panel: new Path2D('M -6.24 2.89 -5.16 1.14 -4.96 3.67 -6.22 4.06 Z M 6.24 2.89 5.16 1.14 4.96 3.67 6.22 4.06 Z M -4.84 1.04 -2.03 -2.10 -.49 -.44 -1.7 1.42 -3.53 2.94 -4.83 3.58 Z M .37 1.14 2.24 -.37 4.79 1.53 4.81 3.57 2.09 2.87 1.6 4.65 .37 4.12 Z M -1.58 4.46 1.58 4.46 1.68 5.36 -1.68 5.36 Z'),
-        nose: new Path2D('M 0 -9.34 Q .68 -8.81 1.00 -7.20 L 1.10 -6.06 Q 0 -5.72 -1.10 -6.06 L -1.00 -7.20 Q -.68 -8.81 0 -9.34 Z'),
-        intakes: new Path2D('M 1.24 -3.74 1.89 -3.51 1.98 -2.64 1.25 -2.76 Z M -1.24 -3.74 -1.89 -3.51 -1.98 -2.64 -1.25 -2.76 Z'),
-        canopy: new Path2D('M 0 -5.89 Q .64 -5.61 .69 -4.61 L .64 -2.83 Q 0 -2.40 -.64 -2.83 L -.69 -4.61 Q -.64 -5.61 0 -5.89 Z'),
-        seams: new Path2D('M -5.1 1.15 -4.93 3.68 M 5.1 1.15 4.93 3.68 M -.65 -4.67 .65 -4.67 M -.64 -3.60 .64 -3.60 M -.93 4.6 -.93 5.5 M .93 4.6 .93 5.5'),
-        base: '#9c9a75', secondary: '#687451', exhausts: [-.78, .78], tail: 5.22
+        hull: new Path2D('M0 -11.0 Q.78 -9.4 1.05 -7 L1.05 -4.8 Q1.8 -3.7 2.68 -2.9 L7.3 2.26 7.35 3.22 2.95 3.74 2.45 5.30 4.62 7.95 4.58 8.87 2.39 8.53 2.34 9.48 .91 9.48 .45 10.52 -.45 10.52 -.91 9.48 -2.34 9.48 -2.39 8.53 -4.58 8.87 -4.62 7.95 -2.45 5.30 -2.95 3.74 -7.35 3.22 -7.3 2.26 -2.68 -2.9 Q-1.8 -3.7 -1.05 -4.8 L-1.05 -7 Q-.78 -9.4 0 -11Z'),
+        panel: new Path2D('M1.82 -2.85 4.78 .65 4.01 2.13 2.78 2.87 1.4 1.73Z M-2.61 -1.8 -5.49 1.26 -6.93 2.63 -6.97 3.02 -4.45 3.31 -2.98 .61Z M1.69 4.14 2.28 4.88 2.19 8.35 1.63 8.3Z M-1.69 4.14 -2.28 4.88 -2.19 8.35 -1.63 8.3Z'),
+        nose: new Path2D('M0 -10.82 Q.57 -9.79 .89 -8.13 Q0 -7.83 -.89 -8.13 Q-.57 -9.79 0 -10.82Z'),
+        intakes: new Path2D('M1.09 -3.05 2.10 -2.99 2.38 -2.37 1.32 -2.24Z M-1.09 -3.05 -2.10 -2.99 -2.38 -2.37 -1.32 -2.24Z'),
+        canopy: new Path2D('M0 -6.99 Q.61 -6.71 .65 -5.41 L.57 -4.55 Q0 -4.13 -.57 -4.55 L-.65 -5.41 Q-.61 -6.71 0 -6.99Z'),
+        seams: new Path2D('M-.57 -5.87 .57 -5.87 M0 -2.9 0 9.81 M-2.99 3.39 -6.82 2.96 M2.99 3.39 6.82 2.96 M1.69 5.11 1.67 8.0 M-1.69 5.11 -1.67 8.0'),
+        base: '#a2b6c6', secondary: '#6388a3', exhausts: [-1.58, 1.58], tail: 9.08
       }
     ];
 
@@ -4671,6 +4909,45 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       context.restore();
     }
 
+    function drawFlare(context, flare, time, fraction, scale) {
+      const age = clamp((time - flare.bornAt) / FLARE.lifetime, 0, 1);
+      const x = lerp(flare.previous.x, flare.x, fraction);
+      const z = lerp(flare.previous.z, flare.z, fraction);
+      const radius = Math.max(2.2, 4 / scale);
+      context.save();
+      context.globalAlpha = 1 - age;
+      context.lineWidth = radius * 0.43;
+      context.strokeStyle = '#ff805d';
+      context.beginPath();
+      context.moveTo(x - flare.vx * 0.13 * age, z - flare.vz * 0.13 * age);
+      context.lineTo(x, z);
+      context.stroke();
+      context.beginPath();
+      context.arc(x, z, radius, 0, TAU);
+      context.fillStyle = 'rgba(255, 118, 71, .38)';
+      context.fill();
+      context.beginPath();
+      context.arc(x, z, radius * 0.50, 0, TAU);
+      context.fillStyle = '#ffe6ac';
+      context.fill();
+      context.restore();
+    }
+
+    function drawChaff(context, cloud, time, scale) {
+      const age = clamp((time - cloud.bornAt) / CHAFF.lifetime, 0, 1);
+      const spread = 2 + age * 12;
+      const size = Math.max(0.6, 1.5 / scale);
+      context.save();
+      context.globalAlpha = 0.8 * (1 - age);
+      context.fillStyle = '#cedde2';
+      for (let index = 0; index < 11; index++) {
+        const angle = index * 2.4;
+        const radius = spread * (index + 3) / 13;
+        context.fillRect(cloud.x + Math.cos(angle) * radius, cloud.z + Math.sin(angle) * radius, size, size);
+      }
+      context.restore();
+    }
+
     function drawLock(context, flight, target, rack, scale) {
       if (!rack.armed) return;
       const lockSeconds = MISSILES[rack.type].lockSeconds;
@@ -4703,6 +4980,8 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       context.lineCap = 'round';
       context.lineJoin = 'round';
       for (const missile of battle.missiles) drawMissile(context, missile, fraction);
+      for (const flare of battle.flares) drawFlare(context, flare, battle.time, fraction, scaleY);
+      for (const cloud of battle.chaff) drawChaff(context, cloud, battle.time, scaleY);
       context.font = `600 ${Math.max(2.45, 11 / scaleY)}px "Segoe UI", "Microsoft YaHei", sans-serif`;
       context.textAlign = 'center';
       for (const aircraft of battle.aircraft) {
@@ -4728,8 +5007,14 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         context.fillText(label, plane.x, plane.z + 12.8);
       }
       if (battle.result || !isAlive(battle.player)) return;
-      const { rack, display } = battle.player;
-      drawLock(context, display, rack.target?.display, rack, scaleY);
+      const { rack, radar, display, weapon } = battle.player;
+      if (weapon === 'ir') drawLock(context, display, rack.target?.display, rack, scaleY);
+      if (radar.target && isAlive(radar.target)) {
+        const { x, z } = radar.target.display;
+        context.strokeStyle = '#a4e4e5';
+        context.lineWidth = Math.max(0.30, 1 / scaleY);
+        context.strokeRect(x - 12, z - 12, 24, 24);
+      }
     }
 
     async function loadDoverTerrain() {
@@ -4968,6 +5253,14 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     const missileName = document.getElementById('missile-name');
     const ammoOutput = document.getElementById('missile-ammo');
     const seekerOutput = document.getElementById('seeker-status');
+    const flareOutput = document.getElementById('flare-ammo');
+    const chaffOutput = document.getElementById('chaff-ammo');
+    const seekerLabel = document.getElementById('seeker-label');
+    const radarStatus = document.getElementById('radar-status');
+    const radarRange = document.getElementById('radar-range');
+    const radarScope = document.getElementById('radar-scope').getContext('2d');
+    const rwrStatus = document.getElementById('rwr-status');
+    const rwrScope = document.getElementById('rwr-scope').getContext('2d');
     const missileFeedback = document.getElementById('missile-feedback');
     const compass = document.getElementById('compass');
     const ukRemaining = document.getElementById('uk-remaining');
@@ -4975,6 +5268,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     const battleDistance = document.getElementById('battle-distance');
     const keycaps = document.querySelectorAll('[data-key]');
     const keys = new Set();
+    const battleCommands = new Set();
 
     let battle = initialBattle(Number(aircraftSelect.value));
     const viewOffset = { x: 0, y: 0 };
@@ -4983,7 +5277,6 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     let terrainData;
     let renderer;
     let paused = false;
-    let seekerRequested = false;
     let request = 0;
     let lastFrame = null;
     let accumulator = 0;
@@ -4997,9 +5290,128 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       return battle.aircraft.find(aircraft => aircraft.team === 0 && isAlive(aircraft)) ?? battle.player;
     }
 
+    function radarWarnings(battle, receiver) {
+      const { launchWarning } = AIRCRAFT[receiver.flight.airframe];
+      const warnings = [];
+      for (const emitter of battle.aircraft) {
+        if (emitter.team === receiver.team || !isAlive(emitter)) continue;
+        const tracked = emitter.radar.target === receiver;
+        const echo = emitter.radar.echoes.get(receiver);
+        if (!tracked && (!echo || battle.time - echo.time > 1.35)) continue;
+        const launch = tracked && launchWarning && battle.missiles.some(missile =>
+          missile.source === emitter && missile.target === receiver && missile.lostAt === null
+          && MISSILES[missile.type].guidance === 'sarh' && hasMissileTrack(missile));
+        warnings.push({ angle: radarPosition(receiver, emitter.flight).angle, level: launch ? 3 : tracked ? 2 : 1 });
+      }
+      return warnings;
+    }
+
+    function drawRadarScope(context, aircraft, clouds) {
+      const { width, height } = context.canvas;
+      const { radar } = aircraft;
+      const pad = 12;
+      const innerWidth = width - pad * 2;
+      const innerHeight = height - pad * 2;
+      const azimuth = angle => pad + (0.5 + angle / (2 * RADAR.trackAngle)) * innerWidth;
+      context.fillStyle = '#0a2428';
+      context.fillRect(0, 0, width, height);
+      context.lineWidth = 1.5;
+      context.strokeStyle = '#355856';
+      context.strokeRect(pad, pad, innerWidth, innerHeight);
+      context.beginPath();
+      for (let index = 1; index <= 3; index++) {
+        const y = pad + innerHeight * index / 4;
+        const x = pad + innerWidth * index / 4;
+        context.moveTo(pad, y);
+        context.lineTo(width - pad, y);
+        context.moveTo(x, pad);
+        context.lineTo(x, height - pad);
+      }
+      context.stroke();
+      if (!radar.target && !radar.pending) {
+        context.fillStyle = '#6fa58c';
+        context.fillRect(azimuth(radar.sweep), pad, 2, innerHeight);
+      }
+      for (const [target, echo] of radar.echoes) {
+        const track = target === radar.target;
+        const { angle, range } = radarPosition(aircraft, track ? target.flight : echo);
+        if (!isAlive(target) || range > RADAR.rangeKm || Math.abs(angle) > RADAR.trackAngle) continue;
+        const x = azimuth(angle);
+        const y = height - pad - (range / RADAR.rangeKm) * innerHeight;
+        context.fillStyle = target.team === aircraft.team ? '#8ed2d9' : '#b9edc4';
+        context.fillRect(x - 6, y - 2, 12, 4);
+        if (track || target === radar.selected) {
+          context.strokeStyle = track ? '#b9edc4' : '#f1cf91';
+          context.lineWidth = 2;
+          context.strokeRect(x - 11, y - 8, 22, 16);
+        }
+      }
+      for (const cloud of clouds) {
+        const { angle, range } = radarPosition(aircraft, cloud);
+        if (range > RADAR.rangeKm || Math.abs(angle) > RADAR.scanAngle) continue;
+        const y = height - pad - (range / RADAR.rangeKm) * innerHeight;
+        context.fillStyle = '#9dacaf';
+        for (const offset of [-5, 0, 5]) context.fillRect(azimuth(angle) + offset, y, 2, 3);
+      }
+    }
+
+    function drawRwrScope(context, warnings) {
+      const { width, height } = context.canvas;
+      const x = width / 2;
+      const y = height / 2;
+      const radius = height * 0.43;
+      context.fillStyle = '#0a2428';
+      context.fillRect(0, 0, width, height);
+      context.strokeStyle = '#41635e';
+      context.lineWidth = 1.5;
+      for (const ring of [radius * 0.56, radius]) {
+        context.beginPath();
+        context.arc(x, y, ring, 0, TAU);
+        context.stroke();
+      }
+      context.fillStyle = '#c3dcd3';
+      context.fillRect(x - 2, y - 2, 4, 4);
+      context.beginPath();
+      context.moveTo(x, y - radius - 6);
+      context.lineTo(x - 5, y - radius + 1);
+      context.lineTo(x + 5, y - radius + 1);
+      context.fill();
+      for (const { angle, level } of warnings) {
+        const distance = level === 1 ? radius * 0.78 : radius * 0.55;
+        const pointX = x + Math.sin(angle) * distance;
+        const pointY = y - Math.cos(angle) * distance;
+        context.strokeStyle = ['#abc4ba', '#ffca87', '#ff866d'][level - 1];
+        context.lineWidth = level === 3 ? 3 : 2;
+        context.beginPath();
+        if (level === 1) context.arc(pointX, pointY, 4.5, 0, TAU);
+        else {
+          context.moveTo(x, y);
+          context.lineTo(pointX, pointY);
+          context.rect(pointX - 5, pointY - 5, 10, 10);
+        }
+        context.stroke();
+      }
+    }
+
+    function updateSensorDisplays(aircraft, warnings) {
+      const { radar } = aircraft;
+      const mode = radar.mode.toUpperCase();
+      const state = radar.target ? '跟踪' : radar.pending ? '锁定中' : battle.time - radar.lostAt < 0.8 ? '脱锁' : '搜索';
+      radarStatus.value = `${mode} ${state}`;
+      radarRange.textContent = `${AIRCRAFT[aircraft.flight.airframe].radarName} · ${RADAR.rangeKm} km`;
+      drawRadarScope(radarScope, aircraft, battle.chaff);
+      const danger = warnings.reduce((level, warning) => Math.max(level, warning.level), 0);
+      rwrStatus.value = ['静默', '被搜索', '被锁定', '雷达弹告警'][danger];
+      rwrStatus.toggleAttribute('data-alert', danger >= 2);
+      drawRwrScope(rwrScope, warnings);
+      return danger;
+    }
+
     function updateInstruments() {
       const { player } = battle;
-      const { flight, rack } = player;
+      const { flight, radar } = player;
+      const radarWeapon = player.weapon === 'sarh';
+      const rack = radarWeapon ? player.radarRack : player.rack;
       const degrees = 180 / Math.PI;
       const heading = Math.round(flight.heading * degrees) % 360;
       const bank = Math.round(flight.bank * degrees);
@@ -5015,20 +5427,38 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       throttleMode.toggleAttribute('data-afterburner', flight.afterburner);
       throttleTrack.toggleAttribute('data-afterburner', flight.afterburner);
       bankOutput.value = bank === 0 ? '0°' : `${bank < 0 ? '左' : '右'} ${Math.abs(bank)}°`;
-      const locked = isAlive(player) && rack.lock >= MISSILES[rack.type].lockSeconds;
+      const locked = isAlive(player) && (radarWeapon ? Boolean(radar.target) : rack.lock >= MISSILES[rack.type].lockSeconds);
+      const sensors = viewedAircraft();
+      const radarDanger = updateSensorDisplays(sensors, radarWarnings(battle, sensors));
       missileName.textContent = rack.type;
       ammoOutput.value = `${rack.ammo} 枚`;
       ammoOutput.toggleAttribute('data-empty', rack.ammo === 0);
-      seekerOutput.value = locked ? '已锁定' : isAlive(player) && rack.armed ? (rack.lock ? '锁定中' : '搜索') : '待机';
-      const incoming = battle.missiles.some(missile => missile.target === player);
+      seekerLabel.textContent = radarWeapon ? '雷达引导' : '红外引导';
+      seekerOutput.value = locked ? '已锁定' : radarWeapon && radar.pending ? '锁定中' : rack.armed ? (rack.lock ? '锁定中' : '搜索') : '待机';
+      const { flareRack, chaffRack } = battle;
+      const flareCooling = flareRack.ammo > 0 && battle.time < flareRack.readyAt;
+      const chaffCooling = chaffRack.ammo > 0 && battle.time < chaffRack.readyAt;
+      flareOutput.value = `${flareRack.ammo} 枚${flareCooling ? ' · 冷却' : ''}`;
+      flareOutput.toggleAttribute('data-empty', flareRack.ammo === 0);
+      chaffOutput.value = `${chaffRack.ammo} 组${chaffCooling ? ' · 冷却' : ''}`;
+      chaffOutput.toggleAttribute('data-empty', chaffRack.ammo === 0);
+      const infraredIncoming = battle.missiles.some(missile => missile.target === player && !missile.flare && MISSILES[missile.type].guidance === 'ir');
       let feedback = '';
       if (!isAlive(player)) feedback = '本机出局 · 观战';
-      else if (incoming) feedback = '来袭导弹';
-      else if (locked) feedback = '空格发射';
-      else if (rack.armed) feedback = rack.target ? '锁定中' : `从目标后方锁定 · ${MISSILES[rack.type].lockRangeKm} km`;
-      else if (battle.time - rack.lastLaunch < 0.65) feedback = '导弹已发射';
+      else if (radarDanger === 3) feedback = chaffRack.ammo > 0 && !chaffCooling ? '雷达弹告警 · C 干扰箔' : '雷达弹告警';
+      else if (infraredIncoming) feedback = flareRack.ammo > 0 && !flareCooling ? '红外弹来袭 · X 热诱弹' : '红外弹来袭';
+      else if (battle.time - flareRack.lastRedirect < 1.1) feedback = '导弹已被诱偏';
+      else if (battle.time - Math.max(player.rack.lastLaunch, player.radarRack.lastLaunch) < 0.65) feedback = '导弹已发射';
+      else if (locked && rack.ammo) {
+        feedback = radarWeapon && radarPosition(player, radar.target.flight).range > MISSILES[rack.type].launchRangeKm
+          ? '已锁定 · 距离过远' : '空格发射';
+      } else if (radarWeapon && radar.pending) feedback = '锁定中';
+      else if (radarWeapon && radar.selected) feedback = 'T 锁定目标';
+      else if (rack.armed) feedback = rack.target ? '锁定中' : '机头指向目标';
+      else if (battle.flares.length) feedback = '热诱弹已释放';
+      else if (battle.chaff.length) feedback = '干扰箔已释放';
       if (missileFeedback.textContent !== feedback) missileFeedback.textContent = feedback;
-      missileFeedback.toggleAttribute('data-danger', incoming);
+      missileFeedback.toggleAttribute('data-danger', infraredIncoming || radarDanger === 3);
       throttleTrack.style.setProperty('--throttle', flight.throttle);
       compass.style.setProperty('--tape-offset', `${-((flight.heading * degrees * 2.4) % 36)}px`);
 
@@ -5036,10 +5466,10 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       const france = String(teamCount(battle, 1));
       if (ukRemaining.value !== uk) ukRemaining.value = uk;
       if (franceRemaining.value !== france) franceRemaining.value = france;
-      const view = viewedAircraft();
-      const opponent = nearestOpponent(battle, view);
-      const distance = opponent ? Math.hypot(opponent.flight.x - view.flight.x, opponent.flight.z - view.flight.z) / WORLD_UNITS_PER_KILOMETER : 0;
-      const distanceLabel = opponent && !battle.result ? `最近对手 ${distance.toFixed(distance < 1 ? 2 : 1)} km` : '';
+      const viewRadar = sensors.radar;
+      const observation = viewRadar.target?.flight ?? viewRadar.echoes.get(viewRadar.selected);
+      const distance = observation ? radarPosition(sensors, observation).range : 0;
+      const distanceLabel = observation && !battle.result ? `雷达目标 ${distance.toFixed(distance < 1 ? 2 : 1)} km` : '';
       if (battleDistance.textContent !== distanceLabel) battleDistance.textContent = distanceLabel;
       updateMinimap();
       updateFlightDebug();
@@ -5083,17 +5513,19 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       minimapMarker.style.setProperty('--map-heading', `${position.heading}rad`);
       const status = inBounds ? '' : '地图外';
       if (minimapStatus.textContent !== status) minimapStatus.textContent = status;
+      const radar = viewedAircraft().radar;
       for (let index = 1; index < battle.aircraft.length; index++) {
         const aircraft = battle.aircraft[index];
         const marker = minimapTargets[index - 1];
-        marker.hidden = !isAlive(aircraft);
-        if (!marker.hidden) placeOnMinimap(marker, aircraft.flight.x, aircraft.flight.z);
+        const position = aircraft.team === 0 || aircraft === radar.target ? aircraft.flight : radar.echoes.get(aircraft);
+        marker.hidden = !isAlive(aircraft) || !position;
+        if (!marker.hidden) placeOnMinimap(marker, position.x, position.z);
       }
     }
 
     function clearKeys() {
       keys.clear();
-      seekerRequested = false;
+      battleCommands.clear();
       for (const keycap of keycaps) keycap.classList.remove('active');
     }
 
@@ -5186,8 +5618,8 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       const turnInput = Number(keys.has('KeyD')) - Number(keys.has('KeyA'));
       const playerTuning = debugPanel.hidden ? undefined : debugTuning;
       while (accumulator >= STEP) {
-        stepBattle(battle, throttleInput, turnInput, seekerRequested, STEP, playerTuning);
-        seekerRequested = false;
+        stepBattle(battle, throttleInput, turnInput, battleCommands, STEP, playerTuning);
+        battleCommands.clear();
         accumulator -= STEP;
         if (battle.result) break;
       }
@@ -5292,9 +5724,9 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         event.preventDefault();
         if (!renderer || paused || battle.result || !isAlive(battle.player)) return;
         const { flight } = battle.player;
-        if (event.code === 'Space') {
+        if (BATTLE_KEYS.has(event.code)) {
           if (event.repeat) return;
-          seekerRequested = true;
+          battleCommands.add(event.code);
         }
         if (event.code === 'KeyW' && !event.repeat && !keys.has('KeyW') && !keys.has('KeyS') && flight.throttle === 1) {
           flight.afterburner = true;
