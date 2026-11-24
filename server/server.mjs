@@ -1,8 +1,11 @@
 import { randomBytes, randomInt, randomUUID } from 'node:crypto';
+import { realpathSync } from 'node:fs';
 import { createServer } from 'node:http';
+import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { WebSocket, WebSocketServer } from 'ws';
 import { acceptInput, createMatch, encodeMatchFrame, neutralizePilot, releasePilot, tickMatch } from './match.mjs';
+import { BATTLE_DISPLAY } from './simulation.mjs';
 
 const HELP = `Terror of Sky server
 
@@ -49,13 +52,9 @@ function readOptions() {
 }
 
 let options;
-try {
-  options = readOptions();
-} catch (error) {
-  console.error(`[server] ${error.message}\nRun with --help for usage.`);
-  process.exit(2);
-}
+let servePage;
 
+const PROTOCOL_VERSION = 3;
 const TEAM_SIZE = 4;
 const TEAMS = ['uk', 'fr'];
 const AIRCRAFT = ['f15', 'su27'];
@@ -67,7 +66,8 @@ const sessions = new Map();
 const health = '{"status":"ok"}\n';
 const server = createServer((request, response) => {
   if (request.url !== '/healthz') {
-    response.writeHead(404).end();
+    if (servePage) servePage(request, response);
+    else response.writeHead(404).end();
   } else if (!['GET', 'HEAD'].includes(request.method)) {
     response.writeHead(405, { Allow: 'GET, HEAD' }).end();
   } else {
@@ -111,7 +111,7 @@ function teamSize(room, team) {
 }
 
 function canStart(room) {
-  return !room.match && TEAMS.every(team => teamSize(room, team) > 0)
+  return !room.match && (room.players.length === 1 || TEAMS.every(team => teamSize(room, team) > 0))
     && room.players.every(player => player.ready && player.socket?.readyState === WebSocket.OPEN);
 }
 
@@ -166,6 +166,7 @@ function startMatch(room) {
     map: 'dover',
     startedAt: Date.now(),
     state: 'loading',
+    display: BATTLE_DISPLAY,
     players: room.players.map(({ id, name, team, aircraft }) => ({
       id, name, team, aircraft, slot: nextSlot[team]++,
     })),
@@ -231,7 +232,7 @@ function perform(player, action) {
       break;
     case 'start':
       requireLobby(room.hostId === player.id, '仅房主可以开始。');
-      requireLobby(canStart(room), '请确保两队均有人，且所有玩家已准备。');
+      requireLobby(canStart(room), '请让所有玩家准备。多人对局需要两队均有玩家。');
       startMatch(room);
       break;
     case 'reopen':
@@ -257,7 +258,7 @@ function establishSession(socket, token) {
   clearTimeout(player.expiry);
   player.socket?.close(4001, 'Session resumed');
   player.socket = socket;
-  send(socket, { type: 'session', id: player.id, token: player.token });
+  send(socket, { type: 'session', protocol: PROTOCOL_VERSION, id: player.id, token: player.token });
   if (player.room) {
     publishRoom(player.room);
     if (player.room.arena) publishMatch(player.room, player);
@@ -344,12 +345,19 @@ server.on('error', error => {
   console.error(`[server] ${error.message}`);
   process.exitCode = 1;
 });
-server.listen(options.port, options.host, () => {
-  const address = server.address();
-  const urlHost = address.family === 'IPv6' ? `[${address.address}]` : address.address;
-  console.log(`[server] Listening at ws://${urlHost}:${address.port}/ws`);
-  console.log(`[server] Browser origins: ${[...options.origins].join(', ')}`);
-});
+export function startServer(settings, staticHandler) {
+  options = settings;
+  servePage = staticHandler;
+  server.listen(options.port, options.host, () => {
+    const address = server.address();
+    const urlHost = address.family === 'IPv6' ? `[${address.address}]` : address.address;
+    console.log(`[server] Listening at ws://${urlHost}:${address.port}/ws`);
+    if (staticHandler) console.log(`[server] Lobby at http://${urlHost}:${address.port}/lobby/`);
+    else console.log(`[server] Browser origins: ${[...options.origins].join(', ')}`);
+  });
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
+}
 
 let stopping = false;
 function shutdown() {
@@ -364,5 +372,11 @@ function shutdown() {
   }, 2000).unref();
 }
 
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
+  try {
+    startServer(readOptions());
+  } catch (error) {
+    console.error(`[server] ${error.message}\nRun with --help for usage.`);
+    process.exit(2);
+  }
+}

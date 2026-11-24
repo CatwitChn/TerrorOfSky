@@ -2,11 +2,11 @@
 
 ## Windows Server 部署
 
-Windows x64 发布包自带 Node.js 和 WebSocket 依赖。将 `terror-of-sky-server-0.2.0-windows-x64.zip` 上传到服务器，在 PowerShell 中解压并启动。Node.js 24 的官方 Windows x64 支持范围从 Windows Server 2016 起。 [Node.js 平台支持表](https://github.com/nodejs/node/blob/v24.x/BUILDING.md#platform-list)
+Windows x64 发布包自带 Node.js 和 WebSocket 依赖。将 `terror-of-sky-server-0.3.0-windows-x64.zip` 上传到服务器，在 PowerShell 中解压并启动。Node.js 24 的官方 Windows x64 支持范围从 Windows Server 2016 起。 [Node.js 平台支持表](https://github.com/nodejs/node/blob/v24.x/BUILDING.md#platform-list)
 
 ```powershell
-Expand-Archive -LiteralPath .\terror-of-sky-server-0.2.0-windows-x64.zip -DestinationPath .
-Set-Location .\terror-of-sky-server-0.2.0-windows-x64
+Expand-Archive -LiteralPath .\terror-of-sky-server-0.3.0-windows-x64.zip -DestinationPath .
+Set-Location .\terror-of-sky-server-0.3.0-windows-x64
 .\start-server.cmd --host 127.0.0.1 --port 3000 --origin https://play.example.com
 ```
 
@@ -20,11 +20,10 @@ Set-Location .\terror-of-sky-server-0.2.0-windows-x64
 
 ```js
 export const serverUrl = 'wss://game.example.com/ws';
-export const soloUrl = '../index.html';
 export const battleUrl = '../index.html';
 ```
 
-如需隐藏大厅里的单机入口，可将 `soloUrl` 设为 `null`。使用 HTTPS 的大厅通过 WSS 连接服务端。若使用 Caddy 作为入口，可将 WebSocket 请求转发到本机端口。 [Caddy 反向代理文档](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy#streaming)
+使用 HTTPS 的大厅通过 WSS 连接服务端。若使用 Caddy 作为入口，可将 WebSocket 请求转发到本机端口。 [Caddy 反向代理文档](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy#streaming)
 
 ```caddyfile
 game.example.com {

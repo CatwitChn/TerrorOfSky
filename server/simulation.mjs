@@ -22,7 +22,6 @@ const AIRBRAKE_REFERENCE_KPH = 700;
 const AIRBRAKE_REFERENCE_DRAG_KN = 155;
 const AIRBRAKE_MAX_DRAG_KN = 235;
 const AIRBRAKE_TRAVEL_SECONDS = 0.32;
-const DEFAULT_FLIGHT_TUNING = { thrust: 1, straightDrag: 1, turnDrag: 1 };
 // War Thunder vehicle cards: f_15a and su_27. Reference mass uses 30% internal fuel.
 // Thrust and nose response [TAS km/h, degrees/second] are tuned for the planar game.
 const AIRCRAFT = [
@@ -113,6 +112,24 @@ const AI_OPENINGS = [
 const BATTLE_KEYS = new Set(['Space', 'KeyQ', 'KeyT', 'KeyY', 'KeyG', 'KeyX', 'KeyC']);
 const PILOT_ACTIONS = new Set(['KeyB', 'KeyW', 'KeyS', ...BATTLE_KEYS]);
 
+export const BATTLE_DISPLAY = {
+  map: { name: COAST_MAP.name, bounds: COAST_MAP.bounds },
+  worldUnitsPerKilometer: WORLD_UNITS_PER_KILOMETER,
+  flightAltitudeM: FLIGHT_ALTITUDE_M,
+  machOneKph: MACH_ONE_KPH,
+  pilotStrainThreshold: PILOT_STRAIN_THRESHOLD,
+  airbrakeReferenceKph: AIRBRAKE_REFERENCE_KPH,
+  missileSmokeLifetime: MISSILE_SMOKE.lifetime,
+  explosionSeconds: EXPLOSION_SECONDS,
+  flareLifetime: FLARE.lifetime,
+  chaffLifetime: CHAFF.lifetime,
+  radar: { rangeKm: RADAR.rangeKm, scanAngle: RADAR.scanAngle, trackAngle: RADAR.trackAngle },
+  aircraft: AIRCRAFT.map(({ name, flight, radarName, launchWarning }) =>
+    ({ name, topSpeedKph: flight.topSpeedKph, radarName, launchWarning })),
+  missiles: Object.fromEntries(Object.entries(MISSILES).map(([type, { capacity, guidance, launchRangeKm, lockSeconds }]) =>
+    [type, { capacity, guidance, launchRangeKm, lockSeconds }])),
+};
+
 function initialFlight(airframe, spawn) {
   return {
     ...spawn, airframe, bank: 0, speed: START_SPEED, course: spawn.heading,
@@ -122,7 +139,7 @@ function initialFlight(airframe, spawn) {
   };
 }
 
-function stepFlight(flight, throttleInput, turnInput, dt, tuning) {
+function stepFlight(flight, throttleInput, turnInput, dt) {
   const profile = AIRCRAFT[flight.airframe].flight;
   flight.throttle = Math.max(0, Math.min(1, flight.throttle + throttleInput * 0.48 * dt));
   if (flight.throttle < 1) flight.afterburner = false;
@@ -152,21 +169,19 @@ function stepFlight(flight, throttleInput, turnInput, dt, tuning) {
   const strainRate = clamp((flight.loadFactor - PILOT_COMFORT_G) / 4, -0.28, 0.75);
   flight.pilotStrain = clamp(flight.pilotStrain + strainRate * dt, 0, 1);
 
-  const { acceleration } = flightForces(profile, flight, tuning);
+  const acceleration = flightAcceleration(profile, flight);
   flight.speed = clamp(flight.speed + acceleration * 3.6 * dt, MIN_LEVEL_SPEED_KPH, profile.topSpeedKph);
   const distance = flight.speed * FLIGHT_SPEED_SCALE * dt;
   flight.x += Math.sin(flight.course) * distance;
   flight.z -= Math.cos(flight.course) * distance;
 }
 
-function flightForces(profile, flight, tuning = DEFAULT_FLIGHT_TUNING) {
+function flightAcceleration(profile, flight) {
   const turnLoadRatio = flight.turnAcceleration / profile.turnAccelerationAtReference;
-  const turnDragKn = profile.turnDragAtReferenceKn * (turnLoadRatio * TURN_REFERENCE_KPH / flight.speed) ** 2 * tuning.turnDrag;
-  const straightDragKn = levelDragKn(profile, flight.speed, flight.airbrakeExtension) * tuning.straightDrag;
-  const dragKn = straightDragKn + turnDragKn;
-  const thrustKn = engineThrustKn(profile, flight.speed, flight.enginePower, flight.afterburner) * tuning.thrust;
-  const acceleration = (thrustKn - dragKn) * 1000 / profile.massKg;
-  return { thrustKn, straightDragKn, turnDragKn, dragKn, acceleration };
+  const turnDragKn = profile.turnDragAtReferenceKn * (turnLoadRatio * TURN_REFERENCE_KPH / flight.speed) ** 2;
+  const straightDragKn = levelDragKn(profile, flight.speed, flight.airbrakeExtension);
+  const thrustKn = engineThrustKn(profile, flight.speed, flight.enginePower, flight.afterburner);
+  return (thrustKn - (straightDragKn + turnDragKn)) * 1000 / profile.massKg;
 }
 
 function maxLiftAcceleration(profile, speedKph) {
@@ -218,7 +233,7 @@ function initialMissileRack(type) {
   return { type, ammo: MISSILES[type].capacity, armed: false, lock: 0, target: null, lastLaunch: -Infinity };
 }
 
-function initialBattle(airframe, roster = []) {
+function initialBattle(roster) {
   const departures = COAST_MAP.departures;
   const aircraft = departures.flatMap((departure, team) => {
     const heading = (bearing(departure, departures[1 - team]) + TAU) % TAU;
@@ -226,7 +241,7 @@ function initialBattle(airframe, roster = []) {
     const cos = Math.cos(heading);
     return FORMATION.map(({ forward, right }, slot) => {
       const pilot = roster.find(member => member.team === team && member.slot === slot);
-      const model = pilot?.airframe ?? (team === 0 ? airframe : 1 - airframe);
+      const model = pilot?.airframe ?? team;
       const flight = initialFlight(model, {
         x: departure.x + sin * forward + cos * right,
         z: departure.z - cos * forward + sin * right,
@@ -234,10 +249,10 @@ function initialBattle(airframe, roster = []) {
       });
       return {
         id: team * FORMATION.length + slot, name: pilot?.name ?? null,
-        team, slot, flight, previous: { ...flight }, display: { ...flight },
+        team, slot, flight, previous: { ...flight },
         rack: initialMissileRack(AIRCRAFT[model].ir),
         radarRack: initialMissileRack(AIRCRAFT[model].sarh),
-        weapon: 'ir', destroyedAt: null, wingWake: [], boomArmed: true,
+        weapon: 'ir', destroyedAt: null,
         flareRack: { ammo: FLARE.capacity, readyAt: 0, lastRedirect: -Infinity },
         chaffRack: { ammo: CHAFF.capacity, readyAt: 0 }, missileOutcome: null,
         ai: { phase: 'opening', target: null, exitHeading: 0, extendUntil: 0 },
@@ -247,11 +262,8 @@ function initialBattle(airframe, roster = []) {
     });
   });
   return {
-    aircraft, player: aircraft[0], missiles: [], flares: [], chaff: [], explosions: [], time: 0, result: null,
-    online: roster.length > 0, nextMissileId: 1, endedMissiles: [], nextWakeSampleAt: 0, sonicBooms: [],
-    get missileOutcome() { return this.player.missileOutcome; },
-    get flareRack() { return this.player.flareRack; },
-    get chaffRack() { return this.player.chaffRack; }
+    aircraft, missiles: [], flares: [], chaff: [], explosions: [], time: 0, result: null,
+    nextMissileId: 1, endedMissiles: [],
   };
 }
 
@@ -289,7 +301,7 @@ function radarCanTrack(battle, aircraft, target) {
   if (!isAlive(target)) return false;
   const { angle, range } = radarPosition(aircraft, target.flight);
   if (!range || range > RADAR.rangeKm || Math.abs(angle) > RADAR.trackAngle) return false;
-  const clouds = target === battle.player ? battle.chaff.length : 0;
+  const clouds = battle.chaff.filter(cloud => cloud.owner === target).length;
   // PD rejects one decoy cloud in this game's sensor model.
   return clouds < (aircraft.radar.mode === 'pd' ? 2 : 1);
 }
@@ -438,7 +450,7 @@ function missileContact(missile, target, previousTarget) {
   return (x + dx * along) ** 2 + (z + dz * along) ** 2 <= AIRCRAFT_HIT_RADIUS ** 2;
 }
 
-function releaseFlare(battle, aircraft = battle.player) {
+function releaseFlare(battle, aircraft) {
   const { time } = battle;
   const { flight, flareRack } = aircraft;
   if (!isAlive(aircraft) || !flareRack.ammo || time < flareRack.readyAt) return;
@@ -472,7 +484,7 @@ function stepFlares(battle, dt) {
   }
 }
 
-function releaseChaff(battle, aircraft = battle.player) {
+function releaseChaff(battle, aircraft) {
   const { time } = battle;
   const { flight, chaffRack } = aircraft;
   if (!isAlive(aircraft) || !chaffRack.ammo || time < chaffRack.readyAt) return;
@@ -615,8 +627,7 @@ function stepAiFlight(battle, aircraft, dt) {
   let throttle = distanceKm > 1.8 ? 0.93 : 0.70;
   if (ai.phase === 'opening') {
     desiredHeading += opening.angle;
-    const playerPace = !battle.online && aircraft.team === 0 && isAlive(battle.player) ? battle.player.flight.throttle : 0.87;
-    throttle = opening.throttle * clamp(playerPace + 0.13, 0.68, 1);
+    throttle = opening.throttle;
   } else if (ai.phase === 'extend') {
     desiredHeading = ai.exitHeading;
     throttle = 0.91;
@@ -668,17 +679,13 @@ function applyFlightAction(flight, action) {
   else if (action === 'KeyB') flight.airbrake = !flight.airbrake;
 }
 
-function stepBattle(battle, throttle, turn, commands, dt, playerTuning) {
-  advanceBattle(battle, aircraft => aircraft === battle.player ? { throttle, turn, commands, tuning: playerTuning } : null, dt);
-}
-
 function advanceBattle(battle, getControls, dt) {
   battle.time += dt;
   for (const aircraft of battle.aircraft) Object.assign(aircraft.previous, aircraft.flight);
   for (const aircraft of battle.aircraft) {
     if (!isAlive(aircraft)) continue;
     const controls = getControls(aircraft);
-    if (controls) stepFlight(aircraft.flight, controls.throttle, controls.turn, dt, controls.tuning);
+    if (controls) stepFlight(aircraft.flight, controls.throttle, controls.turn, dt);
     else stepAiFlight(battle, aircraft, dt);
   }
 
@@ -713,5 +720,4 @@ function lerp(start, end, fraction) {
   return start + (end - start) * fraction;
 }
 
-// Exports for the headless server.
 export { STEP, PILOT_ACTIONS, initialBattle, advanceBattle, applyFlightAction, isAlive };

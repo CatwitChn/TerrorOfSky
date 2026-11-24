@@ -7,7 +7,7 @@ export function createMatch(players, now) {
   const roster = players.map(player => ({
     ...player, team: player.team === 'uk' ? 0 : 1, airframe: player.aircraft === 'f15' ? 0 : 1,
   }));
-  const battle = initialBattle(0, roster);
+  const battle = initialBattle(roster);
   const pilots = new Map();
   const seats = new Map();
   for (const player of roster) {
@@ -73,9 +73,9 @@ export function tickMatch(match, now) {
 const ref = aircraft => aircraft?.id ?? null;
 
 function snapshotAircraft(aircraft) {
-  const { id, name, flight, destroyedAt, weapon, rack, radarRack, radar, flareRack, chaffRack, missileOutcome } = aircraft;
+  const { id, team, name, flight, destroyedAt, weapon, rack, radarRack, radar, flareRack, chaffRack, missileOutcome } = aircraft;
   return {
-    id, name, flight, destroyedAt, weapon,
+    id, team, name, flight, destroyedAt, weapon,
     rack: { ...rack, target: ref(rack.target) }, radarRack: { ...radarRack, target: ref(radarRack.target) },
     radar: {
       ...radar, selected: ref(radar.selected), target: ref(radar.target), pending: ref(radar.pending),

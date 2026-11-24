@@ -1,6 +1,7 @@
 import * as settings from './config.js';
 
-const { serverUrl, soloUrl, battleUrl = '../index.html' } = settings;
+const { serverUrl, battleUrl = '../index.html' } = settings;
+const PROTOCOL_VERSION = 3;
 
 const find = id => document.getElementById(id);
 const entry = find('entry');
@@ -19,9 +20,6 @@ const battleScreen = find('battle-screen');
 const enterBattle = find('enter-battle');
 const lobbyRegions = document.querySelectorAll('body > header, body > main');
 const aircraftNames = { f15: 'F-15A', su27: 'Su-27' };
-const soloLink = find('solo-link');
-if (soloUrl) soloLink.href = soloUrl;
-else soloLink.hidden = true;
 const invitedCode = new URL(location.href).searchParams.get('room')?.toUpperCase();
 if (/^[A-HJ-NP-Z2-9]{6}$/.test(invitedCode)) code.value = invitedCode;
 callsign.value = sessionStorage.getItem('tos-callsign') ?? '';
@@ -104,12 +102,15 @@ function render() {
   reopen.disabled = !online;
   leave.disabled = !online;
   find('start-rule').hidden = matchStarted;
+  find('start-rule').textContent = room.players.length === 1
+    ? '一人准备后即可开局，空位由 AI 补齐。'
+    : '两队均有人且全员准备后，房主可以开局。';
   find('match').hidden = !matchStarted;
   if (matchStarted) {
     const state = room.match.state;
     find('match-status').textContent = {
       loading: '正在加载战场', playing: '对局进行中', finished: '对局已结束',
-    }[state] ?? '请更新到 0.2.0 或更高版本服务端';
+    }[state];
     find('match-code').textContent = `对局编号 ${room.match.id.slice(0, 8).toUpperCase()}`;
     reopen.textContent = state === 'playing' || state === 'loading' ? '结束本局' : '返回准备';
     enterBattle.hidden = !battleView;
@@ -135,7 +136,7 @@ function attachBattle() {
   battleScreen.replaceChildren();
   battleView = null;
   const pilot = match?.players.find(member => member.id === playerId);
-  if (!match?.state || !pilot) return;
+  if (!match?.display || !pilot) return;
   const url = new URL(battleUrl, location.href);
   if (url.origin !== location.origin) {
     showNotice('大厅和战斗页面需要托管在同一站点。', true);
@@ -146,7 +147,7 @@ function attachBattle() {
   frame.title = '多佛白崖联机战场';
   frame.src = url.href;
   const seat = (pilot.team === 'uk' ? 0 : room.teamSize) + pilot.slot;
-  battleView = { id: match.id, frame, seat, ready: false, readySent: false, latest: null };
+  battleView = { id: match.id, frame, seat, display: match.display, ready: false, readySent: false, latest: null };
   battleScreen.append(frame);
   showBattle(true);
 }
@@ -161,7 +162,9 @@ window.addEventListener('message', event => {
   if (!battleView || event.origin !== location.origin || event.source !== battleView.frame.contentWindow) return;
   const { channel, id, type, throttle, turn, action } = event.data ?? {};
   if (channel !== 'tos-flight' || id !== battleView.id) return;
-  if (type === 'ready') {
+  if (type === 'configure') {
+    sendBattleView({ type: 'configuration', display: battleView.display });
+  } else if (type === 'ready') {
     battleView.ready = true;
     if (battleView.latest) sendBattleView({ type: 'snapshot', seat: battleView.seat, snapshot: battleView.latest });
     sendBattleView({ type: 'connection', online });
@@ -184,6 +187,7 @@ function setConnection(state, text) {
 
 function connect(endpoint) {
   const tokenKey = `tos-session:${endpoint.href}`;
+  let incompatible = false;
   socket = new WebSocket(endpoint);
   socket.addEventListener('open', () => {
     socket.send(JSON.stringify({ type: 'hello', token: sessionStorage.getItem(tokenKey) }));
@@ -192,6 +196,13 @@ function connect(endpoint) {
     const message = JSON.parse(data);
     switch (message.type) {
       case 'session':
+        if (message.protocol !== PROTOCOL_VERSION) {
+          incompatible = true;
+          setConnection('offline', '服务端版本不匹配');
+          showNotice('请用 0.3.0 服务端启动新版大厅。', true);
+          socket.close();
+          break;
+        }
         if (playerId && playerId !== message.id) {
           room = null;
           attachBattle();
@@ -220,6 +231,7 @@ function connect(endpoint) {
     }
   });
   socket.addEventListener('close', event => {
+    if (incompatible) return;
     if (event.code === 4001) {
       sessionStorage.removeItem(tokenKey);
       room = null;

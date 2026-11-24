@@ -43,12 +43,6 @@ p, h1, h2, h3, dl, dd { margin: 0; }
   clip-path: polygon(50% 0%, 100% 82%, 68% 70%, 50% 100%, 32% 70%, 0% 82%);
 }
 
-nav { display: flex; align-items: stretch; align-self: stretch; gap: 22px; }
-nav a { display: flex; align-items: center; gap: 4px; border-bottom: 2px solid transparent; color: var(--muted); white-space: nowrap; font-size: 13px; font-weight: 600; }
-nav a:hover, nav a[aria-current] { color: var(--text); }
-nav a[aria-current] { border-color: var(--brass); }
-nav span { color: var(--muted); }
-
 .connection { display: inline-flex; align-items: center; gap: 7px; margin-left: auto; color: var(--muted); white-space: nowrap; font-size: 12px; }
 .connection::before { width: 7px; height: 7px; border-radius: 50%; background: #8b989b; content: ""; }
 .connection[data-state="online"]::before { background: #87d4a3; box-shadow: 0 0 9px #87d4a388; }
@@ -174,9 +168,6 @@ input:hover, select:hover, .secondary:enabled:hover { border-color: #557179; }
 }
 
 @media (max-width: 480px) {
-  .topbar-inner { display: grid; grid-template-columns: 1fr auto; gap: 0 8px; padding-top: 13px; }
-  .connection { grid-column: 2; grid-row: 1; }
-  nav { grid-column: 1 / -1; min-height: 37px; }
   .room-header .button, .room-actions .button { padding-inline: 9px; }
   .room-panel { padding-inline: 14px; }
   .room-controls { grid-template-columns: minmax(80px, 1fr) auto; gap: 8px; }
