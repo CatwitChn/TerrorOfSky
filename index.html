@@ -177,6 +177,7 @@
     .missile-feedback[data-danger] { color: #ff9c86; }
 
     .actions { position: relative; display: flex; justify-self: end; gap: 6px; pointer-events: auto; }
+    .actions > .button[hidden] { display: none; }
     .button {
       display: inline-flex;
       justify-content: center;
@@ -669,6 +670,7 @@
         <span class="missile-feedback" id="missile-feedback" role="status"></span>
       </div>
       <div class="actions">
+        <button class="button" id="return-lobby" type="button" aria-keyshortcuts="Escape" hidden>返回大厅</button>
         <button class="button" id="pause" type="button" aria-keyshortcuts="Escape" disabled>
           <i class="icon icon-pause" aria-hidden="true"></i><span>暂停</span>
         </button>
@@ -4465,6 +4467,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
   <script>
     'use strict';
 
+    // BEGIN SHARED BATTLE SIMULATION
     const TAU = Math.PI * 2;
     const MAX_BANK = 55 * Math.PI / 180;
     const MAX_HEADING_LEAD = 20 * Math.PI / 180;
@@ -4489,7 +4492,6 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     const AIRBRAKE_REFERENCE_DRAG_KN = 155;
     const AIRBRAKE_MAX_DRAG_KN = 235;
     const AIRBRAKE_TRAVEL_SECONDS = 0.32;
-    const AIRBRAKE_FULL_ANGLE = Math.PI / 3;
     const DEFAULT_FLIGHT_TUNING = { thrust: 1, straightDrag: 1, turnDrag: 1 };
     // War Thunder vehicle cards: f_15a and su_27. Reference mass uses 30% internal fuel.
     // Thrust and nose response [TAS km/h, degrees/second] are tuned for the planar game.
@@ -4551,10 +4553,6 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     };
     const MISSILE_SMOKE = { interval: 0.055, lifetime: 0.75 };
     const EXPLOSION_SECONDS = 1.2;
-    const MISSILE_IMPACT_VIEW_SECONDS = 1;
-    const PLAYER_WRECK_VIEW_SECONDS = 1.15;
-    const WING_VORTEX = { interval: 0.04, lifetime: 0.62 };
-    const SONIC_BOOM = { lifetime: 0.52, rearmRatio: 0.98 };
     const MISSILE_AIM_PREVIEW_SECONDS = 0.8;
     const AIRCRAFT_HIT_RADIUS = 6.1;
     const FLARE = { capacity: 6, cooldown: 0.8, lifetime: 1.35, attractionRadius: 96 };
@@ -4564,7 +4562,6 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     const WORLD_UNITS_PER_KILOMETER = 3600 * FLIGHT_SPEED_SCALE;
     const WORLD_UNITS_PER_METER = WORLD_UNITS_PER_KILOMETER / 1000;
     const DOVER_HALF_SPAN = 30 * WORLD_UNITS_PER_KILOMETER;
-    const DOVER_GRID_SIZE = 1536;
     // Copernicus GLO-30, N50E001 and N51E001. Local metric grid centered at 51.13°N, 1.45°E.
     const COAST_MAP = {
       name: '多佛白崖',
@@ -4583,17 +4580,8 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       { angle: 0.25, throttle: 0.85, joinKm: 6 },
       { angle: 0.12, throttle: 0.72, joinKm: 5 }
     ];
-    const VIEW_EDGE_MARGIN = 19;
-    const MIN_VIEW_SPAN = 2 * (0.5 * WORLD_UNITS_PER_KILOMETER + VIEW_EDGE_MARGIN);
-    const MAX_VIEW_OFFSET = 0.5;
-    const VIEW_RETURN_SECONDS = 0.22;
     const BATTLE_KEYS = new Set(['Space', 'KeyQ', 'KeyT', 'KeyY', 'KeyG', 'KeyX', 'KeyC']);
-    const FLIGHT_KEYS = new Set(['KeyW', 'KeyS', 'KeyA', 'KeyD', 'KeyB', 'KeyU', ...BATTLE_KEYS]);
-    const VERTEX_SOURCE = `#version 300 es
-      void main() {
-        vec2 corner = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2);
-        gl_Position = vec4(corner * 2.0 - 1.0, 0.0, 1.0);
-      }`;
+    const PILOT_ACTIONS = new Set(['KeyB', 'KeyW', 'KeyS', ...BATTLE_KEYS]);
 
     function initialFlight(airframe, spawn) {
       return {
@@ -4700,24 +4688,28 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       return { type, ammo: MISSILES[type].capacity, armed: false, lock: 0, target: null, lastLaunch: -Infinity };
     }
 
-    function initialBattle(airframe) {
+    function initialBattle(airframe, roster = []) {
       const departures = COAST_MAP.departures;
       const aircraft = departures.flatMap((departure, team) => {
         const heading = (bearing(departure, departures[1 - team]) + TAU) % TAU;
         const sin = Math.sin(heading);
         const cos = Math.cos(heading);
-        const model = team === 0 ? airframe : 1 - airframe;
         return FORMATION.map(({ forward, right }, slot) => {
+          const pilot = roster.find(member => member.team === team && member.slot === slot);
+          const model = pilot?.airframe ?? (team === 0 ? airframe : 1 - airframe);
           const flight = initialFlight(model, {
             x: departure.x + sin * forward + cos * right,
             z: departure.z - cos * forward + sin * right,
             heading
           });
           return {
+            id: team * FORMATION.length + slot, name: pilot?.name ?? null,
             team, slot, flight, previous: { ...flight }, display: { ...flight },
             rack: initialMissileRack(AIRCRAFT[model].ir),
             radarRack: initialMissileRack(AIRCRAFT[model].sarh),
             weapon: 'ir', destroyedAt: null, wingWake: [], boomArmed: true,
+            flareRack: { ammo: FLARE.capacity, readyAt: 0, lastRedirect: -Infinity },
+            chaffRack: { ammo: CHAFF.capacity, readyAt: 0 }, missileOutcome: null,
             ai: { phase: 'opening', target: null, exitHeading: 0, extendUntil: 0 },
             radar: { mode: 'src', echoes: new Map(), sweep: -RADAR.scanAngle, selected: null,
               pending: null, target: null, progress: 0, trackId: 0, lostAt: -Infinity }
@@ -4726,9 +4718,10 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       });
       return {
         aircraft, player: aircraft[0], missiles: [], flares: [], chaff: [], explosions: [], time: 0, result: null,
-        missileOutcome: null, nextWakeSampleAt: 0, sonicBooms: [],
-        flareRack: { ammo: FLARE.capacity, readyAt: 0, lastRedirect: -Infinity },
-        chaffRack: { ammo: CHAFF.capacity, readyAt: 0 }
+        online: roster.length > 0, nextMissileId: 1, endedMissiles: [], nextWakeSampleAt: 0, sonicBooms: [],
+        get missileOutcome() { return this.player.missileOutcome; },
+        get flareRack() { return this.player.flareRack; },
+        get chaffRack() { return this.player.chaffRack; }
       };
     }
 
@@ -4889,7 +4882,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       const sustainSeconds = profile.sustainSeconds ?? 0;
       const boostSpeedGain = (topSpeed - speed) * (profile.boostSpeedShare ?? 1);
       battle.missiles.push({
-        team, source: aircraft, target, trackId: radar.trackId, type: rack.type, heading: flight.heading,
+        id: battle.nextMissileId++, team, source: aircraft, target, trackId: radar.trackId, type: rack.type, heading: flight.heading,
         x, z, previousX: x, previousZ: z, bornAt: battle.time, speed,
         boostUntil, poweredUntil: boostUntil + sustainSeconds,
         boostAcceleration: boostSpeedGain / profile.boostSeconds,
@@ -4915,10 +4908,10 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       return (x + dx * along) ** 2 + (z + dz * along) ** 2 <= AIRCRAFT_HIT_RADIUS ** 2;
     }
 
-    function releaseFlare(battle) {
-      const { time, player, flareRack } = battle;
-      if (!isAlive(player) || !flareRack.ammo || time < flareRack.readyAt) return;
-      const { flight } = player;
+    function releaseFlare(battle, aircraft = battle.player) {
+      const { time } = battle;
+      const { flight, flareRack } = aircraft;
+      if (!isAlive(aircraft) || !flareRack.ammo || time < flareRack.readyAt) return;
       const forwardX = Math.sin(flight.heading);
       const forwardZ = -Math.cos(flight.heading);
       const side = flareRack.ammo % 2 ? 1 : -1;
@@ -4927,7 +4920,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       const x = flight.x - forwardX * 8 + lateralX * 3;
       const z = flight.z - forwardZ * 8 + lateralZ * 3;
       battle.flares.push({
-        x, z, previous: { x, z }, bornAt: time,
+        x, z, previous: { x, z }, bornAt: time, owner: aircraft,
         vx: forwardX * 12 + lateralX * 18,
         vz: forwardZ * 12 + lateralZ * 18
       });
@@ -4949,11 +4942,12 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       }
     }
 
-    function releaseChaff(battle) {
-      const { time, player, chaffRack } = battle;
-      if (!isAlive(player) || !chaffRack.ammo || time < chaffRack.readyAt) return;
-      const { x, z, heading } = player.flight;
-      battle.chaff.push({ x: x - Math.sin(heading) * 11, z: z + Math.cos(heading) * 11, bornAt: time });
+    function releaseChaff(battle, aircraft = battle.player) {
+      const { time } = battle;
+      const { flight, chaffRack } = aircraft;
+      if (!isAlive(aircraft) || !chaffRack.ammo || time < chaffRack.readyAt) return;
+      const { x, z, heading } = flight;
+      battle.chaff.push({ x: x - Math.sin(heading) * 11, z: z + Math.cos(heading) * 11, bornAt: time, owner: aircraft });
       chaffRack.ammo--;
       chaffRack.readyAt = time + CHAFF.cooldown;
     }
@@ -4964,7 +4958,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     }
 
     function reportMissileOutcome(battle, missile, text) {
-      if (missile.source === battle.player) battle.missileOutcome = { text, time: battle.time };
+      missile.source.missileOutcome = { text, time: battle.time };
     }
 
     function detonateMissile(battle, index, status, struckAircraft) {
@@ -4978,6 +4972,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         size: struckAircraft ? 13 : 5.6, direction: missile.heading
       };
       battle.explosions.push(missile.explosion);
+      battle.endedMissiles.push(missile);
       reportMissileOutcome(battle, missile, status);
       battle.missiles.splice(index, 1);
     }
@@ -4985,6 +4980,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     function stepMissiles(battle, dt) {
       while (battle.explosions.length && battle.time - battle.explosions[0].time >= EXPLOSION_SECONDS) {
         battle.explosions.shift();
+        battle.endedMissiles.shift();
       }
       for (let index = battle.missiles.length - 1; index >= 0; index--) {
         const missile = battle.missiles[index];
@@ -5002,13 +4998,13 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
           reportMissileOutcome(battle, missile, targetLost ? '目标丢失 · 导弹继续飞行' : '雷达弹脱锁 · 继续飞行');
         }
 
-        if (missile.lostAt === null && !missile.flare && profile.guidance === 'ir' && target === battle.player) {
-          const flare = battle.flares.findLast(candidate => !missile.flareContacts.has(candidate)
+        if (missile.lostAt === null && !missile.flare && profile.guidance === 'ir' && target) {
+          const flare = battle.flares.findLast(candidate => candidate.owner === target && !missile.flareContacts.has(candidate)
             && Math.hypot(candidate.x - missile.x, candidate.z - missile.z) <= FLARE.attractionRadius);
           if (flare) missile.flareContacts.add(flare);
           if (flare && missile.flareContacts.size >= profile.flareResistance) {
             missile.flare = flare;
-            battle.flareRack.lastRedirect = battle.time;
+            target.flareRack.lastRedirect = battle.time;
           }
         }
         const destination = missile.lostAt === null ? missile.flare ?? target.flight : null;
@@ -5089,7 +5085,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       let throttle = distanceKm > 1.8 ? 0.93 : 0.70;
       if (ai.phase === 'opening') {
         desiredHeading += opening.angle;
-        const playerPace = aircraft.team === 0 && isAlive(battle.player) ? battle.player.flight.throttle : 0.87;
+        const playerPace = !battle.online && aircraft.team === 0 && isAlive(battle.player) ? battle.player.flight.throttle : 0.87;
         throttle = opening.throttle * clamp(playerPace + 0.13, 0.68, 1);
       } else if (ai.phase === 'extend') {
         desiredHeading = ai.exitHeading;
@@ -5103,7 +5099,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
 
     function stepWeapons(battle, aircraft, commands, dt) {
       const { rack, radarRack } = aircraft;
-      if (aircraft === battle.player) {
+      if (commands) {
         if (commands.has('KeyQ')) {
           aircraft.weapon = aircraft.weapon === 'ir' ? 'sarh' : 'ir';
           rack.armed = false;
@@ -5136,21 +5132,36 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       }
     }
 
+    function applyFlightAction(flight, action) {
+      if (action === 'KeyW' && flight.throttle === 1) flight.afterburner = true;
+      else if (action === 'KeyS') flight.afterburner = false;
+      else if (action === 'KeyB') flight.airbrake = !flight.airbrake;
+    }
+
     function stepBattle(battle, throttle, turn, commands, dt, playerTuning) {
+      advanceBattle(battle, aircraft => aircraft === battle.player ? { throttle, turn, commands, tuning: playerTuning } : null, dt);
+    }
+
+    function advanceBattle(battle, getControls, dt) {
       battle.time += dt;
       for (const aircraft of battle.aircraft) Object.assign(aircraft.previous, aircraft.flight);
       for (const aircraft of battle.aircraft) {
         if (!isAlive(aircraft)) continue;
-        if (aircraft === battle.player) stepFlight(aircraft.flight, throttle, turn, dt, playerTuning);
+        const controls = getControls(aircraft);
+        if (controls) stepFlight(aircraft.flight, controls.throttle, controls.turn, dt, controls.tuning);
         else stepAiFlight(battle, aircraft, dt);
       }
 
       stepFlares(battle, dt);
       while (battle.chaff.length && battle.time - battle.chaff[0].bornAt >= CHAFF.lifetime) battle.chaff.shift();
-      if (commands.has('KeyX')) releaseFlare(battle);
-      if (commands.has('KeyC')) releaseChaff(battle);
       for (const aircraft of battle.aircraft) {
-        if (isAlive(aircraft)) stepRadar(battle, aircraft, aircraft === battle.player ? commands : null, dt);
+        if (!isAlive(aircraft)) continue;
+        const commands = getControls(aircraft)?.commands;
+        if (commands?.has('KeyX')) releaseFlare(battle, aircraft);
+        if (commands?.has('KeyC')) releaseChaff(battle, aircraft);
+      }
+      for (const aircraft of battle.aircraft) {
+        if (isAlive(aircraft)) stepRadar(battle, aircraft, getControls(aircraft)?.commands, dt);
       }
       stepMissiles(battle, dt);
       const uk = teamCount(battle, 0);
@@ -5161,7 +5172,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       }
 
       for (const aircraft of battle.aircraft) {
-        if (isAlive(aircraft)) stepWeapons(battle, aircraft, commands, dt);
+        if (isAlive(aircraft)) stepWeapons(battle, aircraft, getControls(aircraft)?.commands, dt);
       }
       if (!battle.missiles.length && !battle.aircraft.some(aircraft => isAlive(aircraft) && (aircraft.rack.ammo || aircraft.radarRack.ammo))) {
         battle.result = 'draw';
@@ -5171,6 +5182,24 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     function lerp(start, end, fraction) {
       return start + (end - start) * fraction;
     }
+    // END SHARED BATTLE SIMULATION
+
+    const AIRBRAKE_FULL_ANGLE = Math.PI / 3;
+    const MISSILE_IMPACT_VIEW_SECONDS = 1;
+    const PLAYER_WRECK_VIEW_SECONDS = 1.15;
+    const WING_VORTEX = { interval: 0.04, lifetime: 0.62 };
+    const SONIC_BOOM = { lifetime: 0.52, rearmRatio: 0.98 };
+    const DOVER_GRID_SIZE = 1536;
+    const VIEW_EDGE_MARGIN = 19;
+    const MIN_VIEW_SPAN = 2 * (0.5 * WORLD_UNITS_PER_KILOMETER + VIEW_EDGE_MARGIN);
+    const MAX_VIEW_OFFSET = 0.5;
+    const VIEW_RETURN_SECONDS = 0.22;
+    const FLIGHT_KEYS = new Set(['KeyW', 'KeyS', 'KeyA', 'KeyD', 'KeyB', 'KeyU', ...BATTLE_KEYS]);
+    const VERTEX_SOURCE = `#version 300 es
+      void main() {
+        vec2 corner = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2);
+        gl_Position = vec4(corner * 2.0 - 1.0, 0.0, 1.0);
+      }`;
 
     function interpolateFlight(display, previous, current, fraction) {
       display.x = lerp(previous.x, current.x, fraction);
@@ -5877,10 +5906,10 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         const plane = aircraft.display;
         if (Math.abs(plane.x - camera.x) > viewWidth / 2 + 20 || Math.abs(plane.z - camera.z) > viewHeight / 2 + 20) continue;
         if (!isAlive(aircraft) || aircraft === battle.player) continue;
-        const label = AIRCRAFT[plane.airframe].name;
+        const label = aircraft.name ?? AIRCRAFT[plane.airframe].name;
         context.lineWidth = Math.max(0.50, 2 / scaleY);
         context.strokeStyle = '#192e32';
-        context.fillStyle = aircraft.team === 0 ? '#a6e3e6' : '#ffba90';
+        context.fillStyle = aircraft.team === battle.player.team ? '#a6e3e6' : '#ffba90';
         context.strokeText(label, plane.x, plane.z + 12.8);
         context.fillText(label, plane.x, plane.z + 12.8);
       }
@@ -6149,16 +6178,16 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     const minimapCanvas = document.getElementById('minimap-terrain');
     const minimapMarker = document.getElementById('minimap-marker');
     const minimapTraffic = document.getElementById('minimap-traffic');
-    const minimapTargets = Array.from({ length: FORMATION.length * 2 - 1 }, (_, index) => {
+    const minimapTargets = Array.from({ length: FORMATION.length * 2 - 1 }, () => {
       const marker = document.createElement('span');
       marker.className = 'minimap-target';
-      marker.classList.toggle('friendly', index < FORMATION.length - 1);
       minimapTraffic.append(marker);
       return marker;
     });
     const minimapStatus = document.getElementById('minimap-status');
     document.getElementById('minimap-name').textContent = COAST_MAP.name;
     const pauseButton = document.getElementById('pause');
+    const returnLobbyButton = document.getElementById('return-lobby');
     const resetButton = document.getElementById('reset');
     const debugToggle = document.getElementById('debug-toggle');
     const debugPanel = document.getElementById('flight-debug');
@@ -6233,6 +6262,146 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     let frameCount = 0;
     let slowFrames = 0;
 
+    const onlineMatchId = window.parent !== window ? new URLSearchParams(location.search).get('online') : null;
+    const online = onlineMatchId ? {
+      connected: false, frames: [], current: null, next: null, seat: null,
+      at: 0, time: 0, fraction: 0, inputAt: -Infinity,
+    } : null;
+
+    function postOnline(type, fields = {}) {
+      window.parent.postMessage({ channel: 'tos-flight', id: onlineMatchId, type, ...fields }, location.origin);
+    }
+
+    function sendOnlineInput(action = null) {
+      if (!online?.connected || online.frames.at(-1)?.state !== 'playing') return;
+      const throttle = Number(keys.has('KeyW')) - Number(keys.has('KeyS'));
+      const turn = Number(keys.has('KeyD')) - Number(keys.has('KeyA'));
+      online.inputAt = performance.now();
+      postOnline('input', { throttle, turn, action });
+    }
+
+    function returnToLobby() {
+      clearKeys();
+      endMouseLook();
+      postOnline('return');
+    }
+
+    function queueOnlineSnapshot(snapshot, seat) {
+      if (snapshot.id !== onlineMatchId || !battle.aircraft[seat]) return;
+      online.seat = seat;
+      const { frames } = online;
+      if (snapshot.time < (frames.at(-1)?.time ?? -1)) return;
+      if (frames.at(-1)?.time === snapshot.time) frames[frames.length - 1] = snapshot;
+      else frames.push(snapshot);
+      if (frames.length > 12) frames.shift();
+      online.at = performance.now();
+    }
+
+    function useOnlineSnapshot(snapshot) {
+      const planes = battle.aircraft;
+      const toPlane = id => id === null ? null : planes[id];
+      const wasAlive = isAlive(battle.player);
+      battle.player = planes[online.seat];
+      const advanced = snapshot.time > battle.time;
+      battle.time = snapshot.time;
+      battle.result = snapshot.result;
+      for (const state of snapshot.aircraft) {
+        const plane = planes[state.id];
+        Object.assign(plane.previous, plane.flight);
+        Object.assign(plane.flight, state.flight);
+        plane.name = state.name;
+        plane.destroyedAt = state.destroyedAt;
+        plane.weapon = state.weapon;
+        plane.missileOutcome = state.missileOutcome;
+        Object.assign(plane.flareRack, state.flareRack, { lastRedirect: state.flareRack.lastRedirect ?? -Infinity });
+        Object.assign(plane.chaffRack, state.chaffRack);
+        for (const rack of ['rack', 'radarRack']) {
+          const data = state[rack];
+          Object.assign(plane[rack], data, { target: toPlane(data.target), lastLaunch: data.lastLaunch ?? -Infinity });
+        }
+        const radar = state.radar;
+        Object.assign(plane.radar, radar, {
+          target: toPlane(radar.target), selected: toPlane(radar.selected), pending: toPlane(radar.pending),
+          lostAt: radar.lostAt ?? -Infinity, echoes: new Map(radar.echoes.map(([id, echo]) => [planes[id], echo])),
+        });
+      }
+
+      const currentMissiles = new Map(battle.missiles.map(missile => [missile.id, missile]));
+      battle.missiles = snapshot.missiles.map(state => Object.assign(currentMissiles.get(state.id) ?? {}, state, {
+        source: toPlane(state.source), target: toPlane(state.target),
+      }));
+      if (followedMissile && !followedMissile.explosion) {
+        const ended = snapshot.endedMissiles.find(missile => missile.id === followedMissile.id);
+        if (ended) Object.assign(followedMissile, ended, { source: toPlane(ended.source) });
+      }
+      battle.flares = snapshot.flares.map(flare => ({ ...flare, owner: toPlane(flare.owner), previous: { x: flare.x, z: flare.z } }));
+      battle.chaff = snapshot.chaff.map(cloud => ({ ...cloud, owner: toPlane(cloud.owner) }));
+      battle.explosions = snapshot.explosions;
+      aircraftSelect.value = String(battle.player.flight.airframe);
+      if (advanced) {
+        sampleWingWakes(battle);
+        sampleSonicBooms(battle);
+      }
+      if (wasAlive && !isAlive(battle.player)) {
+        clearKeys();
+        centerView();
+      }
+    }
+
+    function advanceOnlineView(now, dt) {
+      const { frames } = online;
+      if (!frames.length) return false;
+      const latest = frames.at(-1);
+      // Render about two snapshots behind the server to absorb network timing variation.
+      const desired = latest.time - 0.10 + clamp((now - online.at) / 1000, 0, 0.10);
+      const rate = clamp(1 + (desired - online.time) * 4, 0.6, 1.4);
+      online.time = clamp(online.time + dt * rate, frames[0].time, latest.time);
+      while (frames[1] && frames[1].time <= online.time) frames.shift();
+      const current = frames[0];
+      if (current !== online.current) {
+        online.current = current;
+        useOnlineSnapshot(current);
+      }
+      const next = frames[1];
+      online.next = next;
+      online.fraction = next ? clamp((online.time - current.time) / (next.time - current.time), 0, 1) : 0;
+      for (const [index, missile] of battle.missiles.entries()) {
+        const base = current.missiles[index];
+        const future = next?.missiles.find(item => item.id === base.id) ?? base;
+        missile.previousX = base.x;
+        missile.previousZ = base.z;
+        missile.x = future.x;
+        missile.z = future.z;
+      }
+      for (const [index, flare] of battle.flares.entries()) {
+        const base = current.flares[index];
+        const future = next?.flares.find(item => item.owner === base.owner && item.bornAt === base.bornAt) ?? base;
+        flare.x = future.x;
+        flare.z = future.z;
+      }
+      if (battle.result) resultElapsed += dt;
+      if (online.connected && latest.state === 'playing' && keys.size && now - online.inputAt >= 160) sendOnlineInput();
+      return true;
+    }
+
+    if (online) {
+      window.addEventListener('message', event => {
+        if (event.origin !== location.origin || event.source !== window.parent || event.data?.channel !== 'tos-lobby') return;
+        const { type, snapshot, seat, online: connected } = event.data;
+        if (type === 'snapshot') queueOnlineSnapshot(snapshot, seat);
+        else if (type === 'connection') {
+          online.connected = connected;
+          if (!connected) {
+            clearKeys();
+            endMouseLook();
+          }
+        } else if (type === 'suspend') {
+          clearKeys();
+          endMouseLook();
+        }
+      });
+    }
+
     function awaitingWreckView() {
       return !deathAcknowledged && !isAlive(battle.player);
     }
@@ -6243,7 +6412,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
 
     function viewedAircraft() {
       if (isAlive(battle.player) || awaitingWreckView()) return battle.player;
-      return battle.aircraft.find(aircraft => aircraft.team === 0 && isAlive(aircraft)) ?? battle.player;
+      return battle.aircraft.find(aircraft => aircraft.team === battle.player.team && isAlive(aircraft)) ?? battle.player;
     }
 
     function radarWarnings(battle, receiver) {
@@ -6531,8 +6700,8 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       } else if (radarWeapon && radar.pending) feedback = '锁定中';
       else if (radarWeapon && radar.selected) feedback = 'T 锁定目标';
       else if (rack.armed) feedback = rack.target ? '锁定中' : '机头指向目标';
-      else if (battle.flares.length) feedback = '热诱弹已释放';
-      else if (battle.chaff.length) feedback = '干扰箔已释放';
+      else if (battle.flares.some(flare => flare.owner === player)) feedback = '热诱弹已释放';
+      else if (battle.chaff.some(cloud => cloud.owner === player)) feedback = '干扰箔已释放';
       if (missileFeedback.textContent !== feedback) missileFeedback.textContent = feedback;
       missileFeedback.toggleAttribute('data-danger', infraredIncoming || radarDanger === 3);
       throttleTrack.style.setProperty('--throttle', flight.throttle);
@@ -6583,10 +6752,13 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       const status = inBounds ? '' : '地图外';
       if (minimapStatus.textContent !== status) minimapStatus.textContent = status;
       const radar = viewedAircraft().radar;
-      for (let index = 1; index < battle.aircraft.length; index++) {
-        const aircraft = battle.aircraft[index];
-        const marker = minimapTargets[index - 1];
-        const position = aircraft.team === 0 || aircraft === radar.target ? aircraft.flight : radar.echoes.get(aircraft);
+      let index = 0;
+      for (const aircraft of battle.aircraft) {
+        if (aircraft === battle.player) continue;
+        const marker = minimapTargets[index++];
+        const friendly = aircraft.team === battle.player.team;
+        const position = friendly || aircraft === radar.target ? aircraft.flight : radar.echoes.get(aircraft);
+        marker.classList.toggle('friendly', friendly);
         marker.hidden = !isAlive(aircraft) || !position;
         if (!marker.hidden) placeOnMinimap(marker, position.x, position.z);
       }
@@ -6597,6 +6769,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       battleCommands.clear();
       for (const keycap of keycaps) keycap.classList.remove('active');
       missileView.hidden = true;
+      if (online) sendOnlineInput();
     }
 
     function lookTowardPointer(event) {
@@ -6633,14 +6806,14 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     function showBattleResult() {
       clearKeys();
       updateInstruments();
-      resumeButton.textContent = '再来一局';
+      resumeButton.textContent = online ? '返回大厅' : '再来一局';
       const title = { won: '英国侧获胜', lost: '法国侧获胜', draw: '本轮平局' }[battle.result];
-      showMessage(title, '按 R 重新开始。', true);
+      showMessage(title, online ? '返回大厅后，房主可组织下一局。' : '按 R 重新开始。', true);
       resumeButton.focus();
     }
 
     function setPaused(value) {
-      if (!renderer || battle.result) return;
+      if (online || !renderer || battle.result) return;
       paused = value;
       clearKeys();
       lastFrame = null;
@@ -6663,7 +6836,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     }
 
     function resetFlight() {
-      if (!renderer) return;
+      if (online || !renderer) return;
       battle = initialBattle(Number(aircraftSelect.value));
       followedMissile = null;
       deathAcknowledged = false;
@@ -6691,9 +6864,14 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     }
 
     function drawInterpolatedFrame() {
-      const fraction = battle.result ? 1 : accumulator / STEP;
-      const time = Math.max(0, battle.time - STEP * (1 - fraction)) + resultElapsed;
-      for (const aircraft of battle.aircraft) interpolateFlight(aircraft.display, aircraft.previous, aircraft.flight, fraction);
+      const fraction = online ? online.fraction : battle.result ? 1 : accumulator / STEP;
+      const time = (online ? online.time : Math.max(0, battle.time - STEP * (1 - fraction))) + resultElapsed;
+      for (const aircraft of battle.aircraft) {
+        if (online) {
+          const next = online.next?.aircraft[aircraft.id].flight ?? aircraft.flight;
+          interpolateFlight(aircraft.display, aircraft.flight, next, fraction);
+        } else interpolateFlight(aircraft.display, aircraft.previous, aircraft.flight, fraction);
+      }
       const missile = missileForView(time);
       missileView.hidden = !missile;
       missileView.toggleAttribute('data-impact', Boolean(missile?.explosion));
@@ -6714,7 +6892,19 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       const elapsed = lastFrame === null ? 0 : (now - lastFrame) / 1000;
       const dt = Math.min(elapsed, 0.1);
       lastFrame = now;
-      if (battle.result) resultElapsed += dt;
+      if (online) {
+        const waiting = !online.connected ? '正在连接战场' : !online.frames.length || online.frames.at(-1).state === 'loading'
+          ? '等待玩家加载战场' : '';
+        if (waiting !== online.waiting) {
+          online.waiting = waiting;
+          if (waiting) showMessage(waiting, '', false);
+          else message.hidden = true;
+        }
+        if (!advanceOnlineView(now, dt)) {
+          request = requestAnimationFrame(frame);
+          return;
+        }
+      } else if (battle.result) resultElapsed += dt;
       else {
         accumulator += dt;
         const wasAlive = isAlive(battle.player);
@@ -6773,6 +6963,12 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       try {
         renderer = createRenderer(canvas, effectsCanvas, minimapCanvas, COAST_MAP.bounds, terrainData);
         effectsCanvas.hidden = false;
+        if (online) {
+          lastFrame = null;
+          postOnline('ready');
+          request = requestAnimationFrame(frame);
+          return;
+        }
         aircraftSelect.disabled = false;
         pauseButton.disabled = false;
         resetButton.disabled = false;
@@ -6801,6 +6997,12 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         console.error(error);
         showMessage('无法读取多佛地形', '请使用支持 WebGL2 和内置解压功能的桌面浏览器打开此文件。', false);
       }
+    }
+
+    if (online) {
+      returnLobbyButton.hidden = false;
+      pauseButton.hidden = resetButton.hidden = debugToggle.hidden = true;
+      returnLobbyButton.addEventListener('click', returnToLobby);
     }
 
     canvas.addEventListener('contextmenu', event => event.preventDefault());
@@ -6833,6 +7035,11 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
 
     window.addEventListener('keydown', (event) => {
       if (event.ctrlKey || event.metaKey || event.altKey) return;
+      if (online && event.code === 'Escape' && !event.repeat) {
+        event.preventDefault();
+        returnToLobby();
+        return;
+      }
       if (renderer && !paused && awaitingWreckView()) {
         event.preventDefault();
         if (!event.repeat && wreckViewReady()) {
@@ -6854,18 +7061,22 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         if (event.code === 'KeyU' && !event.repeat && !keys.has('KeyU') && !followedMissile?.explosion) {
           followedMissile = battle.missiles.findLast(missile => missile.source === battle.player) ?? null;
         }
+        const firstPress = !event.repeat && !keys.has(event.code);
+        const action = firstPress && PILOT_ACTIONS.has(event.code) && !(event.code === 'KeyW' && keys.has('KeyS'))
+          ? event.code : null;
+        if (online) {
+          if (!firstPress || !online.connected || online.frames.at(-1)?.state !== 'playing') return;
+          keys.add(event.code);
+          document.querySelector(`[data-key="${event.code}"]`).classList.add('active');
+          if (action || event.code === 'KeyA' || event.code === 'KeyD') sendOnlineInput(action);
+          return;
+        }
         const { flight } = battle.player;
         if (BATTLE_KEYS.has(event.code)) {
           if (event.repeat) return;
           battleCommands.add(event.code);
         }
-        if (event.code === 'KeyW' && !event.repeat && !keys.has('KeyW') && !keys.has('KeyS') && flight.throttle === 1) {
-          flight.afterburner = true;
-        } else if (event.code === 'KeyS') {
-          flight.afterburner = false;
-        } else if (event.code === 'KeyB' && !event.repeat && !keys.has('KeyB')) {
-          flight.airbrake = !flight.airbrake;
-        }
+        if (action) applyFlightAction(flight, action);
         keys.add(event.code);
         document.querySelector(`[data-key="${event.code}"]`).classList.add('active');
       } else if (event.code === 'Escape' && !event.repeat) {
@@ -6880,6 +7091,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     window.addEventListener('keyup', (event) => {
       if (!FLIGHT_KEYS.has(event.code)) return;
       keys.delete(event.code);
+      if (online && ['KeyW', 'KeyS', 'KeyA', 'KeyD'].includes(event.code)) sendOnlineInput();
       if (event.code === 'KeyU' && (!followedMissile?.explosion ||
         battle.time + resultElapsed - followedMissile.endedAt >= MISSILE_IMPACT_VIEW_SECONDS)) followedMissile = null;
       document.querySelector(`[data-key="${event.code}"]`).classList.remove('active');
@@ -6890,7 +7102,8 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       endMouseLook();
     });
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden && renderer && !paused) setPaused(true);
+      if (document.hidden && online) clearKeys();
+      else if (document.hidden && renderer && !paused) setPaused(true);
     });
     window.addEventListener('resize', () => {
       if (!renderer) return;
@@ -6914,7 +7127,8 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     canvas.addEventListener('webglcontextrestored', startRenderer);
     pauseButton.addEventListener('click', () => setPaused(!paused));
     resumeButton.addEventListener('click', () => {
-      if (battle.result) resetFlight();
+      if (online) returnToLobby();
+      else if (battle.result) resetFlight();
       else setPaused(false);
     });
     resetButton.addEventListener('click', resetFlight);

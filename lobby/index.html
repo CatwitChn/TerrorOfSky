@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b151a">
+  <title>联机大厅 · Terror of Sky</title>
+  <link rel="stylesheet" href="./lobby.css">
+  <script src="./lobby.js" type="module"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="./" aria-label="Terror of Sky 联机大厅">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span>TERROR OF SKY</span>
+      </a>
+      <nav aria-label="游戏模式">
+        <a href="./" aria-current="page">联机大厅</a>
+        <a id="solo-link" href="../index.html">单机试飞 <span aria-hidden="true">↗</span></a>
+      </nav>
+      <p class="connection" id="connection" role="status" data-state="connecting">连接中</p>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="intro" aria-labelledby="title">
+      <h1 id="title">联机大厅</h1>
+      <p>创建房间，或输入房间代码加入好友的编队。</p>
+    </section>
+
+    <div class="workspace">
+      <section class="panel room-panel" aria-label="房间">
+        <div id="entry">
+          <h2>进入房间</h2>
+          <label for="callsign">飞行员呼号</label>
+          <input id="callsign" form="join-form" name="callsign" placeholder="输入你的呼号" maxlength="32" required autocomplete="nickname">
+          <button id="create" type="button" class="button primary wide" disabled>创建房间 <span aria-hidden="true">→</span></button>
+          <div class="division"></div>
+          <form id="join-form">
+            <label for="room-code">房间代码</label>
+            <div class="join-row">
+              <input id="room-code" name="code" placeholder="六位房间代码" maxlength="6" required pattern="[A-HJ-NP-Za-hj-np-z2-9]{6}" autocomplete="off" spellcheck="false" autocapitalize="characters">
+              <button id="join" class="button secondary" type="submit" disabled>加入房间</button>
+            </div>
+          </form>
+        </div>
+
+        <div id="room" hidden>
+          <div class="room-header">
+            <div>
+              <h2>房间 <span class="room-number" id="room-number"></span></h2>
+              <p id="room-count"></p>
+            </div>
+            <button id="invite" class="button secondary" type="button">复制邀请链接</button>
+          </div>
+          <div class="share" id="share" hidden>
+            <label for="share-link">邀请链接</label>
+            <input id="share-link" type="url" readonly>
+          </div>
+          <div class="teams">
+            <section class="team team-uk" aria-labelledby="uk-label">
+              <header>
+                <h3 id="uk-label">英国侧</h3>
+                <button id="join-uk" class="text-button" type="button">加入</button>
+              </header>
+              <ol id="uk-roster"></ol>
+            </section>
+            <section class="team team-fr" aria-labelledby="fr-label">
+              <header>
+                <h3 id="fr-label">法国侧</h3>
+                <button id="join-fr" class="text-button" type="button">加入</button>
+              </header>
+              <ol id="fr-roster"></ol>
+            </section>
+          </div>
+          <div class="match" id="match" role="status" hidden>
+            <strong id="match-status"></strong>
+            <p id="match-code"></p>
+            <button id="enter-battle" class="button secondary" type="button" hidden>进入战场</button>
+          </div>
+          <div class="room-controls" id="room-controls">
+            <div id="aircraft-control">
+              <label for="aircraft">座机</label>
+              <select id="aircraft">
+                <option value="f15">F-15A</option>
+                <option value="su27">Su-27</option>
+              </select>
+            </div>
+            <div class="room-actions">
+              <button id="ready" class="button secondary" type="button">准备</button>
+              <button id="start" class="button primary" type="button">开始对局</button>
+              <button id="reopen" class="button primary" type="button" hidden>返回准备</button>
+            </div>
+          </div>
+          <p id="start-rule" class="hint">两队均有人并全部准备后，房主可以开局。</p>
+          <button id="leave" class="text-button leave" type="button">离开房间</button>
+        </div>
+        <p class="notice" id="notice" role="status" hidden></p>
+      </section>
+
+      <aside class="panel map-panel" aria-labelledby="map-title">
+        <div class="map-header">
+          <div>
+            <h2 id="map-title">多佛白崖</h2>
+            <p>英吉利海峡</p>
+          </div>
+          <span class="map-mode">4v4</span>
+        </div>
+        <div class="map" role="img" aria-label="多佛海峡地图，英国和法国编队从海峡两侧出发">
+          <img src="./dover.webp" width="900" height="900" alt="">
+          <div class="map-grid" aria-hidden="true"></div>
+          <span class="north" aria-hidden="true">↑ N</span>
+          <span class="map-base map-base-uk" aria-hidden="true"><i></i>英国侧</span>
+          <span class="map-base map-base-fr" aria-hidden="true"><i></i>法国侧</span>
+          <span class="scale" aria-hidden="true">10 km</span>
+        </div>
+        <dl class="map-details">
+          <div><dt>地图范围</dt><dd>60 × 60 <span>km</span></dd></div>
+          <div><dt>交战高度</dt><dd>3,000 <span>m</span></dd></div>
+          <div><dt>房间容量</dt><dd>8 <span>人</span></dd></div>
+        </dl>
+      </aside>
+    </div>
+  </main>
+  <div class="battle-screen" id="battle-screen" hidden></div>
+</body>
+</html>

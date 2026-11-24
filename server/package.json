@@ -1,0 +1,17 @@
+{
+  "name": "terror-of-sky-server",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "files": ["server.mjs", "match.mjs", "simulation.mjs", "README.md"],
+  "bundleDependencies": ["ws"],
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "ws": "8.23.0"
+  }
+}
