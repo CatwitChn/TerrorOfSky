@@ -2,11 +2,11 @@
 
 ## Windows Server 部署
 
-Windows x64 发布包自带 Node.js 和 WebSocket 依赖。将 `terror-of-sky-server-0.3.0-windows-x64.zip` 上传到服务器，在 PowerShell 中解压并启动。Node.js 24 的官方 Windows x64 支持范围从 Windows Server 2016 起。 [Node.js 平台支持表](https://github.com/nodejs/node/blob/v24.x/BUILDING.md#platform-list)
+Windows x64 发布包自带 Node.js 和 WebSocket 依赖。将 `terror-of-sky-server-0.5.0-windows-x64.zip` 上传到服务器，在 PowerShell 中解压并启动。Node.js 24 的官方 Windows x64 支持范围从 Windows Server 2016 起。 [Node.js 平台支持表](https://github.com/nodejs/node/blob/v24.x/BUILDING.md#platform-list)
 
 ```powershell
-Expand-Archive -LiteralPath .\terror-of-sky-server-0.3.0-windows-x64.zip -DestinationPath .
-Set-Location .\terror-of-sky-server-0.3.0-windows-x64
+Expand-Archive -LiteralPath .\terror-of-sky-server-0.5.0-windows-x64.zip -DestinationPath .
+Set-Location .\terror-of-sky-server-0.5.0-windows-x64
 .\start-server.cmd --host 127.0.0.1 --port 3000 --origin https://play.example.com
 ```
 

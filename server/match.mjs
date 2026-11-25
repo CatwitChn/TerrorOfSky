@@ -1,13 +1,13 @@
-import { advanceBattle, applyFlightAction, initialBattle, isAlive, PILOT_ACTIONS, STEP } from './simulation.mjs';
+import { advanceBattle, airframeIndex, applyFlightAction, initialBattle, isAlive, PILOT_ACTIONS, STEP } from './simulation.mjs';
 
 const LOAD_TIMEOUT_MS = 8000;
 const INPUT_TIMEOUT_MS = 700;
 
-export function createMatch(players, now) {
+export function createMatch(players, now, mission) {
   const roster = players.map(player => ({
-    ...player, team: player.team === 'uk' ? 0 : 1, airframe: player.aircraft === 'f15' ? 0 : 1,
+    ...player, team: player.team === 'uk' ? 0 : 1, airframe: airframeIndex(player.aircraft),
   }));
-  const battle = initialBattle(roster);
+  const battle = initialBattle(roster, mission);
   const pilots = new Map();
   const seats = new Map();
   for (const player of roster) {
@@ -73,10 +73,11 @@ export function tickMatch(match, now) {
 const ref = aircraft => aircraft?.id ?? null;
 
 function snapshotAircraft(aircraft) {
-  const { id, team, name, flight, destroyedAt, weapon, rack, radarRack, radar, flareRack, chaffRack, missileOutcome } = aircraft;
+  const { id, team, name, flight, destroyedAt, weapon, rack, radarRack, activeRack, radar, flareRack, chaffRack, missileOutcome } = aircraft;
   return {
     id, team, name, flight, destroyedAt, weapon,
     rack: { ...rack, target: ref(rack.target) }, radarRack: { ...radarRack, target: ref(radarRack.target) },
+    activeRack,
     radar: {
       ...radar, selected: ref(radar.selected), target: ref(radar.target), pending: ref(radar.pending),
       echoes: [...radar.echoes].map(([target, echo]) => [target.id, echo]),
@@ -86,17 +87,17 @@ function snapshotAircraft(aircraft) {
 }
 
 function snapshotMissile(missile) {
-  const { id, team, type, heading, x, z, bornAt, poweredUntil, trail, trackId, lostAt, flare } = missile;
+  const { id, team, type, heading, x, z, bornAt, poweredUntil, trail, trackId, activeRadar, lostAt, flare } = missile;
   return {
-    id, team, type, heading, x, z, bornAt, poweredUntil, trail, trackId, lostAt, flare: Boolean(flare),
+    id, team, type, heading, x, z, bornAt, poweredUntil, trail, trackId, activeRadar, lostAt, flare: Boolean(flare),
     source: ref(missile.source), target: ref(missile.target),
   };
 }
 
 export function encodeMatchFrame(id, match) {
-  const { time, result, aircraft, missiles, flares, chaff, explosions, endedMissiles } = match.battle;
+  const { time, result, resultReason, aircraft, missiles, flares, chaff, explosions, endedMissiles } = match.battle;
   const frame = {
-    type: 'battle', id, state: match.state, time, result, aircraft: aircraft.map(snapshotAircraft),
+    type: 'battle', id, state: match.state, time, result, resultReason, aircraft: aircraft.map(snapshotAircraft),
     missiles: missiles.map(snapshotMissile),
     flares: flares.map(({ x, z, vx, vz, bornAt, owner }) => ({ x, z, vx, vz, bornAt, owner: ref(owner) })),
     chaff: chaff.map(({ x, z, bornAt, owner }) => ({ x, z, bornAt, owner: ref(owner) })), explosions,

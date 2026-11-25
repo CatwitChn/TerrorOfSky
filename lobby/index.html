@@ -31,6 +31,11 @@
           <h2>进入房间</h2>
           <label for="callsign">飞行员呼号</label>
           <input id="callsign" form="join-form" name="callsign" placeholder="输入你的呼号" maxlength="32" required autocomplete="nickname">
+          <label for="mission-select">开房任务</label>
+          <select id="mission-select" aria-describedby="mission-preview" disabled>
+            <option value="">选择任务</option>
+          </select>
+          <p id="mission-preview" class="hint" hidden></p>
           <button id="create" type="button" class="button primary wide" disabled>创建房间 <span aria-hidden="true">→</span></button>
           <div class="division"></div>
           <form id="join-form">
@@ -53,6 +58,10 @@
           <div class="share" id="share" hidden>
             <label for="share-link">邀请链接</label>
             <input id="share-link" type="url" readonly>
+          </div>
+          <div class="mission-brief">
+            <h3 id="room-mission"></h3>
+            <p id="room-objective" class="hint"></p>
           </div>
           <div class="teams">
             <section class="team team-uk" aria-labelledby="uk-label">
@@ -78,16 +87,33 @@
           <div class="room-controls" id="room-controls">
             <div id="aircraft-control">
               <label for="aircraft">座机</label>
-              <select id="aircraft">
-                <option value="f15">F-15A</option>
-                <option value="su27">Su-27</option>
-              </select>
+              <select id="aircraft"></select>
             </div>
             <div class="room-actions">
               <button id="ready" class="button secondary" type="button">准备</button>
               <button id="start" class="button primary" type="button">开始对局</button>
               <button id="reopen" class="button primary" type="button" hidden>返回准备</button>
             </div>
+            <details id="loadout-editor" class="loadout-editor">
+              <summary>挂载配置 <output id="loadout-summary"></output></summary>
+              <div class="loadout-presets" aria-label="挂载预设">
+                <button type="button" class="text-button" data-preset="balanced">均衡</button>
+                <button type="button" class="text-button" data-preset="ir">红外优先</button>
+                <button type="button" class="text-button" data-preset="sarh">半主动优先</button>
+                <button type="button" class="text-button" data-preset="arh" hidden>主动雷达优先</button>
+              </div>
+              <div class="loadout-grid">
+                <div id="aircraft-diagram" class="aircraft-diagram">
+                  <canvas id="aircraft-planform" width="200" height="240" aria-hidden="true"></canvas>
+                </div>
+                <div id="station-list" class="station-list"></div>
+              </div>
+              <div class="loadout-actions">
+                <button type="button" id="apply-loadout" class="button secondary">保存挂载</button>
+                <button type="button" id="cancel-loadout" class="text-button">撤销修改</button>
+                <span id="loadout-status" class="hint" role="status"></span>
+              </div>
+            </details>
           </div>
           <p id="start-rule" class="hint"></p>
           <button id="leave" class="text-button leave" type="button">离开房间</button>
@@ -101,20 +127,20 @@
             <h2 id="map-title">多佛白崖</h2>
             <p>英吉利海峡</p>
           </div>
-          <span class="map-mode">4v4</span>
+          <span class="map-mode" id="map-mode">多佛</span>
         </div>
-        <div class="map" role="img" aria-label="多佛海峡地图，英国和法国编队从海峡两侧出发">
+        <div class="map" id="mission-map" role="img" aria-label="多佛海峡地图，英国和法国编队从海峡两侧出发">
           <img src="./dover.webp" width="900" height="900" alt="">
           <div class="map-grid" aria-hidden="true"></div>
           <span class="north" aria-hidden="true">↑ N</span>
-          <span class="map-base map-base-uk" aria-hidden="true"><i></i>英国侧</span>
-          <span class="map-base map-base-fr" aria-hidden="true"><i></i>法国侧</span>
+          <span class="map-base map-base-uk" aria-hidden="true"><i></i><span id="map-friendly">英国侧</span></span>
+          <span class="map-base map-base-fr" aria-hidden="true"><i></i><span id="map-enemy">法国侧</span></span>
           <span class="scale" aria-hidden="true">10 km</span>
         </div>
         <dl class="map-details">
           <div><dt>地图范围</dt><dd>60 × 60 <span>km</span></dd></div>
           <div><dt>交战高度</dt><dd>3,000 <span>m</span></dd></div>
-          <div><dt>房间容量</dt><dd>8 <span>人</span></dd></div>
+          <div><dt>房间容量</dt><dd id="map-capacity">—</dd></div>
         </dl>
       </aside>
     </div>

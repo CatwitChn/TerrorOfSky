@@ -58,6 +58,8 @@ p, h1, h2, h3, dl, dd { margin: 0; }
 .room-panel { padding: clamp(18px, 3.3vw, 34px); }
 .panel h2 { font-size: 24px; line-height: 1.28; font-weight: 750; }
 #entry h2 { margin-bottom: 26px; }
+#entry label[for="mission-select"] { margin-top: 17px; }
+#mission-preview { margin-top: 7px; }
 label { display: block; margin-bottom: 8px; color: #cbd8da; font-size: 13px; font-weight: 650; }
 input, select {
   width: 100%;
@@ -104,6 +106,9 @@ input:hover, select:hover, .secondary:enabled:hover { border-color: #557179; }
 .room-number { display: inline-block; color: var(--brass); letter-spacing: .07em; font-variant-numeric: tabular-nums; }
 .room-header button { min-height: 38px; }
 .share { margin-top: 14px; }
+.mission-brief { margin-top: 16px; border-left: 2px solid var(--brass); padding-left: 11px; }
+.mission-brief h3 { font-size: 14px; }
+.mission-brief .hint { margin-top: 2px; }
 .teams { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 20px; }
 .team { --team-color: var(--uk); min-width: 0; border: 1px solid var(--border); border-radius: 8px; background: var(--field); }
 .team-fr { --team-color: var(--fr); }
@@ -122,6 +127,29 @@ input:hover, select:hover, .secondary:enabled:hover { border-color: #557179; }
 .room-controls { display: grid; grid-template-columns: minmax(90px, 135px) minmax(0, 1fr); align-items: end; gap: 12px; margin-top: 20px; }
 .room-actions { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 8px; }
 .room-actions:has(#reopen:not([hidden])) { grid-column: 1 / -1; }
+.loadout-editor { grid-column: 1 / -1; border: 1px solid var(--border); border-radius: 8px; background: var(--field); }
+.loadout-editor summary { padding: 11px 12px; cursor: pointer; color: var(--text); font-size: 14px; font-weight: 650; }
+.loadout-editor summary output { float: right; color: var(--brass); font-size: 12px; }
+.loadout-presets, .loadout-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; padding: 0 12px 10px; }
+.loadout-presets { border-top: 1px solid var(--border); padding-top: 7px; }
+.loadout-grid { display: grid; grid-template-columns: minmax(100px, 1fr) minmax(0, 1.4fr); align-items: center; gap: 12px; padding: 0 12px 12px; }
+.aircraft-diagram { position: relative; width: min(100%, 200px); aspect-ratio: 5 / 6; justify-self: center; }
+.aircraft-diagram canvas { display: block; width: 100%; height: 100%; }
+.station-marker {
+  position: absolute; width: 18px; height: 18px; transform: translate(-50%, -50%); padding: 0;
+  border: 1px solid #819ba4; border-radius: 50%; background: #172a34; color: var(--text); font-size: 11px; cursor: pointer;
+}
+.station-marker[data-loaded] { border-color: var(--brass); background: var(--brass); color: #221c11; }
+.station-marker:disabled { opacity: .55; cursor: default; }
+.station-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.station-row label { margin-bottom: 3px; font-size: 11px; white-space: nowrap; }
+.station-row select { min-height: 34px; padding: 4px; font-size: 12px; }
+.loadout-actions .button { min-height: 34px; padding-block: 4px; }
+.loadout-actions .hint { margin: 0; font-size: 12px; }
+@media (max-width: 420px) {
+  .loadout-grid { grid-template-columns: 1fr; }
+  .aircraft-diagram { width: min(100%, 170px); }
+}
 .hint, .notice, .match p { color: var(--muted); font-size: 13px; line-height: 1.6; }
 .hint { margin-top: 12px; }
 .notice { margin-top: 14px; color: var(--brass); overflow-wrap: anywhere; }

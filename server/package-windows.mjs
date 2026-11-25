@@ -51,7 +51,7 @@ try {
     copyFile(join(build, runtime, 'node.exe'), join(contents, 'node.exe')),
     copyFile(join(build, runtime, 'LICENSE'), join(contents, 'NODE-LICENSE.txt')),
     cp(dependency, join(contents, 'node_modules', 'ws'), { recursive: true }),
-    ...['server.mjs', 'match.mjs', 'simulation.mjs', 'package.json', 'start-server.cmd', 'README.md'].map(file =>
+    ...['server.mjs', 'match.mjs', 'simulation.mjs', 'missions.mjs', 'package.json', 'start-server.cmd', 'README.md'].map(file =>
       copyFile(join(source, file), join(contents, file))),
   ]);
 

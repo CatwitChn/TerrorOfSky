@@ -165,6 +165,7 @@
     }
     .team-uk { color: #a6e3e6; }
     .team-france { color: #ffba90; }
+    .mission-progress { color: #e1ece6; font-size: .7rem; white-space: nowrap; text-shadow: 0 1px 4px #072628; }
     .missile-feedback {
       position: absolute;
       top: calc(100% + 7px);
@@ -317,6 +318,7 @@
     .flight-stat output { font: 650 .75rem/1.1 var(--hud-numerals); }
     .flight-meta output { white-space: nowrap; }
     .flight-meta output[data-strained] { color: #ffab70; }
+    #wing-sweep-stat[hidden], .weapon-rack[hidden] { display: none; }
     .flight-stat output[data-empty] { color: #ffad84; }
     .countermeasures kbd {
       margin-left: 2px;
@@ -337,6 +339,8 @@
     .loadout .hud-heading output { color: var(--muted); }
     .loadout .hud-heading output[data-locked] { color: var(--accent); }
     .weapon-racks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-top: 6px; }
+    .weapon-racks:has([data-weapon="arh"]:not([hidden])) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .weapon-racks:has([data-weapon="arh"]:not([hidden])) :is(.weapon-name, .weapon-class) { grid-column: 1 / -1; justify-self: start; }
     .weapon-rack {
       display: grid;
       grid-template-columns: auto minmax(0, 1fr);
@@ -627,9 +631,10 @@
         <div class="compass-scale" id="compass-scale" aria-hidden="true"></div>
         <div class="compass-reading">航向 <output id="heading" aria-live="off">000°</output></div>
         <div class="team-counts" role="group" aria-label="两侧剩余飞机">
-          <span class="team-uk">英国侧 <output id="uk-remaining">4</output></span>
-          <span class="team-france">法国侧 <output id="france-remaining">4</output></span>
+          <span class="team-uk"><span id="friendly-label">英国侧</span> <output id="uk-remaining">4</output></span>
+          <span class="team-france"><span id="enemy-label">法国侧</span> <output id="france-remaining">4</output></span>
         </div>
+        <output class="mission-progress" id="mission-progress" aria-live="off" hidden></output>
         <span class="missile-feedback" id="missile-feedback" role="status"></span>
       </div>
       <div class="actions">
@@ -665,6 +670,7 @@
         <div class="flight-meta">
           <div class="flight-stat"><label id="load-factor-label" for="load-factor">过载</label><output id="load-factor" aria-live="off">1.0 G</output></div>
           <div class="flight-stat bank-stat"><label for="bank-angle">侧滚</label><output id="bank-angle" aria-live="off">0°</output></div>
+          <div class="flight-stat" id="wing-sweep-stat" hidden><label for="wing-sweep-angle">后掠翼</label><output id="wing-sweep-angle" aria-live="off">20°</output></div>
         </div>
         <div class="countermeasures" role="group" aria-label="反制措施余量">
           <div class="flight-stat"><label for="flare-ammo">热诱弹 <kbd>X</kbd></label><output id="flare-ammo" aria-live="off">6 枚</output></div>
@@ -682,6 +688,10 @@
           <div class="weapon-rack" data-weapon="sarh">
             <span id="sarh-weapon-name" class="weapon-name">AIM-7M</span><span class="weapon-class">半主动雷达</span>
             <div class="weapon-slots" aria-hidden="true"></div><output class="weapon-ammo" aria-labelledby="sarh-weapon-name" aria-live="off">02</output>
+          </div>
+          <div class="weapon-rack" data-weapon="arh" hidden>
+            <span id="arh-weapon-name" class="weapon-name">AIM-54C</span><span class="weapon-class">主动雷达</span>
+            <div class="weapon-slots" aria-hidden="true"></div><output class="weapon-ammo" aria-labelledby="arh-weapon-name" aria-live="off">00</output>
           </div>
         </div>
       </section>
@@ -4444,6 +4454,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       display.airbrakeExtension = lerp(previous.airbrakeExtension, current.airbrakeExtension, fraction);
       display.liftUse = lerp(previous.liftUse, current.liftUse, fraction);
       display.loadFactor = lerp(previous.loadFactor, current.loadFactor, fraction);
+      display.wingSweep = lerp(previous.wingSweep, current.wingSweep, fraction);
       display.afterburner = current.afterburner;
       display.airframe = current.airframe;
     }
@@ -4516,6 +4527,35 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
               [2.73, 2.48, 5.45, 7.86, 0.15], [3, 2.56, 5.69, 7.72, 0.074]],
         rail: [[2.75, 0.14, 0.055, 0.06, 7.28], [3.20, 0.14, 0.17, 0.15, 7.30],
                [5.65, 0.14, 0.17, 0.14, 7.31], [6.18, 0.14, 0.09, 0.08, 7.30]]
+      },
+      {
+        // Tomcat at 20 degrees. The outer wings rotate behind the fixed shoulder gloves.
+        colors: { body: 0xaab2b7, wing: 0xacb5ba, controls: 0x899ba4, fin: 0x8b989e, engine: 0x8a959c, intake: 0x465c68, nose: 0x909ba0, brake: 0x8f9ca1 },
+        nose: [[-9.48, .10, .025, .025], [-9.07, .12, .22, .18], [-8.49, .17, .43, .34], [-8.01, .22, .57, .46]],
+        body: [[-8.01, .22, .57, .46], [-7.0, .27, .70, .57], [-5.62, .30, .78, .70],
+               [-4.12, .29, .89, .75], [-3.07, .24, 1.30, .77], [-1.71, .18, 1.70, .67, 0, .67],
+               [.12, .17, 2.24, .53, 0, .61], [2.20, .12, 2.17, .50, 0, .60],
+               [4.13, .12, 1.88, .43, 0, .65], [6.08, .11, 1.18, .33], [7.98, .10, .58, .24], [9.16, .09, .27, .17]],
+        canopy: [[-8.03, .65, .03, .03], [-7.68, .75, .34, .28], [-7.09, .84, .47, .55],
+                 [-6.25, .88, .51, .60], [-5.12, .89, .52, .56], [-4.24, .87, .42, .37], [-3.63, .85, .09, .09]],
+        canopyFrame: [[-6.14, .89, .518, .61], [-6.04, .89, .522, .61]],
+        chin: [[-8.0, -.27, .10, .10], [-7.64, -.40, .29, .22], [-6.93, -.42, .27, .23], [-6.46, -.35, .06, .09]],
+        speedBrake: [[6.54, .43, .29], [6.80, .424, .43], [8.32, .348, .41], [8.60, .304, .26]],
+        intake: [[-3.81, -.17, .49, .55, 1.16, .21], [-3.36, -.25, .56, .65, 1.24, .28]],
+        engine: [[-3.36, -.25, .56, .65, 1.24, .28], [-2.47, -.29, .67, .73, 1.32, .35],
+                 [-.86, -.27, .81, .72, 1.43, .54], [2.37, -.24, .83, .72, 1.50, .65],
+                 [5.25, -.22, .77, .69, 1.48, .77], [7.46, -.20, .71, .67, 1.45, .94], [8.74, -.20, .68, .63, 1.44]],
+        nozzle: [8.74, -.20, .66, 1.44],
+        glove: [[1.05, .40, -3.41, 4.73, .34], [1.80, .47, -2.48, 4.62, .31],
+                [2.50, .52, -1.52, 4.32, .28], [3.18, .48, -.39, 3.86, .23], [3.62, .44, .67, 3.27, .12]],
+        wingPivot: [2.49, 1.06],
+        wing: [[2.17, .34, .10, 4.17, .24], [3.45, .34, 1.08, 4.20, .22],
+               [5.24, .30, 1.68, 4.24, .18], [7.35, .25, 2.47, 4.33, .12],
+               [9.18, .22, 3.13, 4.41, .07], [9.47, .22, 3.52, 4.46, .052]],
+        tail: [[1.88, .10, 5.41, 9.15, .20], [2.51, .08, 6.08, 9.26, .16],
+               [4.61, -.02, 8.40, 9.55, .11], [4.99, -.06, 8.96, 9.25, .055]],
+        fin: [[.34, 1.65, 4.99, 9.08, .23], [.84, 1.74, 5.52, 8.99, .19],
+              [2.91, 1.98, 7.11, 8.75, .13], [3.27, 2.02, 7.46, 8.66, .083], [3.33, 2.03, 7.57, 8.56, .054]],
       }
     ];
 
@@ -4617,7 +4657,9 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       loft(model.nose, colors.nose);
       loft(model.body, colors.body);
       loft(model.canopy, 0x23495b);
-      pairedAirfoil(model.wing, colors.wing, colors.controls);
+      if (model.canopyFrame) loft(model.canopyFrame, colors.fin);
+      if (model.chin) loft(model.chin, colors.intake);
+      pairedAirfoil(model.glove ?? model.wing, colors.wing, colors.controls);
       pairedAirfoil(model.tail, colors.wing, colors.controls);
       pairedAirfoil(model.fin, colors.fin, colors.controls, true);
       const [nozzleZ, nozzleY, radius, offset] = model.nozzle;
@@ -4651,7 +4693,9 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       const bodyVertexCount = vertices.length / 10;
       brakeSurface(0, colors.brake);
       brakeSurface(-0.06, 0x59727e, true);
-      return { vertices: new Float32Array(vertices), bodyVertexCount };
+      const wingVertexStart = vertices.length / 10;
+      if (model.wingPivot) pairedAirfoil(model.wing, colors.wing, colors.controls);
+      return { vertices: new Float32Array(vertices), bodyVertexCount, wingVertexStart };
     }
 
     const JET_VERTEX_SOURCE = `#version 300 es
@@ -4661,6 +4705,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       uniform vec2 uViewSpan;
       uniform vec4 uPose; // Camera-relative x, z, heading and bank.
       uniform vec3 uSpeedBrake; // Hinge height, aft coordinate and deployment angle.
+      uniform vec3 uWingSweep; // Lateral and aft wing pivot, and sweep beyond the reference pose.
       out vec3 vNormal;
       flat out vec4 vMaterial;
 
@@ -4677,6 +4722,15 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       void main() {
         vec3 position = aPosition;
         vec3 normal = aNormal;
+        if (uWingSweep.z > 0.0) {
+          float side = sign(position.x);
+          float c = cos(uWingSweep.z), s = sin(uWingSweep.z);
+          mat2 swing = mat2(c, s, -s, c);
+          vec2 point = swing * (vec2(side * position.x, position.z) - uWingSweep.xy) + uWingSweep.xy;
+          vec2 direction = swing * vec2(side * normal.x, normal.z);
+          position.xz = vec2(side * point.x, point.y);
+          normal.xz = vec2(side * direction.x, direction.y);
+        }
         if (uSpeedBrake.z > 0.0) {
           float angleCos = cos(uSpeedBrake.z);
           float angleSin = sin(uSpeedBrake.z);
@@ -4716,7 +4770,16 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     }
 
     function wingWakeSample(plane, time, strength) {
-      const [span, height, , trailing] = JET_MODELS[plane.airframe].wing.at(-1);
+      const model = JET_MODELS[plane.airframe];
+      let [span, height, , trailing] = model.wing.at(-1);
+      if (model.wingPivot) {
+        const [pivotX, pivotZ] = model.wingPivot;
+        const angle = (plane.wingSweep - 20) * Math.PI / 180;
+        const cos = Math.cos(angle), sin = Math.sin(angle);
+        const x = span - pivotX, z = trailing - pivotZ;
+        span = pivotX + x * cos - z * sin;
+        trailing = pivotZ + x * sin + z * cos;
+      }
       const sideX = Math.cos(plane.heading);
       const sideZ = Math.sin(plane.heading);
       const rollSpan = span * Math.cos(plane.bank);
@@ -5250,8 +5313,9 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       const jetViewSpan = gl.getUniformLocation(jetProgram, 'uViewSpan');
       const jetAfterburner = gl.getUniformLocation(jetProgram, 'uAfterburner');
       const jetSpeedBrake = gl.getUniformLocation(jetProgram, 'uSpeedBrake');
+      const jetWingSweep = gl.getUniformLocation(jetProgram, 'uWingSweep');
       const jetMeshes = JET_MODELS.map(model => {
-        const { vertices, bodyVertexCount } = buildJetMesh(model);
+        const { vertices, bodyVertexCount, wingVertexStart } = buildJetMesh(model);
         const [hingeZ, hingeY] = model.speedBrake[0];
         const vertexArray = gl.createVertexArray();
         gl.bindVertexArray(vertexArray);
@@ -5262,7 +5326,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
           gl.enableVertexAttribArray(location);
           gl.vertexAttribPointer(location, size, gl.FLOAT, false, 10 * 4, location * 3 * 4);
         }
-        return { vertexArray, count: vertices.length / 10, bodyVertexCount, hingeZ, hingeY };
+        return { vertexArray, count: vertices.length / 10, bodyVertexCount, wingVertexStart, hingeZ, hingeY };
       });
       gl.bindBuffer(gl.ARRAY_BUFFER, null);
       gl.bindVertexArray(terrainVertexArray);
@@ -5369,16 +5433,23 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         gl.uniform2f(jetViewSpan, viewWidth, viewHeight);
         for (const plane of aircraft) {
           if (!isAlive(plane)) continue;
-          const { x, z, heading, bank, airframe, afterburner, airbrakeExtension } = plane.display;
-          const { vertexArray, count, bodyVertexCount, hingeZ, hingeY } = jetMeshes[airframe];
+          const { x, z, heading, bank, airframe, afterburner, airbrakeExtension, wingSweep } = plane.display;
+          const { vertexArray, count, bodyVertexCount, wingVertexStart, hingeZ, hingeY } = jetMeshes[airframe];
           gl.bindVertexArray(vertexArray);
           gl.uniform4f(jetPose, x - camera.x, z - camera.z, heading, bank);
           gl.uniform1f(jetAfterburner, Number(afterburner));
           gl.uniform3f(jetSpeedBrake, 0, 0, 0);
-          gl.drawArrays(gl.TRIANGLES, 0, airbrakeExtension > 0 ? bodyVertexCount : count);
+          gl.uniform3f(jetWingSweep, 0, 0, 0);
+          gl.drawArrays(gl.TRIANGLES, 0, airbrakeExtension > 0 ? bodyVertexCount : wingVertexStart);
           if (airbrakeExtension > 0) {
             gl.uniform3f(jetSpeedBrake, hingeY, hingeZ, airbrakeExtension * AIRBRAKE_FULL_ANGLE);
-            gl.drawArrays(gl.TRIANGLES, bodyVertexCount, count - bodyVertexCount);
+            gl.drawArrays(gl.TRIANGLES, bodyVertexCount, wingVertexStart - bodyVertexCount);
+          }
+          if (wingVertexStart < count) {
+            const [pivotX, pivotZ] = JET_MODELS[airframe].wingPivot;
+            gl.uniform3f(jetSpeedBrake, 0, 0, 0);
+            gl.uniform3f(jetWingSweep, pivotX, pivotZ, (wingSweep - 20) * Math.PI / 180);
+            gl.drawArrays(gl.TRIANGLES, wingVertexStart, count - wingVertexStart);
           }
         }
         gl.disable(gl.DEPTH_TEST);
@@ -5439,6 +5510,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     const loadFactorLabel = document.getElementById('load-factor-label');
     const loadFactorOutput = document.getElementById('load-factor');
     const bankOutput = document.getElementById('bank-angle');
+    const wingSweepOutput = document.getElementById('wing-sweep-angle');
     const seekerOutput = document.getElementById('seeker-status');
     const weaponRacks = Array.from(document.querySelectorAll('.weapon-rack'), panel => ({
       panel,
@@ -5457,11 +5529,12 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     const missileFeedback = document.getElementById('missile-feedback');
     const ukRemaining = document.getElementById('uk-remaining');
     const franceRemaining = document.getElementById('france-remaining');
+    const missionProgress = document.getElementById('mission-progress');
     const keycaps = document.querySelectorAll('[data-key]');
     const keys = new Set();
     const battle = {
       aircraft: [], player: null, missiles: [], flares: [], chaff: [], explosions: [], time: 0,
-      result: null, nextWakeSampleAt: 0, sonicBooms: [],
+      result: null, resultReason: null, nextWakeSampleAt: 0, sonicBooms: [],
     };
     let battleDisplay;
     const viewOffset = { x: 0, y: 0 };
@@ -5499,7 +5572,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
 
     function returnToLobby() {
       if (!onlineMatchId) {
-        location.assign('http://127.0.0.1:8081/lobby/');
+        location.assign(location.protocol === 'file:' ? 'http://127.0.0.1:8081/lobby/' : './lobby/');
         return;
       }
       clearKeys();
@@ -5540,6 +5613,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       const previousTime = battle.time;
       battle.time = snapshot.time;
       battle.result = snapshot.result;
+      battle.resultReason = snapshot.resultReason;
       for (const state of snapshot.aircraft) {
         const plane = planes[state.id];
         Object.assign(plane.previous, plane.flight);
@@ -5554,6 +5628,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
           const data = state[rack];
           Object.assign(plane[rack], data, { target: toPlane(data.target), lastLaunch: data.lastLaunch ?? -Infinity });
         }
+        plane.activeRack = state.activeRack;
         const radar = state.radar;
         Object.assign(plane.radar, radar, {
           target: toPlane(radar.target), selected: toPlane(radar.selected), pending: toPlane(radar.pending),
@@ -5626,6 +5701,11 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         if (type === 'configuration' && !battleDisplay) {
           battleDisplay = display;
           document.getElementById('minimap-name').textContent = display.map.name;
+          if (display.mission.mode === 'pve') {
+            document.getElementById('friendly-label').textContent = '合作编队';
+            document.getElementById('enemy-label').textContent = '剩余敌机';
+          }
+          missionProgress.hidden = false;
           startGame();
         } else if (type === 'snapshot') queueOnlineSnapshot(snapshot, seat);
         else if (type === 'connection') {
@@ -5664,8 +5744,15 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         if (!tracked && (!echo || battle.time - echo.time > 1.35)) continue;
         const launch = tracked && launchWarning && battle.missiles.some(missile =>
           missile.source === emitter && missile.target === receiver && missile.lostAt === null
-          && battleDisplay.missiles[missile.type].guidance === 'sarh' && hasMissileTrack(missile));
+          && battleDisplay.missiles[missile.type].guidance !== 'ir' && !missile.activeRadar && hasMissileTrack(missile));
         warnings.push({ angle: radarPosition(receiver, emitter.flight).angle, level: launch ? 3 : tracked ? 2 : 1 });
+      }
+      if (launchWarning) {
+        for (const missile of battle.missiles) {
+          if (missile.activeRadar && missile.target === receiver && missile.lostAt === null) {
+            warnings.push({ angle: radarPosition(receiver, missile).angle, level: 3 });
+          }
+        }
       }
       return warnings;
     }
@@ -5858,12 +5945,16 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       context.stroke();
     }
 
-    function updateLoadout(player, radarWeapon, seeker, locked) {
-      seekerOutput.value = `${radarWeapon ? '雷达' : '红外'} · ${seeker}`;
+    function updateLoadout(player, seeker, locked) {
+      const weapons = { ir: player.rack, sarh: player.radarRack, arh: player.activeRack };
+      const guidanceLabels = { ir: '红外', sarh: '半主动雷达', arh: '主动雷达' };
+      seekerOutput.value = `${guidanceLabels[player.weapon]} · ${seeker}`;
       seekerOutput.toggleAttribute('data-locked', locked);
       for (const { panel, kind, name, slots, ammo } of weaponRacks) {
-        const rack = kind === 'sarh' ? player.radarRack : player.rack;
-        const capacity = battleDisplay.missiles[rack.type].capacity;
+        const rack = weapons[kind];
+        panel.hidden = !rack;
+        if (!rack) continue;
+        const { capacity } = rack;
         if (name.textContent !== rack.type) name.textContent = rack.type;
         ammo.value = String(rack.ammo).padStart(2, '0');
         panel.toggleAttribute('data-selected', kind === player.weapon);
@@ -5883,8 +5974,8 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       const { player } = battle;
       const { flight, radar } = player;
       const { topSpeedKph } = battleDisplay.aircraft[flight.airframe];
-      const radarWeapon = player.weapon === 'sarh';
-      const rack = radarWeapon ? player.radarRack : player.rack;
+      const radarWeapon = player.weapon !== 'ir';
+      const rack = player.weapon === 'arh' ? player.activeRack : radarWeapon ? player.radarRack : player.rack;
       const degrees = 180 / Math.PI;
       const heading = Math.round(flight.heading * degrees) % 360;
       const bank = Math.round(flight.bank * degrees);
@@ -5908,11 +5999,13 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       throttleTrack.toggleAttribute('data-afterburner', flight.afterburner);
       throttleTrack.toggleAttribute('data-airbrake', airbrakeOpen);
       bankOutput.value = bank === 0 ? '0°' : `${bank < 0 ? '左' : '右'} ${Math.abs(bank)}°`;
+      document.getElementById('wing-sweep-stat').hidden = flight.wingSweep === 0;
+      wingSweepOutput.value = `${Math.round(flight.wingSweep)}°`;
       const locked = isAlive(player) && (radarWeapon ? Boolean(radar.target) : rack.lock >= battleDisplay.missiles[rack.type].lockSeconds);
       const sensors = viewedAircraft();
       const radarDanger = updateSensorDisplays(sensors, radarWarnings(battle, sensors));
       const seeker = locked ? '已锁定' : radarWeapon && radar.pending ? '锁定中' : rack.armed ? (rack.lock ? '锁定中' : '搜索') : '待机';
-      updateLoadout(player, radarWeapon, seeker, locked);
+      updateLoadout(player, seeker, locked);
       const { flareRack, chaffRack, missileOutcome: outcome } = player;
       const flareCooling = flareRack.ammo > 0 && battle.time < flareRack.readyAt;
       const chaffCooling = chaffRack.ammo > 0 && battle.time < chaffRack.readyAt;
@@ -5922,7 +6015,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       chaffOutput.toggleAttribute('data-empty', chaffRack.ammo === 0);
       const infraredIncoming = battle.missiles.some(missile =>
         missile.target === player && missile.lostAt === null && !missile.flare && battleDisplay.missiles[missile.type].guidance === 'ir');
-      const lastLaunch = Math.max(player.rack.lastLaunch, player.radarRack.lastLaunch);
+      const lastLaunch = Math.max(player.rack.lastLaunch, player.radarRack.lastLaunch, player.activeRack?.lastLaunch ?? -Infinity);
       let feedback = '';
       if (awaitingWreckView()) {
         feedback = '本机被击毁';
@@ -5950,6 +6043,10 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       const france = String(live.length - Number(uk));
       if (ukRemaining.value !== uk) ukRemaining.value = uk;
       if (franceRemaining.value !== france) franceRemaining.value = france;
+      const { name, timeLimit } = battleDisplay.mission;
+      const remaining = Math.max(0, Math.ceil(timeLimit - battle.time));
+      const missionStatus = `${name} · ${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}`;
+      if (missionProgress.value !== missionStatus) missionProgress.value = missionStatus;
       updateMinimap();
     }
 
@@ -6024,8 +6121,15 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       clearKeys();
       updateInstruments();
       resumeButton.textContent = '返回大厅';
-      const title = { won: '英国侧获胜', lost: '法国侧获胜', draw: '本轮平局' }[battle.result];
-      showMessage(title, '返回大厅后，房主可组织下一局。', true);
+      const cooperative = battleDisplay.mission.mode === 'pve';
+      const title = cooperative ? (battle.result === 'won' ? '拦截任务完成' : '拦截任务失败')
+        : { won: '英国侧获胜', lost: '法国侧获胜', draw: '本轮平局' }[battle.result];
+      const details = {
+        timeout: cooperative ? '任务时间已到，仍有敌机在场。' : '时间已到，按双方存活机数结算。',
+        'out-of-ammo': '双方弹药用尽。',
+        elimination: cooperative ? (battle.result === 'won' ? '已清除所有敌机。' : '合作编队已出局。') : '',
+      };
+      showMessage(title, details[battle.resultReason] || '返回大厅后，房主可组织下一局。', true);
       resumeButton.focus();
     }
 

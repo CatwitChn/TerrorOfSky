@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { WebSocket, WebSocketServer } from 'ws';
 import { acceptInput, createMatch, encodeMatchFrame, neutralizePilot, releasePilot, tickMatch } from './match.mjs';
+import { AIRFRAME_LOADOUTS, defaultLoadout, MISSIONS, PROTOCOL_VERSION, validateLoadout } from './missions.mjs';
 import { BATTLE_DISPLAY } from './simulation.mjs';
 
 const HELP = `Terror of Sky server
@@ -54,16 +55,14 @@ function readOptions() {
 let options;
 let servePage;
 
-const PROTOCOL_VERSION = 3;
 const TEAM_SIZE = 4;
 const TEAMS = ['uk', 'fr'];
-const AIRCRAFT = ['f15', 'su27'];
 const ROOM_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const RECONNECT_MS = 20_000;
 const rooms = new Map();
 const sessions = new Map();
 
-const health = '{"status":"ok"}\n';
+const health = JSON.stringify({ status: 'ok', protocol: PROTOCOL_VERSION }) + '\n';
 const server = createServer((request, response) => {
   if (request.url !== '/healthz') {
     if (servePage) servePage(request, response);
@@ -111,32 +110,35 @@ function teamSize(room, team) {
 }
 
 function canStart(room) {
-  return !room.match && (room.players.length === 1 || TEAMS.every(team => teamSize(room, team) > 0))
+  return !room.match && room.players.length > 0
+    && (room.mission.mode === 'pve' || room.players.length === 1 || TEAMS.every(team => teamSize(room, team) > 0))
     && room.players.every(player => player.ready && player.socket?.readyState === WebSocket.OPEN);
 }
 
 function publishRoom(room) {
-  const players = room.players.map(({ id, name, team, aircraft, ready, socket }) => ({
-    id, name, team, aircraft, ready, connected: socket?.readyState === WebSocket.OPEN,
+  const players = room.players.map(({ id, name, team, aircraft, loadout, ready, socket }) => ({
+    id, name, team, aircraft, loadout, ready, connected: socket?.readyState === WebSocket.OPEN,
   }));
-  const state = { code: room.code, hostId: room.hostId, teamSize: TEAM_SIZE, canStart: canStart(room), players, match: room.match };
+  const state = { code: room.code, hostId: room.hostId, teamSize: TEAM_SIZE, mission: room.mission,
+    canStart: canStart(room), players, match: room.match };
   for (const player of room.players) send(player.socket, { type: 'room', room: state });
 }
 
-function newRoom(host) {
+function newRoom(host, mission) {
   let code;
   do {
     code = '';
     for (let index = 0; index < 6; index++) code += ROOM_ALPHABET[randomInt(ROOM_ALPHABET.length)];
   } while (rooms.has(code));
-  const room = { code, hostId: host.id, players: [], match: null, arena: null };
+  const room = { code, hostId: host.id, mission, players: [], match: null, arena: null };
   rooms.set(code, room);
   return room;
 }
 
 function addPlayer(room, player, name) {
-  const team = teamSize(room, 'uk') <= teamSize(room, 'fr') ? 'uk' : 'fr';
-  Object.assign(player, { room, name, team, aircraft: AIRCRAFT[TEAMS.indexOf(team)], ready: false });
+  const team = room.mission.mode === 'pve' || teamSize(room, 'uk') <= teamSize(room, 'fr') ? 'uk' : 'fr';
+  const aircraft = team === 'uk' ? 'f15' : 'su27';
+  Object.assign(player, { room, name, team, aircraft, loadout: defaultLoadout(aircraft), ready: false });
   room.players.push(player);
   publishRoom(room);
 }
@@ -161,17 +163,18 @@ function leaveRoom(player) {
 
 function startMatch(room) {
   const nextSlot = { uk: 0, fr: 0 };
+  const { mission } = room;
   room.match = {
     id: randomUUID(),
-    map: 'dover',
+    map: mission.map,
     startedAt: Date.now(),
     state: 'loading',
-    display: BATTLE_DISPLAY,
-    players: room.players.map(({ id, name, team, aircraft }) => ({
-      id, name, team, aircraft, slot: nextSlot[team]++,
+    display: { ...BATTLE_DISPLAY, mission },
+    players: room.players.map(({ id, name, team, aircraft, loadout }) => ({
+      id, name, team, aircraft, loadout: { ...loadout }, slot: nextSlot[team]++,
     })),
   };
-  room.arena = createMatch(room.match.players, performance.now());
+  room.arena = createMatch(room.match.players, performance.now(), mission);
 }
 
 function publishMatch(room, recipient) {
@@ -187,10 +190,12 @@ function perform(player, action) {
     const name = typeof action.name === 'string' ? action.name.trim() : '';
     requireLobby(name && [...name].length <= 16 && !/[\p{Cc}\p{Cf}]/u.test(name), '请输入 1 至 16 个字符的呼号。');
     const code = typeof action.code === 'string' ? action.code.trim().toUpperCase() : '';
-    const destination = action.type === 'create' ? newRoom(player) : rooms.get(code);
+    const creating = action.type === 'create';
+    if (creating) requireLobby(typeof action.mission === 'string' && Object.hasOwn(MISSIONS, action.mission), '请选择任务。');
+    const destination = creating ? newRoom(player, MISSIONS[action.mission]) : rooms.get(code);
     requireLobby(destination, '找不到该房间，请检查房间代码。');
     requireLobby(!destination.match, '该房间已开局。');
-    requireLobby(destination.players.length < TEAM_SIZE * TEAMS.length, '房间已满。');
+    requireLobby(destination.players.length < destination.mission.playerLimit, '房间已满。');
     addPlayer(destination, player, name);
     return;
   }
@@ -214,6 +219,7 @@ function perform(player, action) {
   requireLobby(!room.match || action.type === 'reopen', '请先返回准备阶段。');
   switch (action.type) {
     case 'team':
+      requireLobby(room.mission.mode === 'pvp', '合作任务的玩家在同一编队。');
       requireLobby(TEAMS.includes(action.team), '队伍无效。');
       if (action.team === player.team) return;
       requireLobby(teamSize(room, action.team) < TEAM_SIZE, '该队伍已满。');
@@ -221,18 +227,28 @@ function perform(player, action) {
       player.ready = false;
       break;
     case 'aircraft':
-      requireLobby(AIRCRAFT.includes(action.aircraft), '机型无效。');
+      requireLobby(typeof action.aircraft === 'string' && Object.hasOwn(AIRFRAME_LOADOUTS, action.aircraft), '机型无效。');
       if (action.aircraft === player.aircraft) return;
       player.aircraft = action.aircraft;
+      player.loadout = defaultLoadout(player.aircraft);
       player.ready = false;
       break;
+    case 'loadout': {
+      requireLobby(action.aircraft === player.aircraft, '座机已切换，请重新确认挂载。');
+      const loadout = validateLoadout(player.aircraft, action.loadout, room.mission.missileLimit);
+      requireLobby(loadout, `请在兼容挂点上配置 1 至 ${room.mission.missileLimit} 枚导弹。`);
+      if (JSON.stringify(loadout) === JSON.stringify(player.loadout)) return;
+      player.loadout = loadout;
+      player.ready = false;
+      break;
+    }
     case 'ready':
       requireLobby(typeof action.ready === 'boolean', '准备状态无效。');
       player.ready = action.ready;
       break;
     case 'start':
       requireLobby(room.hostId === player.id, '仅房主可以开始。');
-      requireLobby(canStart(room), '请让所有玩家准备。多人对局需要两队均有玩家。');
+      requireLobby(canStart(room), room.mission.mode === 'pve' ? '请让所有玩家准备。' : '请让所有玩家准备。多人对抗需要两队均有玩家。');
       startMatch(room);
       break;
     case 'reopen':
@@ -258,7 +274,9 @@ function establishSession(socket, token) {
   clearTimeout(player.expiry);
   player.socket?.close(4001, 'Session resumed');
   player.socket = socket;
-  send(socket, { type: 'session', protocol: PROTOCOL_VERSION, id: player.id, token: player.token });
+  send(socket, { type: 'session', protocol: PROTOCOL_VERSION, id: player.id, token: player.token,
+    missions: Object.values(MISSIONS), airframes: Object.fromEntries(Object.entries(AIRFRAME_LOADOUTS).map(([id, airframe]) =>
+      [id, { ...airframe, balanced: defaultLoadout(id) }])) });
   if (player.room) {
     publishRoom(player.room);
     if (player.room.arena) publishMatch(player.room, player);
