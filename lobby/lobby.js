@@ -1,7 +1,8 @@
 import * as settings from './config.js';
+import { getMissileArt, paintMissileArt } from './missile-art.js';
 
 const { serverUrl, battleUrl = '../index.html' } = settings;
-const PROTOCOL_VERSION = 5;
+const PROTOCOL_VERSION = 7;
 
 const find = id => document.getElementById(id);
 const entry = find('entry');
@@ -23,6 +24,7 @@ const lobbyRegions = document.querySelectorAll('body > header, body > main');
 const loadoutEditor = find('loadout-editor');
 const applyLoadout = find('apply-loadout');
 const cancelLoadout = find('cancel-loadout');
+const countermeasureFields = { flares: find('fit-flares'), chaff: find('fit-chaff') };
 const presetButtons = [...loadoutEditor.querySelectorAll('[data-preset]')];
 const invitedCode = new URL(location.href).searchParams.get('room')?.toUpperCase();
 if (/^[A-HJ-NP-Z2-9]{6}$/.test(invitedCode)) code.value = invitedCode;
@@ -39,6 +41,8 @@ let loadouts = {};
 let loadoutKey = '';
 let loadoutDraft = {};
 let savedLoadout = {};
+let countermeasureDraft = {};
+let savedCountermeasures = {};
 let savingLoadout = false;
 let stationControls = [];
 
@@ -63,13 +67,15 @@ function currentPilot() {
 function renderMission() {
   const mission = room?.mission ?? missions.get(missionSelect.value);
   const cooperative = mission?.mode === 'pve';
+  const raid = mission?.raid;
   const mode = cooperative ? '合作 PvE' : '对抗 PvP';
   const briefing = mission ? `${mission.objective} 限时 ${mission.timeLimit / 60} 分钟。` : '';
   find('map-mode').textContent = mission ? mode : '多佛';
   find('map-capacity').textContent = mission ? `${mission.playerLimit} 人` : '—';
-  find('map-friendly').textContent = cooperative ? '合作编队' : '英国侧';
-  find('map-enemy').textContent = cooperative ? 'AI 敌机' : '法国侧';
-  find('mission-map').setAttribute('aria-label', cooperative ? '多佛海峡地图，合作编队和 AI 敌机从海峡两侧出发'
+  find('map-friendly').textContent = raid ? '防御编队' : cooperative ? '合作编队' : '英国侧';
+  find('map-enemy').textContent = raid ? '轰炸编队' : cooperative ? 'AI 敌机' : '法国侧';
+  find('mission-map').setAttribute('aria-label', raid ? '多佛海峡地图，守军在英国侧，轰炸编队从法国出发'
+    : cooperative ? '多佛海峡地图，合作编队和 AI 敌机从海峡两侧出发'
     : '多佛海峡地图，英国和法国编队从海峡两侧出发');
   find('mission-preview').hidden = !mission;
   find('mission-preview').textContent = briefing;
@@ -112,6 +118,14 @@ function drawPlanform(airframe) {
   const canopy = { f15: [-5.25, 1.38], su27: [-7, 1.38], f14d: [-5.98, 2.02] }[airframe];
   ctx.ellipse(0, canopy[0], .49, canopy[1], 0, 0, Math.PI * 2);
   ctx.fill();
+  for (const station of loadouts[airframe].stations) {
+    const art = getMissileArt(loadoutDraft[station.id]);
+    if (!art) continue;
+    ctx.save();
+    ctx.translate(station.x, station.z);
+    paintMissileArt(ctx, art);
+    ctx.restore();
+  }
 }
 
 function buildStations(airframe) {
@@ -119,7 +133,6 @@ function buildStations(airframe) {
   const list = find('station-list');
   diagram.replaceChildren(find('aircraft-planform'));
   list.replaceChildren();
-  drawPlanform(airframe);
   stationControls = loadouts[airframe].stations.map((station, index) => {
     const number = String(index + 1);
     const field = document.createElement('select');
@@ -151,13 +164,17 @@ function buildStations(airframe) {
   });
 }
 
-function updateLoadoutControls() {
+function updateLoadoutControls(editingField = null) {
   if (!room || room.match) return;
   const count = Object.keys(loadoutDraft).length;
-  const limit = room.mission.missileLimit;
+  const airframe = currentPilot().aircraft;
+  const { stations, countermeasureCapacity } = loadouts[airframe];
+  const limit = stations.length;
   const dirty = count !== Object.keys(savedLoadout).length
-    || Object.entries(loadoutDraft).some(([id, weapon]) => savedLoadout[id] !== weapon);
+    || Object.entries(loadoutDraft).some(([id, weapon]) => savedLoadout[id] !== weapon)
+    || countermeasureDraft.flares !== savedCountermeasures.flares;
   const locked = !online || savingLoadout;
+  drawPlanform(airframe);
   for (const { station, field, marker } of stationControls) {
     field.value = loadoutDraft[station.id] ?? '';
     field.disabled = marker.disabled = locked;
@@ -165,21 +182,27 @@ function updateLoadoutControls() {
   }
   for (const button of presetButtons) {
     button.disabled = locked;
-    button.hidden = button.dataset.preset === 'arh' && !loadouts[currentPilot().aircraft].arh;
+    button.hidden = button.dataset.preset === 'arh' && !loadouts[airframe].arh;
+  }
+  find('countermeasure-capacity').value = `${countermeasureCapacity} 发`;
+  for (const [kind, field] of Object.entries(countermeasureFields)) {
+    field.max = countermeasureCapacity;
+    field.disabled = locked;
+    if (field !== editingField) field.value = countermeasureDraft[kind];
   }
   find('loadout-summary').value = `${count} / ${limit} 枚`;
-  find('loadout-status').textContent = savingLoadout ? '正在保存' : count === 0 || count > limit
-    ? `请选择 1–${limit} 枚导弹` : dirty ? '有未保存的修改' : '';
-  applyLoadout.disabled = locked || !dirty || count < 1 || count > limit;
+  find('loadout-status').textContent = savingLoadout ? '正在保存' : count === 0
+    ? '请至少配置一枚导弹' : dirty ? '有未保存的修改' : '';
+  applyLoadout.disabled = locked || !dirty || count < 1;
   cancelLoadout.disabled = locked || !dirty;
   ready.disabled = locked || dirty;
   start.disabled = locked || dirty || !room.canStart;
   aircraft.disabled = locked;
 }
 
-function editedLoadout() {
+function editedLoadout(editingField = null) {
   if (currentPilot()?.ready) send('ready', { ready: false });
-  updateLoadoutControls();
+  updateLoadoutControls(editingField);
 }
 
 function renderTeam(team, me) {
@@ -188,9 +211,12 @@ function renderTeam(team, me) {
   list.replaceChildren();
   const cooperative = room.mission.mode === 'pve';
   const enemyWave = cooperative && team === 'fr';
-  const slots = enemyWave ? room.match?.players.length ?? room.players.length : room.teamSize;
+  const raid = room.mission.raid;
+  const fillAirframe = members[0]?.aircraft ?? (team === 'uk' ? 'f15' : 'su27');
+  const slots = enemyWave ? (raid ? raid.bombers + raid.escorts : room.match?.players.length ?? room.players.length) : room.teamSize;
   find(`${team}-label`).textContent = cooperative
-    ? (enemyWave ? 'AI 敌机' : '合作编队') : team === 'uk' ? '英国侧' : '法国侧';
+    ? (raid ? (enemyWave ? '轰炸编队' : '工厂防御编队') : enemyWave ? 'AI 敌机' : '合作编队')
+    : team === 'uk' ? '英国侧' : '法国侧';
   for (let index = 0; index < slots; index++) {
     const player = members[index];
     const row = document.createElement('li');
@@ -205,7 +231,12 @@ function renderTeam(team, me) {
       addText(row, 'player-status', [status, readiness].filter(Boolean).join(' · ') || '未准备')
         .toggleAttribute('data-ready', Boolean(readiness));
     } else if (enemyWave) {
-      addText(row, 'callsign', `战斗机 ${index + 1}`);
+      const bomber = raid && index < raid.bombers;
+      const number = index - (raid && !bomber ? raid.bombers : 0) + 1;
+      addText(row, 'callsign', `${bomber ? 'B-52' : raid ? '护航战斗机' : '战斗机'} ${number}`);
+    } else if (raid || !cooperative) {
+      addText(row, 'slot-empty', 'AI 补位');
+      addText(row, 'aircraft-tag', loadouts[fillAirframe].name);
     } else {
       addText(row, 'slot-empty', '空位');
     }
@@ -266,11 +297,13 @@ function render() {
     reopen.textContent = state === 'playing' || state === 'loading' ? '结束本局' : '返回准备';
     enterBattle.hidden = !battleView;
   } else {
-    const key = JSON.stringify([me.aircraft, me.loadout]);
+    const key = JSON.stringify([me.aircraft, me.loadout, me.countermeasures]);
     if (key !== loadoutKey) {
       loadoutKey = key;
       savedLoadout = me.loadout;
       loadoutDraft = { ...savedLoadout };
+      savedCountermeasures = me.countermeasures;
+      countermeasureDraft = { ...savedCountermeasures };
       savingLoadout = false;
       buildStations(me.aircraft);
     }
@@ -361,7 +394,7 @@ function connect(endpoint) {
         if (message.protocol !== PROTOCOL_VERSION) {
           incompatible = true;
           setConnection('offline', '服务端版本不匹配');
-          showNotice('请用 0.5.0 服务端启动新版大厅。', true);
+          showNotice('请使用与此大厅匹配的服务端。本地测试可重新打开「本地测试.cmd」。', true);
           socket.close();
           break;
         }
@@ -445,24 +478,34 @@ for (const button of presetButtons) {
   button.addEventListener('click', () => {
     const airframe = loadouts[currentPilot().aircraft];
     const { stations, balanced } = airframe;
-    const limit = room.mission.missileLimit;
     const mode = button.dataset.preset;
     const weapon = airframe[mode];
-    const preferred = stations.filter(station => station.weapons.includes(weapon)).map(station => [station.id, weapon]);
-    const fallback = Object.entries(balanced).filter(([id]) => !preferred.some(([key]) => key === id));
-    loadoutDraft = Object.fromEntries([...preferred, ...fallback].slice(0, limit));
+    loadoutDraft = Object.fromEntries(stations.map(station =>
+      [station.id, station.weapons.includes(weapon) ? weapon : balanced[station.id]]));
     editedLoadout();
   });
 }
 applyLoadout.addEventListener('click', () => {
   savingLoadout = true;
   updateLoadoutControls();
-  send('loadout', { aircraft: currentPilot().aircraft, loadout: loadoutDraft });
+  send('loadout', { aircraft: currentPilot().aircraft, loadout: loadoutDraft, countermeasures: countermeasureDraft });
 });
 cancelLoadout.addEventListener('click', () => {
   loadoutDraft = { ...savedLoadout };
+  countermeasureDraft = { ...savedCountermeasures };
   updateLoadoutControls();
 });
+for (const [kind, field] of Object.entries(countermeasureFields)) {
+  field.addEventListener('input', () => {
+    const { countermeasureCapacity } = loadouts[currentPilot().aircraft];
+    const amount = Math.min(countermeasureCapacity, Math.max(0, Math.trunc(field.valueAsNumber || 0)));
+    if (field.value && field.valueAsNumber !== amount) field.value = amount;
+    const flares = kind === 'flares' ? amount : countermeasureCapacity - amount;
+    countermeasureDraft = { flares, chaff: countermeasureCapacity - flares };
+    editedLoadout(field);
+  });
+  field.addEventListener('change', () => updateLoadoutControls());
+}
 ready.addEventListener('click', () => send('ready', { ready: !currentPilot().ready }));
 start.addEventListener('click', () => send('start'));
 reopen.addEventListener('click', () => send('reopen'));

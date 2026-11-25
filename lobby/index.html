@@ -108,6 +108,13 @@
                 </div>
                 <div id="station-list" class="station-list"></div>
               </div>
+              <fieldset class="countermeasure-loadout">
+                <legend>反制弹 · 共 <output id="countermeasure-capacity"></output></legend>
+                <label for="fit-flares">热诱弹</label>
+                <label for="fit-chaff">箔条</label>
+                <input id="fit-flares" type="number" min="0" step="1" inputmode="numeric">
+                <input id="fit-chaff" type="number" min="0" step="1" inputmode="numeric">
+              </fieldset>
               <div class="loadout-actions">
                 <button type="button" id="apply-loadout" class="button secondary">保存挂载</button>
                 <button type="button" id="cancel-loadout" class="text-button">撤销修改</button>

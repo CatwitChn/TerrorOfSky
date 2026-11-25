@@ -139,11 +139,23 @@ input:hover, select:hover, .secondary:enabled:hover { border-color: #557179; }
   position: absolute; width: 18px; height: 18px; transform: translate(-50%, -50%); padding: 0;
   border: 1px solid #819ba4; border-radius: 50%; background: #172a34; color: var(--text); font-size: 11px; cursor: pointer;
 }
-.station-marker[data-loaded] { border-color: var(--brass); background: var(--brass); color: #221c11; }
+.station-marker[data-loaded] { border-color: var(--brass); background: rgb(23 42 52 / 42%); color: #f8dfb4; }
 .station-marker:disabled { opacity: .55; cursor: default; }
 .station-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
 .station-row label { margin-bottom: 3px; font-size: 11px; white-space: nowrap; }
 .station-row select { min-height: 34px; padding: 4px; font-size: 12px; }
+.countermeasure-loadout {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 12px;
+  min-width: 0;
+  margin: 0 12px 10px;
+  padding: 6px 10px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.countermeasure-loadout legend { padding-inline: 5px; }
+.countermeasure-loadout input { min-width: 0; width: 100%; }
 .loadout-actions .button { min-height: 34px; padding-block: 4px; }
 .loadout-actions .hint { margin: 0; font-size: 12px; }
 @media (max-width: 420px) {

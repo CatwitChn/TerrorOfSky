@@ -5,7 +5,9 @@ import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { WebSocket, WebSocketServer } from 'ws';
 import { acceptInput, createMatch, encodeMatchFrame, neutralizePilot, releasePilot, tickMatch } from './match.mjs';
-import { AIRFRAME_LOADOUTS, defaultLoadout, MISSIONS, PROTOCOL_VERSION, validateLoadout } from './missions.mjs';
+import {
+  AIRFRAME_LOADOUTS, defaultCountermeasures, defaultLoadout, MISSIONS, PROTOCOL_VERSION, validateCountermeasures, validateLoadout
+} from './missions.mjs';
 import { BATTLE_DISPLAY } from './simulation.mjs';
 
 const HELP = `Terror of Sky server
@@ -116,8 +118,8 @@ function canStart(room) {
 }
 
 function publishRoom(room) {
-  const players = room.players.map(({ id, name, team, aircraft, loadout, ready, socket }) => ({
-    id, name, team, aircraft, loadout, ready, connected: socket?.readyState === WebSocket.OPEN,
+  const players = room.players.map(({ id, name, team, aircraft, loadout, countermeasures, ready, socket }) => ({
+    id, name, team, aircraft, loadout, countermeasures, ready, connected: socket?.readyState === WebSocket.OPEN,
   }));
   const state = { code: room.code, hostId: room.hostId, teamSize: TEAM_SIZE, mission: room.mission,
     canStart: canStart(room), players, match: room.match };
@@ -138,7 +140,8 @@ function newRoom(host, mission) {
 function addPlayer(room, player, name) {
   const team = room.mission.mode === 'pve' || teamSize(room, 'uk') <= teamSize(room, 'fr') ? 'uk' : 'fr';
   const aircraft = team === 'uk' ? 'f15' : 'su27';
-  Object.assign(player, { room, name, team, aircraft, loadout: defaultLoadout(aircraft), ready: false });
+  Object.assign(player, { room, name, team, aircraft, loadout: defaultLoadout(aircraft),
+    countermeasures: defaultCountermeasures(aircraft), ready: false });
   room.players.push(player);
   publishRoom(room);
 }
@@ -170,8 +173,8 @@ function startMatch(room) {
     startedAt: Date.now(),
     state: 'loading',
     display: { ...BATTLE_DISPLAY, mission },
-    players: room.players.map(({ id, name, team, aircraft, loadout }) => ({
-      id, name, team, aircraft, loadout: { ...loadout }, slot: nextSlot[team]++,
+    players: room.players.map(({ id, name, team, aircraft, loadout, countermeasures }) => ({
+      id, name, team, aircraft, loadout: { ...loadout }, countermeasures: { ...countermeasures }, slot: nextSlot[team]++,
     })),
   };
   room.arena = createMatch(room.match.players, performance.now(), mission);
@@ -231,14 +234,21 @@ function perform(player, action) {
       if (action.aircraft === player.aircraft) return;
       player.aircraft = action.aircraft;
       player.loadout = defaultLoadout(player.aircraft);
+      player.countermeasures = defaultCountermeasures(player.aircraft);
       player.ready = false;
       break;
     case 'loadout': {
       requireLobby(action.aircraft === player.aircraft, '座机已切换，请重新确认挂载。');
-      const loadout = validateLoadout(player.aircraft, action.loadout, room.mission.missileLimit);
-      requireLobby(loadout, `请在兼容挂点上配置 1 至 ${room.mission.missileLimit} 枚导弹。`);
-      if (JSON.stringify(loadout) === JSON.stringify(player.loadout)) return;
+      const loadout = validateLoadout(player.aircraft, action.loadout);
+      requireLobby(loadout, '请在兼容挂点上配置至少一枚导弹。');
+      const countermeasures = action.countermeasures === undefined ? player.countermeasures
+        : validateCountermeasures(player.aircraft, action.countermeasures);
+      const { countermeasureCapacity } = AIRFRAME_LOADOUTS[player.aircraft];
+      requireLobby(countermeasures, `热诱弹和箔条共用 ${countermeasureCapacity} 发，请重新分配。`);
+      if (JSON.stringify(loadout) === JSON.stringify(player.loadout)
+          && countermeasures.flares === player.countermeasures.flares) return;
       player.loadout = loadout;
+      player.countermeasures = countermeasures;
       player.ready = false;
       break;
     }

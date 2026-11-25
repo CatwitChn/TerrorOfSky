@@ -166,6 +166,17 @@
     .team-uk { color: #a6e3e6; }
     .team-france { color: #ffba90; }
     .mission-progress { color: #e1ece6; font-size: .7rem; white-space: nowrap; text-shadow: 0 1px 4px #072628; }
+    .airport-status {
+      color: #ddf3d0;
+      font-size: .75rem;
+      font-weight: 650;
+      text-align: center;
+      text-shadow: 0 1px 4px #072628;
+    }
+    .airport-status[data-danger] { color: #ffbf99; }
+    .factory-status { color: #ffe4a1; font-size: .75rem; font-weight: 650; text-align: center; text-shadow: 0 1px 4px #072628; }
+    .factory-status[data-danger] { color: #ff9f7c; }
+    .spectator-status { color: #d1f2ff; font-size: .75rem; font-weight: 650; text-align: center; text-shadow: 0 1px 4px #072628; }
     .missile-feedback {
       position: absolute;
       top: calc(100% + 7px);
@@ -318,8 +329,36 @@
     .flight-stat output { font: 650 .75rem/1.1 var(--hud-numerals); }
     .flight-meta output { white-space: nowrap; }
     .flight-meta output[data-strained] { color: #ffab70; }
+    .damage-status { display: block; margin-top: 5px; color: #ffb190; font: 600 .64rem/1.3 var(--hud-numerals); }
+    .damage-status[hidden] { display: none; }
     #wing-sweep-stat[hidden], .weapon-rack[hidden] { display: none; }
     .flight-stat output[data-empty] { color: #ffad84; }
+    .fuel-gauge {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      align-items: center;
+      gap: 3px 6px;
+      margin-top: 6px;
+      color: #a6e3b9;
+    }
+    .fuel-gauge[data-low] { color: #ffd48e; }
+    .fuel-gauge[data-critical] { color: #ff9c83; }
+    .fuel-gauge[hidden] { display: none; }
+    .fuel-gauge label, .fuel-gauge #fuel-time { color: var(--muted); font-size: .625rem; }
+    .fuel-gauge output { font: 650 .75rem/1.1 var(--hud-numerals); }
+    .fuel-gauge progress {
+      grid-column: 1 / -1;
+      width: 100%;
+      height: 4px;
+      appearance: none;
+      border: 0;
+      border-radius: 2px;
+      overflow: hidden;
+      background: #143036;
+    }
+    .fuel-gauge progress::-webkit-progress-bar { background: #143036; }
+    .fuel-gauge progress::-webkit-progress-value { background: currentColor; }
+    .fuel-gauge progress::-moz-progress-bar { background: currentColor; }
     .countermeasures kbd {
       margin-left: 2px;
       min-width: 12px;
@@ -362,10 +401,10 @@
     .weapon-name { font: 650 clamp(.7rem, 1.2vw, .9rem) var(--hud-numerals); white-space: nowrap; }
     .weapon-slots { display: flex; align-items: center; gap: 4px; height: 17px; }
     .weapon-slot {
-      width: 9px;
+      display: block;
+      flex: none;
+      width: auto;
       height: 16px;
-      clip-path: polygon(50% 0, 67% 20%, 67% 58%, 96% 83%, 96% 92%, 67% 86%, 67% 100%, 33% 100%, 33% 86%, 4% 92%, 4% 83%, 33% 58%, 33% 20%);
-      background: currentColor;
       opacity: .20;
     }
     .weapon-slot[data-loaded] { opacity: 1; }
@@ -435,7 +474,7 @@
       background-size: calc(100% / 6) calc(100% / 6);
       pointer-events: none;
     }
-    .minimap-marker, .minimap-target {
+    .minimap-marker, .minimap-target, .minimap-airfield, .minimap-factory {
       position: absolute;
       left: clamp(10px, var(--map-x, 50%), calc(100% - 10px));
       top: clamp(10px, var(--map-z, 50%), calc(100% - 10px));
@@ -448,6 +487,26 @@
       transform: translate(-50%, -50%) rotate(45deg);
     }
     .minimap-target.friendly { border-color: #9cdddf; background: #244b53; }
+    .minimap-target[data-bomber] { width: 8px; height: 8px; border-color: #ff9e78; background: #863e2d; }
+    .minimap-factory {
+      width: 9px;
+      height: 9px;
+      border: 1px solid #fff0c5;
+      background: #e1b95e;
+      box-shadow: 0 0 0 1px #372e22;
+      transform: translate(-50%, -50%);
+    }
+    .minimap-factory[data-danger] { background: #ce552c; }
+    .minimap-airfield {
+      width: 4px;
+      height: 13px;
+      border: 1px solid #ffd0a4;
+      border-radius: 1px;
+      background: #2b3b3c;
+      box-shadow: 0 0 0 1px #192b31;
+      transform: translate(-50%, -50%) rotate(var(--map-heading));
+    }
+    .minimap-airfield.friendly { border-color: #b3ffc2; background: #527c66; }
     .minimap-marker {
       width: 14px;
       height: 17px;
@@ -471,7 +530,7 @@
       transform: translate(-50%, -50%);
     }
     .minimap-region.kent { left: 13%; top: 24%; }
-    .minimap-region.france { left: 85%; top: 94%; }
+    .minimap-region.france { left: 91%; top: 85%; }
     .minimap-footer {
       display: flex;
       justify-content: space-between;
@@ -613,11 +672,12 @@
             <div class="instrument controls" aria-label="飞行、武器与视角按键">
               <div class="control-group"><kbd data-key="KeyW">W</kbd><kbd data-key="KeyS">S</kbd><span>油门</span></div>
               <div class="control-group"><kbd data-key="KeyB">B</kbd><span>开关减速板</span></div>
+              <div class="control-group"><span>对准己方跑道自动进近，停稳补给后按 W 起飞</span></div>
               <div class="control-group"><kbd data-key="KeyA">A</kbd><kbd data-key="KeyD">D</kbd><span>转向</span></div>
               <div class="control-group"><kbd data-key="Space">空格</kbd><span>引导 / 发射</span></div>
               <div class="control-group"><kbd data-key="KeyQ">Q</kbd><span>切弹</span></div>
-              <div class="control-group"><kbd data-key="KeyY">Y</kbd><span>选目标</span></div>
-              <div class="control-group"><kbd data-key="KeyT">T</kbd><span>锁定 / 脱锁</span></div>
+              <div class="control-group"><kbd data-key="KeyY">Y</kbd><span>切换雷达目标</span></div>
+              <div class="control-group"><kbd data-key="KeyT">T</kbd><span>硬锁 / 脱锁</span></div>
               <div class="control-group"><kbd data-key="KeyG">G</kbd><span>雷达模式</span></div>
               <div class="control-group"><kbd data-key="KeyX">X</kbd><span>热诱弹</span></div>
               <div class="control-group"><kbd data-key="KeyC">C</kbd><span>干扰箔</span></div>
@@ -635,6 +695,9 @@
           <span class="team-france"><span id="enemy-label">法国侧</span> <output id="france-remaining">4</output></span>
         </div>
         <output class="mission-progress" id="mission-progress" aria-live="off" hidden></output>
+        <output class="factory-status" id="factory-status" aria-live="off" hidden></output>
+        <output class="spectator-status" id="spectator-status" aria-live="off" hidden></output>
+        <output class="airport-status" id="airport-status" aria-live="off" hidden></output>
         <span class="missile-feedback" id="missile-feedback" role="status"></span>
       </div>
       <div class="actions">
@@ -672,9 +735,15 @@
           <div class="flight-stat bank-stat"><label for="bank-angle">侧滚</label><output id="bank-angle" aria-live="off">0°</output></div>
           <div class="flight-stat" id="wing-sweep-stat" hidden><label for="wing-sweep-angle">后掠翼</label><output id="wing-sweep-angle" aria-live="off">20°</output></div>
         </div>
+        <div class="fuel-gauge" id="fuel-gauge">
+          <label for="fuel-bar">燃油</label><output id="fuel-amount">100%</output>
+          <output id="fuel-time" aria-label="按当前油门估算的剩余续航">4:00</output>
+          <progress id="fuel-bar" max="1" value="1"></progress>
+        </div>
+        <output class="damage-status" id="damage-status" aria-live="off" hidden></output>
         <div class="countermeasures" role="group" aria-label="反制措施余量">
-          <div class="flight-stat"><label for="flare-ammo">热诱弹 <kbd>X</kbd></label><output id="flare-ammo" aria-live="off">6 枚</output></div>
-          <div class="flight-stat"><label for="chaff-ammo">干扰箔 <kbd>C</kbd></label><output id="chaff-ammo" aria-live="off">6 组</output></div>
+          <div class="flight-stat"><label for="flare-ammo">热诱弹 <kbd>X</kbd></label><output id="flare-ammo" aria-live="off">—</output></div>
+          <div class="flight-stat"><label for="chaff-ammo">干扰箔 <kbd>C</kbd></label><output id="chaff-ammo" aria-live="off">—</output></div>
         </div>
       </section>
 
@@ -707,6 +776,8 @@
           <div class="minimap-grid"></div>
           <span class="minimap-region kent">英国</span>
           <span class="minimap-region france">法国</span>
+          <div id="minimap-airfields"></div>
+          <span class="minimap-factory" id="minimap-factory" hidden></span>
           <div id="minimap-traffic"></div>
           <span class="minimap-marker" id="minimap-marker"></span>
         </div>
@@ -4283,6 +4354,9 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     uniform vec4 uMapBounds;
     uniform float uUnitsPerMeter;
     uniform float uRayStart;
+    uniform vec4 uAirfields[2];
+    uniform vec2 uRunwaySize;
+    uniform vec4 uFactory; // World center, active flag, and impact flag.
     out vec4 pixel;
 
     const vec3 SUN = vec3(-0.43, 0.85, -0.30);
@@ -4379,6 +4453,60 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       return mix(ocean, vec3(0.86, 0.94, 0.85), surf * 0.90);
     }
 
+    vec3 drawRunways(vec2 world, vec3 color) {
+      if (uRunwaySize.x <= 0.0) return color;
+      for (int i = 0; i < 2; i++) {
+        vec4 field = uAirfields[i];
+        vec2 offset = (world - field.xy) / uUnitsPerMeter;
+        float halfLength = uRunwaySize.x * 0.5;
+        float halfWidth = uRunwaySize.y * 0.5;
+        if (max(abs(offset.x), abs(offset.y)) > halfLength + 140.0) continue;
+        float along = dot(offset, field.zw);
+        float across = dot(offset, vec2(-field.w, field.z));
+        float edge = abs(across);
+        float end = halfLength - abs(along);
+        if (end < -18.0 || edge > 135.0) continue;
+        if (abs(along) < 180.0 && across > halfWidth && across < 120.0) {
+          color = vec3(0.37, 0.39, 0.38);
+          if (abs(along) < 90.0 && abs(across - 105.0) < 10.0) color = vec3(0.56, 0.61, 0.59);
+        }
+        if (edge < halfWidth + 6.0) color = vec3(0.38, 0.40, 0.37);
+        if (end < 0.0 || edge > halfWidth) continue;
+        color = vec3(0.235, 0.255, 0.26) + noise(world * 1.7) * 0.045;
+        float stripes = min(abs(mod(edge, 6.0) - 3.0), 4.0);
+        bool thresholdBars = end > 11.0 && end < 38.0 && edge > 3.0 && edge < halfWidth - 5.0 && stripes < 1.2;
+        bool centerline = edge < 1.25 && end > 50.0 && mod(along + halfLength, 36.0) < 19.0;
+        bool edges = abs(edge - (halfWidth - 3.0)) < 0.8 && end > 4.0;
+        bool aimingMarks = abs(end - 370.0) < 13.0 && abs(edge - 11.0) < 2.1;
+        if (thresholdBars || centerline || edges || aimingMarks) color = vec3(0.88, 0.89, 0.81);
+      }
+      return color;
+    }
+
+    vec3 drawFactory(vec2 world, vec3 terrain) {
+      if (uFactory.z == 0.0) return terrain;
+      vec2 site = (world - uFactory.xy) / uUnitsPerMeter;
+      if (any(greaterThan(abs(site), vec2(126.0, 86.0)))) return terrain;
+      float textureGrain = noise(world * 1.7);
+      vec3 color = vec3(0.39, 0.40, 0.38) + 0.05 * textureGrain;
+      if (site.y > 32.0 && site.y < 58.0) {
+        color -= 0.055;
+        if (abs(site.y - 45.0) < 0.9 && mod(site.x + 126.0, 14.0) < 8.0) color = vec3(0.63, 0.59, 0.49);
+      }
+      float bay = floor((site.x + 102.0) / 76.0);
+      float offset = mod(site.x + 102.0, 76.0) - 30.0;
+      if (bay >= 0.0 && bay < 3.0 && abs(offset) < 30.0 && abs(site.y + 17.0) < 39.0) {
+        float facet = site.y < -17.0 ? 0.065 : -0.01;
+        color = vec3(0.51, 0.35, 0.29) + facet - 0.035 * mod(floor(offset / 5.0), 2.0);
+        if (abs(site.y + 17.0) < 2.1 || abs(site.y + 17.0) > 37.0 || abs(offset) > 28.0) color = vec3(0.66, 0.58, 0.47);
+        if (abs(site.y + 32.0) < 3.0 && abs(offset) < 22.0) color = vec3(0.36, 0.51, 0.54);
+      }
+      float stack = length(vec2(abs(site.x) - 54.0, site.y + 70.0));
+      if (stack < 8.0) color = stack < 4.6 ? vec3(0.19, 0.20, 0.19) : vec3(0.64, 0.52, 0.42);
+      if (uFactory.w > 0.0) color = mix(color, vec3(0.19, 0.15, 0.13) * (0.55 + textureGrain), 0.85);
+      return color;
+    }
+
     void main() {
       vec2 centered = gl_FragCoord.xy / uResolution - 0.5;
       vec2 world = uView.xy + centered * vec2(uView.z, -uView.w);
@@ -4399,6 +4527,8 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       float water = sin(dot(world, vec2(0.67, 1.05)) + uTime * 1.2) * 0.038;
       float surface = marchGround(ground, water);
       vec3 color = coastColor(world, elevation, shore, abs(surface - min(ground, water)), normal);
+      color = drawRunways(world, color);
+      color = drawFactory(world, color);
 
       vec2 cloudPoint = world * vec2(0.046, 0.061) + vec2(uTime * 0.014, 9.7);
       float haze = smoothstep(0.53, 0.80, fractalNoise(cloudPoint));
@@ -4423,8 +4553,15 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       };
     }
 
-    function hasMissileTrack({ source, target, trackId }) {
-      return isAlive(source) && source.radar.target === target && source.radar.trackId === trackId;
+    function hasMissileTrack({ source, target, trackId, tws }) {
+      return !tws && isAlive(source) && source.radar.target === target && source.radar.trackId === trackId;
+    }
+
+    function radarEchoPosition(radar, target, time) {
+      const echo = radar.echoes.get(target);
+      if (radar.mode !== 'tws' || echo?.vx === undefined) return echo;
+      const age = clamp(time - echo.time, 0, battleDisplay.radar.scanSeconds);
+      return { x: echo.x + echo.vx * age, z: echo.z + echo.vz * age };
     }
 
     const AIRBRAKE_FULL_ANGLE = Math.PI / 3;
@@ -4448,6 +4585,8 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     function interpolateFlight(display, previous, current, fraction) {
       display.x = lerp(previous.x, current.x, fraction);
       display.z = lerp(previous.z, current.z, fraction);
+      const { flightAltitudeM } = battleDisplay;
+      display.altitudeM = lerp(previous.altitudeM ?? flightAltitudeM, current.altitudeM ?? flightAltitudeM, fraction);
       display.heading = previous.heading + angleDelta(previous.heading, current.heading) * fraction;
       display.bank = lerp(previous.bank, current.bank, fraction);
       display.speed = lerp(previous.speed, current.speed, fraction);
@@ -4457,6 +4596,12 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       display.wingSweep = lerp(previous.wingSweep, current.wingSweep, fraction);
       display.afterburner = current.afterburner;
       display.airframe = current.airframe;
+    }
+
+    function aircraftRenderScale(altitudeM) {
+      const { flightAltitudeM } = battleDisplay;
+      const altitudeRatio = (altitudeM ?? flightAltitudeM) / flightAltitudeM;
+      return lerp(0.64, 1, clamp(altitudeRatio, 0, 1));
     }
 
     // Mesh coordinates are right, up and aft, in the same units as the flight map.
@@ -4556,6 +4701,26 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
                [4.61, -.02, 8.40, 9.55, .11], [4.99, -.06, 8.96, 9.25, .055]],
         fin: [[.34, 1.65, 4.99, 9.08, .23], [.84, 1.74, 5.52, 8.99, .19],
               [2.91, 1.98, 7.11, 8.75, .13], [3.27, 2.02, 7.46, 8.66, .083], [3.33, 2.03, 7.57, 8.56, .054]],
+      },
+      {
+        // Planform traced from NASA EG-0006-01, with the shorter H-series fin and outboard tanks.
+        colors: { body: 0x6a7479, wing: 0x667378, controls: 0x5a686e, fin: 0x616e73, engine: 0x59666c, nose: 0x4b555a },
+        nose: [[-24.15, -.40, .06, .12], [-23.82, -.40, .57, .47], [-23.10, -.32, .93, .77],
+               [-22.02, -.26, 1.21, .96], [-20.96, -.19, 1.35, 1.19]],
+        body: [[-20.96, -.19, 1.35, 1.19], [-19.70, -.05, 1.43, 1.54], [-17.2, .04, 1.49, 1.77],
+               [-13.2, .06, 1.48, 1.80], [2.2, .06, 1.50, 1.79], [10.7, .10, 1.44, 1.51],
+               [15.4, .24, 1.29, 1.19], [20.2, .39, .87, .76], [23.45, .40, .54, .43], [24.22, .40, .40, .34]],
+        canopy: [[-22.15, .74, .43, .26], [-21.60, .96, .86, .30], [-20.74, 1.22, 1.02, .31],
+                 [-19.96, 1.46, 1.07, .15], [-19.67, 1.48, .86, .08]],
+        wing: [[1.38, 1.25, -13.18, -3.12, .78], [4.90, 1.18, -10.42, -1.52, .69],
+               [9.95, 1.03, -6.44, 1.45, .57], [14.55, .83, -2.93, 3.92, .47],
+               [19.96, .63, 1.55, 6.94, .31], [26.30, .30, 6.31, 10.46, .17],
+               [27.98, .22, 7.63, 11.48, .095], [28.19, .20, 7.95, 11.52, .06]],
+        tail: [[.65, .50, 14.38, 22.63, .38], [2.6, .47, 16.27, 22.74, .27],
+               [5.07, .41, 18.62, 22.90, .17], [7.60, .34, 20.93, 23.03, .10], [7.92, .33, 21.14, 22.99, .06]],
+        fin: [[1.01, 0, 13.70, 22.79, .47], [3.65, 0, 16.16, 22.16, .38], [7.19, 0, 19.19, 22.23, .25],
+              [8.66, 0, 20.63, 22.56, .15], [8.82, 0, 20.91, 22.46, .105]],
+        pods: [[10.17, -10.64], [17.43, -5.14]],
       }
     ];
 
@@ -4564,7 +4729,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       [0.84, 0.27], [1, 0], [0.76, -0.31], [0.51, -0.49], [0.25, -0.54], [0.08, -0.36]
     ];
 
-    function buildJetMesh(model) {
+    function createModelMesh() {
       const vertices = [];
       const subtract = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
       const cross = (a, b) => [
@@ -4596,8 +4761,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         });
       }
 
-      function loft(sections, color, side = 1, glow = 0) {
-        const sides = 24;
+      function loft(sections, color, side = 1, glow = 0, sides = 24) {
         const rings = sections.map(([z, y, rx, ry, offset = 0, roundness = 1]) => {
           const shape = value => Math.sign(value) * Math.abs(value) ** roundness;
           return Array.from({ length: sides }, (_, index) => {
@@ -4653,6 +4817,11 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         }
       }
 
+      return { vertices, face, loft, pairedAirfoil };
+    }
+
+    function buildJetMesh(model) {
+      const { vertices, face, loft, pairedAirfoil } = createModelMesh();
       const { colors } = model;
       loft(model.nose, colors.nose);
       loft(model.body, colors.body);
@@ -4698,15 +4867,65 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       return { vertices: new Float32Array(vertices), bodyVertexCount, wingVertexStart };
     }
 
+    function buildBomberMesh(model) {
+      const { vertices, loft, pairedAirfoil } = createModelMesh();
+      const { colors } = model;
+      loft(model.nose, colors.nose);
+      loft(model.body, colors.body);
+      loft(model.canopy, 0x182d36);
+      pairedAirfoil(model.wing, colors.wing, colors.controls);
+      pairedAirfoil(model.tail, colors.wing, colors.controls);
+      pairedAirfoil(model.fin, colors.fin, colors.controls, true);
+      for (const side of [-1, 1]) {
+        loft([[6.95, -.10, .11, .21, 25.10], [8.12, -.04, .23, .49, 25.10],
+              [9.67, -.06, .15, .37, 25.10]], colors.wing, side);
+        loft([[6.57, -.37, .09, .10, 25.10], [7.43, -.46, .36, .35, 25.10],
+              [9.10, -.48, .59, .52, 25.10], [11.72, -.45, .58, .48, 25.10],
+              [13.72, -.39, .26, .23, 25.10], [14.31, -.34, .04, .06, 25.10]], colors.engine, side);
+        for (const [span, lead] of model.pods) {
+          loft([[lead + .82, -.57, .19, .24, span], [lead + 2.84, -.29, .37, 1.10, span],
+                [lead + 4.42, -.18, .30, 1.32, span], [lead + 5.91, .62, .13, .32, span]], colors.wing, side);
+          for (const offset of [span - .62, span + .62]) {
+            loft([[lead, -1.33, .54, .48, offset], [lead + .32, -1.33, .63, .61, offset]], 0x30393c, side);
+            loft([[lead + .32, -1.33, .63, .61, offset], [lead + 1.48, -1.34, .67, .66, offset],
+                  [lead + 3.19, -1.38, .56, .51, offset], [lead + 3.71, -1.39, .46, .45, offset]], colors.engine, side);
+            loft([[lead + 3.71, -1.39, .46, .45, offset], [lead + 4.15, -1.39, .36, .35, offset]], 0x333e41, side);
+          }
+        }
+      }
+      const count = vertices.length / 10;
+      return { vertices: new Float32Array(vertices), bodyVertexCount: count, wingVertexStart: count };
+    }
+
+    function buildStoreMesh(art) {
+      const { vertices, face, loft } = createModelMesh();
+      const toSections = points => points.map(([width, z]) => {
+        const radius = Math.max(.002, width);
+        return [z, 0, radius, radius];
+      });
+      loft(toSections(art.nosePoints), Number.parseInt(art.noseColor.slice(1), 16), 1, 0, 12);
+      loft(toSections(art.bodyPoints), 0xd8d7c9, 1, 0, 12);
+      for (const fin of art.finPoints) {
+        for (const side of [-1, 1]) {
+          face(fin.map(([x, z]) => [side * x, 0, z]), 0xa0adb0, 0, fin.map(() => [0, 1, 0]));
+          face(fin.map(([y, z]) => [0, side * y, z]), 0xa0adb0, 0, fin.map(() => [-1, 0, 0]));
+        }
+      }
+      return new Float32Array(vertices);
+    }
+
     const JET_VERTEX_SOURCE = `#version 300 es
       layout(location = 0) in vec3 aPosition;
       layout(location = 1) in vec3 aNormal;
       layout(location = 2) in vec4 aMaterial;
       uniform vec2 uViewSpan;
       uniform vec4 uPose; // Camera-relative x, z, heading and bank.
+      uniform float uModelScale;
+      uniform vec3 uStoreOffset; // Fixed attachment in aircraft model coordinates.
       uniform vec3 uSpeedBrake; // Hinge height, aft coordinate and deployment angle.
       uniform vec3 uWingSweep; // Lateral and aft wing pivot, and sweep beyond the reference pose.
       out vec3 vNormal;
+      out vec3 vModelPoint;
       flat out vec4 vMaterial;
 
       vec3 orient(vec3 point) {
@@ -4738,18 +4957,21 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
           position.yz = uSpeedBrake.xy + rotateBrake * (position.yz - uSpeedBrake.xy);
           normal.yz = rotateBrake * normal.yz;
         }
-        vec3 point = orient(position);
+        vec3 point = orient(position + uStoreOffset) * uModelScale;
         vec2 screen = 2.0 * (point.xz + uPose.xy) / uViewSpan;
         gl_Position = vec4(screen.x, -screen.y, -point.y / 16.0, 1.0);
         vNormal = normalize(orient(normal));
+        vModelPoint = position;
         vMaterial = aMaterial;
       }`;
 
     const JET_FRAGMENT_SOURCE = `#version 300 es
       precision highp float;
       in vec3 vNormal;
+      in vec3 vModelPoint;
       flat in vec4 vMaterial;
       uniform float uAfterburner;
+      uniform float uWreckSpan;
       out vec4 color;
       void main() {
         vec3 normal = normalize(vNormal);
@@ -4759,6 +4981,16 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         float highlight = pow(max(0.0, dot(normal, halfVector)), 24.0);
         vec3 hull = vMaterial.rgb * (0.61 + 0.39 * diffuse) + highlight * vec3(0.09, 0.11, 0.12);
         vec3 exhaust = mix(vMaterial.rgb, vec3(1.0, 0.66, 0.34), uAfterburner);
+        if (uWreckSpan > 0.0) {
+          float rough = fract(sin(dot(floor(vModelPoint.xz * 3.0), vec2(28.315, 61.47))) * 4537.13);
+          float edge = vModelPoint.x < 0.0 ? 0.57 : 0.83;
+          if (abs(vModelPoint.x) > uWreckSpan * (edge + rough * 0.09)) discard;
+          float scorchNoise = fract(sin(dot(floor(vModelPoint.xz * 0.62), vec2(19.726, 44.39))) * 2737.58);
+          float scorch = smoothstep(0.18, 0.78, scorchNoise);
+          hull *= 0.36 + 0.37 * scorch;
+          hull += vec3(0.064, 0.034, 0.017) * (1.0 - scorch);
+          exhaust = hull;
+        }
         color = vec4(mix(hull, exhaust, vMaterial.a), 1.0);
       }`;
 
@@ -4784,11 +5016,12 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       const sideZ = Math.sin(plane.heading);
       const rollSpan = span * Math.cos(plane.bank);
       const rollHeight = height * Math.sin(plane.bank);
+      const scale = aircraftRenderScale(plane.altitudeM);
       const tips = [-1, 1].map(side => {
         const across = side * rollSpan + rollHeight;
         return {
-          x: plane.x + across * sideX - trailing * sideZ,
-          z: plane.z + across * sideZ + trailing * sideX
+          x: plane.x + (across * sideX - trailing * sideZ) * scale,
+          z: plane.z + (across * sideZ + trailing * sideX) * scale
         };
       });
       return { time, strength, sideX, sideZ, tips };
@@ -4857,27 +5090,26 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
 
     function drawAirbrakeWake(context, plane, time) {
       const strength = plane.airbrakeExtension * clamp(plane.speed / battleDisplay.airbrakeReferenceKph, 0, 1);
-      const start = JET_MODELS[plane.airframe].speedBrake[3][0];
-      const length = 17 + strength * 14;
+      const [start, , halfWidth] = JET_MODELS[plane.airframe].speedBrake.at(-1);
+      const length = 5 + strength * 4;
       context.save();
       context.translate(plane.x, plane.z);
       context.rotate(plane.heading);
+      const scale = aircraftRenderScale(plane.altitudeM);
+      context.scale(scale, scale);
       const vapor = context.createLinearGradient(0, start, 0, start + length);
-      vapor.addColorStop(0, 'rgba(222, 238, 243, 0.10)');
-      vapor.addColorStop(0.28, 'rgba(220, 239, 244, 0.78)');
-      vapor.addColorStop(0.65, 'rgba(205, 231, 239, 0.47)');
+      vapor.addColorStop(0, 'rgba(222, 238, 243, 0.14)');
+      vapor.addColorStop(0.40, 'rgba(209, 230, 235, 0.22)');
       vapor.addColorStop(1, 'rgba(196, 222, 235, 0)');
       context.strokeStyle = vapor;
+      context.globalAlpha = strength;
+      context.lineWidth = .68;
       for (const side of [-1, 1]) {
-        const sway = Math.sin(time * 7 + side) * 0.55;
+        const startX = side * Math.max(.24, halfWidth * .56);
+        const sway = Math.sin(time * 6 + side) * .22;
         context.beginPath();
-        context.moveTo(side * 0.8, start);
-        context.bezierCurveTo(side * 2.2, start + length * 0.37, side * 8.2 + sway, start + length * 0.47, side * 7.5, start + length);
-        context.lineWidth = 3.2;
-        context.globalAlpha = strength * 0.25;
-        context.stroke();
-        context.lineWidth = 1.15;
-        context.globalAlpha = strength;
+        context.moveTo(startX, start);
+        context.quadraticCurveTo(startX * 1.25, start + length * .45, startX * 1.4 + sway, start + length);
         context.stroke();
       }
       context.restore();
@@ -4899,10 +5131,16 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       context.save();
       context.translate(plane.x, plane.z);
       context.rotate(plane.heading);
-      for (const side of [-1, 1]) {
+      const scale = aircraftRenderScale(plane.altitudeM);
+      context.scale(scale, scale);
+      const growth = plane.burnerGlow;
+      for (const [index, side] of [-1, 1].entries()) {
+        const health = plane.damage?.engines[index] ?? 1;
+        if (health < .08) continue;
+        context.globalAlpha = growth * (.44 + .56 * health);
         const x = side * bankSpan + bankHeight;
         const phase = time * 39 + side * 0.65;
-        const length = 12.6 + 1.1 * Math.sin(phase) + 0.65 * Math.sin(phase * 1.79);
+        const length = (.12 + growth * (12.4 + .72 * Math.sin(phase) + .43 * Math.sin(phase * 1.79))) * (.48 + .52 * health);
         const glow = context.createLinearGradient(x, z, x, z + length * 1.13);
         glow.addColorStop(0, 'rgba(255, 171, 100, 0.35)');
         glow.addColorStop(0.45, 'rgba(230, 121, 115, 0.24)');
@@ -4921,6 +5159,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         traceExhaust(context, x, z, radius * 1.10, length);
         context.fill();
 
+        if (growth < .24) continue;
         context.fillStyle = 'rgba(255, 231, 189, 0.78)';
         for (const position of [0.16, 0.38, 0.58]) {
           const center = z + length * position;
@@ -4932,6 +5171,35 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
           context.lineTo(x - width, center);
           context.fill();
         }
+      }
+      context.restore();
+    }
+
+    function drawEngineSmoke(context, plane, time) {
+      if (!plane.damage || plane.damage.power >= .91) return;
+      const model = JET_MODELS[plane.airframe];
+      const outlets = model.pods ? [-1, 1].flatMap(side => (side < 0 ? model.pods.toReversed() : model.pods)
+        .map(([span, z]) => [span * side, z + 4.15]))
+        : [-model.nozzle[3], model.nozzle[3]].map(x => [x, model.nozzle[0]]);
+      const scale = aircraftRenderScale(plane.altitudeM);
+      context.save();
+      context.translate(plane.x, plane.z);
+      context.rotate(plane.heading);
+      context.scale(scale, scale);
+      for (const [index, [x, z]] of outlets.entries()) {
+        const engines = plane.damage.engines;
+        const health = model.pods ? Math.min(engines[index * 2], engines[index * 2 + 1]) : engines[index];
+        if (health > .76) continue;
+        const fade = clamp((.8 - health) / .8, 0, 1);
+        const length = 9 + 16 * fade;
+        const smoke = context.createLinearGradient(0, z, 0, z + length);
+        smoke.addColorStop(0, 'rgba(69, 70, 67, .65)');
+        smoke.addColorStop(.43, 'rgba(52, 54, 50, .58)');
+        smoke.addColorStop(1, 'rgba(69, 70, 67, 0)');
+        context.fillStyle = smoke;
+        context.globalAlpha = fade;
+        traceExhaust(context, x + Math.sin(time * 3 + index) * .30, z, 1.2 + fade * 1.8, length);
+        context.fill();
       }
       context.restore();
     }
@@ -4981,9 +5249,6 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     }
 
     const WRECK_PARTS = [
-      { x: 0, z: 0, spreadX: 2, spreadZ: -7, angle: 0.24, fill: '#303539', seam: [[-0.8, -4], [0.5, -1.3], [0.7, 2.3]],
-        points: [[-1, -7], [1.5, -5.5], [1.1, -3], [2.8, -0.5], [2.4, 4], [0.2, 5.8],
-          [-0.8, 3.9], [-2.5, 5], [-2.2, 0], [-1.2, -2.8], [-1.9, -4.7]] },
       { x: -3, z: 1, spreadX: -11, spreadZ: 6, angle: -0.68, fill: '#434745', seam: [[0.5, -1.7], [-1.7, 0.6]],
         points: [[1.5, -3.4], [2.3, -0.9], [1.1, 0.3], [2.1, 2.6], [-3.2, 1.3], [-3.7, 0.4]] },
       { x: 3, z: 2, spreadX: 11, spreadZ: 12, angle: 1.2, fill: '#373b3d',
@@ -4996,14 +5261,16 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         points: [[-0.9, -1.1], [0.9, -0.5], [0.6, 1], [-0.6, 0.8]] }
     ];
 
-    function drawAircraftWreck(context, aircraft, time) {
+    function drawWreckDebris(context, aircraft, time) {
       const age = time - aircraft.destroyedAt;
       if (age < 0) return;
       const spread = 1 - (1 - clamp(age / 0.85, 0, 1)) ** 3;
-      const { x, z, heading } = aircraft.flight;
+      const { x, z, heading, altitudeM } = aircraft.flight;
       context.save();
       context.translate(x, z);
       context.rotate(heading);
+      const scale = aircraftRenderScale(altitudeM) * (aircraft.role === 'bomber' ? 2.2 : 1);
+      context.scale(scale, scale);
       context.strokeStyle = '#75766c';
       context.lineWidth = 0.45;
       for (const part of WRECK_PARTS) {
@@ -5088,6 +5355,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       const x = lerp(missile.previousX, missile.x, fraction);
       const z = lerp(missile.previousZ, missile.z, fraction);
       const powered = time < missile.poweredUntil;
+      const art = missileArt.getMissileArt(missile.type);
       if (missile.trail.length) {
         context.save();
         context.strokeStyle = 'rgba(236, 244, 240, .68)';
@@ -5098,17 +5366,33 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
           if (point.time > time) break;
           context.lineTo(point.x, point.z);
         }
-        if (powered) context.lineTo(x, z);
+        if (powered) {
+          const tail = (art?.length ?? 0) / 2;
+          context.lineTo(x - Math.sin(missile.heading) * tail, z + Math.cos(missile.heading) * tail);
+        }
         context.stroke();
         context.restore();
       }
+      if (!art) return;
       context.save();
       context.translate(x, z);
       context.rotate(missile.heading);
-      context.fillStyle = '#f5efe1';
-      context.fillRect(-0.32, -2.1, 0.64, 3.25);
-      context.fillStyle = missile.team === 0 ? '#f7d486' : '#ff8b69';
-      context.fillRect(-0.37, 1.15, 0.74, powered ? 1.55 : 0.85);
+      if (powered) {
+        const tail = art.length / 2;
+        const plume = context.createLinearGradient(0, tail, 0, tail + 1.15);
+        plume.addColorStop(0, '#fff6d1');
+        plume.addColorStop(.30, missile.team === 0 ? '#f7d486' : '#ff8b69');
+        plume.addColorStop(1, 'rgba(255, 145, 88, 0)');
+        context.fillStyle = plume;
+        context.beginPath();
+        const width = Math.max(.15, art.diameter * .60);
+        context.moveTo(-width, tail - .07);
+        context.lineTo(width, tail - .07);
+        context.quadraticCurveTo(width * .73, tail + .56, 0, tail + 1.15);
+        context.quadraticCurveTo(-width * .73, tail + .56, -width, tail - .07);
+        context.fill();
+      }
+      missileArt.paintMissileArt(context, art);
       context.restore();
     }
 
@@ -5174,6 +5458,33 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       context.stroke();
     }
 
+    function drawApproachGuides(context, viewWidth, viewHeight, camera, player, pixelSize) {
+      if (!isAlive(player) || player.flight.phase !== 'airborne') return;
+      const field = battleDisplay.airfields?.find(airport => airport.team === player.team);
+      if (!field) return;
+      const { lengthM, approachLengthM, approachHalfWidthM } = battleDisplay.runway;
+      const scale = battleDisplay.worldUnitsPerKilometer / 1000;
+      const threshold = lengthM * 0.5 * scale;
+      const entry = threshold + approachLengthM * scale;
+      if (Math.abs(field.x - camera.x) > viewWidth / 2 + entry || Math.abs(field.z - camera.z) > viewHeight / 2 + entry) return;
+      const width = approachHalfWidthM * scale;
+      context.save();
+      context.translate(field.x, field.z);
+      context.rotate(field.heading);
+      context.strokeStyle = 'rgba(189, 255, 209, .52)';
+      context.lineWidth = 1.4 * pixelSize;
+      context.setLineDash([18 * scale, 24 * scale]);
+      for (const direction of [-1, 1]) {
+        context.beginPath();
+        context.moveTo(-width, threshold * direction);
+        context.lineTo(-width, entry * direction);
+        context.lineTo(width, entry * direction);
+        context.lineTo(width, threshold * direction);
+        context.stroke();
+      }
+      context.restore();
+    }
+
     function drawBattle(context, width, height, viewWidth, viewHeight, camera, battle, fraction, renderTime) {
       const scaleX = width / viewWidth;
       const scaleY = height / viewHeight;
@@ -5182,6 +5493,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       context.setTransform(scaleX, 0, 0, scaleY, width / 2 - camera.x * scaleX, height / 2 - camera.z * scaleY);
       context.lineCap = 'round';
       context.lineJoin = 'round';
+      drawApproachGuides(context, viewWidth, viewHeight, camera, battle.player, 1 / scaleY);
       for (const boom of battle.sonicBooms) drawSonicBoom(context, boom, renderTime);
       for (const aircraft of battle.aircraft) {
         const plane = aircraft.display;
@@ -5189,37 +5501,74 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         drawWingWake(context, aircraft, renderTime);
         if (isAlive(aircraft)) {
           if (plane.airbrakeExtension > 0) drawAirbrakeWake(context, plane, renderTime);
-          if (plane.afterburner) drawAfterburner(context, plane, renderTime);
+          if (plane.burnerGlow > .002) drawAfterburner(context, plane, renderTime);
+          drawEngineSmoke(context, plane, renderTime);
         } else {
-          drawAircraftWreck(context, aircraft, renderTime);
+          drawWreckDebris(context, aircraft, renderTime);
         }
       }
       for (const missile of battle.missiles) drawMissile(context, missile, renderTime, fraction);
       for (const flare of battle.flares) drawFlare(context, flare, renderTime, fraction, scaleY);
       for (const cloud of battle.chaff) drawChaff(context, cloud, renderTime, scaleY);
+      if (battle.strike && battle.resultReason !== 'factory-hit') {
+        drawFactoryStrike(context, battleDisplay.mission.factory, battle.strike, renderTime);
+      }
       for (const explosion of battle.explosions) drawExplosion(context, explosion, renderTime);
       context.font = `600 ${Math.max(2.45, 11 / scaleY)}px "Segoe UI", "Microsoft YaHei", sans-serif`;
       context.textAlign = 'center';
+      const subject = viewedAircraft();
       for (const aircraft of battle.aircraft) {
         const plane = aircraft.display;
         if (Math.abs(plane.x - camera.x) > viewWidth / 2 + 20 || Math.abs(plane.z - camera.z) > viewHeight / 2 + 20) continue;
-        if (!isAlive(aircraft) || aircraft === battle.player) continue;
-        const label = aircraft.name ?? battleDisplay.aircraft[plane.airframe].name;
+        if (!isAlive(aircraft) || aircraft === subject) continue;
+        let label = aircraft.name ?? battleDisplay.aircraft[plane.airframe].name;
+        if (aircraft.role === 'bomber' && plane.damage?.power < .98) {
+          label += ` · ${plane.damage.engines.filter(health => health > .05).length}/${plane.damage.engines.length} 发`;
+        }
+        const labelZ = plane.z + (aircraft.role === 'bomber' ? 31 : 12.8) * aircraftRenderScale(plane.altitudeM);
         context.lineWidth = Math.max(0.50, 2 / scaleY);
         context.strokeStyle = '#192e32';
         context.fillStyle = aircraft.team === battle.player.team ? '#a6e3e6' : '#ffba90';
-        context.strokeText(label, plane.x, plane.z + 12.8);
-        context.fillText(label, plane.x, plane.z + 12.8);
+        context.strokeText(label, plane.x, labelZ);
+        context.fillText(label, plane.x, labelZ);
       }
-      if (battle.result || !isAlive(battle.player)) return;
-      const { rack, radar, display, weapon } = battle.player;
+      if (battle.result || !isAlive(subject)) return;
+      const { rack, radar, display, weapon } = subject;
       if (weapon === 'ir') drawLock(context, display, rack.target?.display, rack, scaleY);
       if (radar.target && isAlive(radar.target)) {
         const { x, z } = radar.target.display;
         context.strokeStyle = '#a4e4e5';
         context.lineWidth = Math.max(0.30, 1 / scaleY);
         context.strokeRect(x - 12, z - 12, 24, 24);
+      } else if (radar.twsTarget) {
+        const echo = radarEchoPosition(radar, radar.twsTarget, renderTime);
+        if (!echo) return;
+        const radius = radar.twsTarget.role === 'bomber' ? 30 : 13;
+        context.save();
+        context.strokeStyle = '#f1cf91';
+        context.lineWidth = Math.max(0.30, 1 / scaleY);
+        context.setLineDash([3, 2]);
+        context.strokeRect(echo.x - radius, echo.z - radius, radius * 2, radius * 2);
+        context.restore();
       }
+    }
+
+    function drawFactoryStrike(context, factory, strike, time) {
+      const progress = clamp((time - strike.droppedAt) / (strike.impactAt - strike.droppedAt), 0, 1);
+      const x = lerp(strike.x, factory.x, progress);
+      const z = lerp(strike.z, factory.z, progress);
+      const radius = lerp(22, 7, progress);
+      context.save();
+      context.strokeStyle = '#ffc28e';
+      context.lineWidth = 0.7;
+      context.beginPath();
+      context.arc(factory.x, factory.z, radius, 0, TAU);
+      context.stroke();
+      context.fillStyle = '#fff1c7';
+      context.beginPath();
+      context.arc(x, z, lerp(2.1, 0.9, progress), 0, TAU);
+      context.fill();
+      context.restore();
     }
 
     async function loadDoverTerrain() {
@@ -5296,11 +5645,18 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         gl.uniform4f(gl.getUniformLocation(program, 'uMapBounds'), minX, minZ, maxX - minX, maxZ - minZ);
         gl.uniform1f(gl.getUniformLocation(program, 'uUnitsPerMeter'), unitsPerMeter);
         gl.uniform1f(gl.getUniformLocation(program, 'uRayStart'), battleDisplay.flightAltitudeM * unitsPerMeter);
+        if (battleDisplay.runway) {
+          const { lengthM, widthM } = battleDisplay.runway;
+          const airfields = battleDisplay.airfields.flatMap(({ x, z, heading }) => [x, z, Math.sin(heading), -Math.cos(heading)]);
+          gl.uniform2f(gl.getUniformLocation(program, 'uRunwaySize'), lengthM, widthM);
+          gl.uniform4fv(gl.getUniformLocation(program, 'uAirfields[0]'), airfields);
+        }
         return {
           program,
           resolution: gl.getUniformLocation(program, 'uResolution'),
           view: gl.getUniformLocation(program, 'uView'),
-          time: gl.getUniformLocation(program, 'uTime')
+          time: gl.getUniformLocation(program, 'uTime'),
+          factory: gl.getUniformLocation(program, 'uFactory')
         };
       }
 
@@ -5310,13 +5666,14 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       const jetProgram = linkProgram(jetVertex, JET_FRAGMENT_SOURCE);
       gl.deleteShader(jetVertex);
       const jetPose = gl.getUniformLocation(jetProgram, 'uPose');
+      const jetModelScale = gl.getUniformLocation(jetProgram, 'uModelScale');
       const jetViewSpan = gl.getUniformLocation(jetProgram, 'uViewSpan');
       const jetAfterburner = gl.getUniformLocation(jetProgram, 'uAfterburner');
+      const jetWreckSpan = gl.getUniformLocation(jetProgram, 'uWreckSpan');
       const jetSpeedBrake = gl.getUniformLocation(jetProgram, 'uSpeedBrake');
       const jetWingSweep = gl.getUniformLocation(jetProgram, 'uWingSweep');
-      const jetMeshes = JET_MODELS.map(model => {
-        const { vertices, bodyVertexCount, wingVertexStart } = buildJetMesh(model);
-        const [hingeZ, hingeY] = model.speedBrake[0];
+      const jetStoreOffset = gl.getUniformLocation(jetProgram, 'uStoreOffset');
+      function uploadModel(vertices) {
         const vertexArray = gl.createVertexArray();
         gl.bindVertexArray(vertexArray);
         const buffer = gl.createBuffer();
@@ -5326,8 +5683,18 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
           gl.enableVertexAttribArray(location);
           gl.vertexAttribPointer(location, size, gl.FLOAT, false, 10 * 4, location * 3 * 4);
         }
-        return { vertexArray, count: vertices.length / 10, bodyVertexCount, wingVertexStart, hingeZ, hingeY };
+        return { vertexArray, count: vertices.length / 10 };
+      }
+      const jetMeshes = JET_MODELS.map(model => {
+        const { vertices, bodyVertexCount, wingVertexStart } = model.pods ? buildBomberMesh(model) : buildJetMesh(model);
+        const [hingeZ, hingeY] = model.speedBrake?.[0] ?? [0, 0];
+        return { ...uploadModel(vertices), bodyVertexCount, wingVertexStart, hingeZ, hingeY };
       });
+      const storeMeshes = new Map();
+      for (const type of Object.keys(battleDisplay.missiles)) {
+        const art = missileArt.getMissileArt(type);
+        if (art) storeMeshes.set(type, uploadModel(buildStoreMesh(art)));
+      }
       gl.bindBuffer(gl.ARRAY_BUFFER, null);
       gl.bindVertexArray(terrainVertexArray);
 
@@ -5416,28 +5783,36 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         resizeTerrain();
       }
 
-      function drawPass(pass, width, height, time, camera) {
+      function drawPass(pass, width, height, time, camera, factoryHit) {
         gl.useProgram(pass.program);
         gl.viewport(0, 0, width, height);
         gl.uniform2f(pass.resolution, width, height);
         gl.uniform4f(pass.view, camera.x, camera.z, viewWidth, viewHeight);
         gl.uniform1f(pass.time, time);
+        const { factory } = battleDisplay.mission;
+        if (factory) gl.uniform4f(pass.factory, factory.x, factory.z, 1, Number(factoryHit));
         gl.drawArrays(gl.TRIANGLES, 0, 3);
       }
 
-      function drawAircraft(width, height, camera, aircraft) {
+      function drawAircraft(width, height, camera, aircraft, time) {
         gl.viewport(0, 0, width, height);
         gl.clear(gl.DEPTH_BUFFER_BIT);
         gl.enable(gl.DEPTH_TEST);
         gl.useProgram(jetProgram);
         gl.uniform2f(jetViewSpan, viewWidth, viewHeight);
         for (const plane of aircraft) {
-          if (!isAlive(plane)) continue;
-          const { x, z, heading, bank, airframe, afterburner, airbrakeExtension, wingSweep } = plane.display;
+          const wreck = !isAlive(plane);
+          if (wreck && time < plane.destroyedAt) continue;
+          const { x, z, heading, bank, altitudeM, airframe, burnerGlow, airbrakeExtension, wingSweep } = plane.display;
+          const model = JET_MODELS[airframe];
           const { vertexArray, count, bodyVertexCount, wingVertexStart, hingeZ, hingeY } = jetMeshes[airframe];
           gl.bindVertexArray(vertexArray);
-          gl.uniform4f(jetPose, x - camera.x, z - camera.z, heading, bank);
-          gl.uniform1f(jetAfterburner, Number(afterburner));
+          const rest = wreck ? clamp((time - plane.destroyedAt) / .62, 0, 1) : 0;
+          gl.uniform4f(jetPose, x - camera.x, z - camera.z, heading + rest * .15, lerp(bank, -.12, rest));
+          gl.uniform1f(jetModelScale, aircraftRenderScale(altitudeM));
+          gl.uniform1f(jetAfterburner, wreck ? 0 : burnerGlow);
+          gl.uniform1f(jetWreckSpan, wreck ? model.wing.at(-1)[0] : 0);
+          gl.uniform3f(jetStoreOffset, 0, 0, 0);
           gl.uniform3f(jetSpeedBrake, 0, 0, 0);
           gl.uniform3f(jetWingSweep, 0, 0, 0);
           gl.drawArrays(gl.TRIANGLES, 0, airbrakeExtension > 0 ? bodyVertexCount : wingVertexStart);
@@ -5451,6 +5826,20 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
             gl.uniform3f(jetWingSweep, pivotX, pivotZ, (wingSweep - 20) * Math.PI / 180);
             gl.drawArrays(gl.TRIANGLES, wingVertexStart, count - wingVertexStart);
           }
+          if (!wreck && plane.stores) {
+            const { stations } = battleDisplay.aircraft[airframe];
+            gl.uniform3f(jetSpeedBrake, 0, 0, 0);
+            gl.uniform3f(jetWingSweep, 0, 0, 0);
+            gl.uniform1f(jetAfterburner, 0);
+            for (const [id, type] of Object.entries(plane.stores)) {
+              const store = storeMeshes.get(type);
+              const station = stations?.[id];
+              if (!store || !station) continue;
+              gl.uniform3fv(jetStoreOffset, station);
+              gl.bindVertexArray(store.vertexArray);
+              gl.drawArrays(gl.TRIANGLES, 0, store.count);
+            }
+          }
         }
         gl.disable(gl.DEPTH_TEST);
         gl.bindVertexArray(terrainVertexArray);
@@ -5462,13 +5851,13 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         camera.z = focus.z + (viewOffset?.y ?? 0) * viewHeight;
         const { width, height } = canvas;
         gl.bindFramebuffer(gl.FRAMEBUFFER, terrainBuffer);
-        drawPass(terrain, terrainWidth, terrainHeight, time, camera);
+        drawPass(terrain, terrainWidth, terrainHeight, time, camera, battle.resultReason === 'factory-hit');
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         gl.bindFramebuffer(gl.READ_FRAMEBUFFER, terrainBuffer);
         gl.blitFramebuffer(0, 0, terrainWidth, terrainHeight, 0, 0, width, height, gl.COLOR_BUFFER_BIT, gl.LINEAR);
         gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
 
-        drawAircraft(width, height, camera, battle.aircraft);
+        drawAircraft(width, height, camera, battle.aircraft, time);
         drawBattle(effects, width, height, viewWidth, viewHeight, camera, battle, fraction, time);
       }
 
@@ -5486,6 +5875,8 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     const minimapCanvas = document.getElementById('minimap-terrain');
     const minimapMarker = document.getElementById('minimap-marker');
     const minimapTraffic = document.getElementById('minimap-traffic');
+    const minimapAirfields = document.getElementById('minimap-airfields');
+    const minimapFactory = document.getElementById('minimap-factory');
     const minimapTargets = [];
     const minimapStatus = document.getElementById('minimap-status');
     const returnLobbyButton = document.getElementById('return-lobby');
@@ -5511,6 +5902,14 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     const loadFactorOutput = document.getElementById('load-factor');
     const bankOutput = document.getElementById('bank-angle');
     const wingSweepOutput = document.getElementById('wing-sweep-angle');
+    const fuelGauge = document.getElementById('fuel-gauge');
+    const fuelAmount = document.getElementById('fuel-amount');
+    const fuelTime = document.getElementById('fuel-time');
+    const fuelBar = document.getElementById('fuel-bar');
+    const damageStatus = document.getElementById('damage-status');
+    const airportStatus = document.getElementById('airport-status');
+    const factoryStatus = document.getElementById('factory-status');
+    const spectatorStatus = document.getElementById('spectator-status');
     const seekerOutput = document.getElementById('seeker-status');
     const weaponRacks = Array.from(document.querySelectorAll('.weapon-rack'), panel => ({
       panel,
@@ -5541,9 +5940,11 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     let viewPointerId = null;
     let viewReturnTime = 0;
     let terrainData;
+    let missileArt;
     let renderer;
     let followedMissile = null;
     let deathAcknowledged = false;
+    let spectatedId = null;
     let resultElapsed = 0;
     let request = 0;
     let lastFrame = null;
@@ -5594,9 +5995,9 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     function useOnlineSnapshot(snapshot) {
       const planes = battle.aircraft;
       if (!planes.length) {
-        for (const { id, team, flight } of snapshot.aircraft) {
+        for (const { id, team, slot, flight } of snapshot.aircraft) {
           planes[id] = {
-            id, team, flight: { ...flight }, previous: { ...flight }, display: { ...flight },
+            id, team, slot, flight: { ...flight }, previous: { ...flight }, display: { ...flight },
             flareRack: {}, chaffRack: {}, rack: {}, radarRack: {}, radar: {}, wingWake: [], boomArmed: true,
           };
         }
@@ -5614,13 +6015,17 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       battle.time = snapshot.time;
       battle.result = snapshot.result;
       battle.resultReason = snapshot.resultReason;
+      battle.strike = snapshot.strike;
       for (const state of snapshot.aircraft) {
         const plane = planes[state.id];
         Object.assign(plane.previous, plane.flight);
         Object.assign(plane.flight, state.flight);
         plane.name = state.name;
+        plane.role = state.role;
         plane.destroyedAt = state.destroyedAt;
         plane.weapon = state.weapon;
+        plane.stores = state.stores;
+        plane.damageReport = state.damageReport;
         plane.missileOutcome = state.missileOutcome;
         Object.assign(plane.flareRack, state.flareRack, { lastRedirect: state.flareRack.lastRedirect ?? -Infinity });
         Object.assign(plane.chaffRack, state.chaffRack);
@@ -5632,14 +6037,22 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         const radar = state.radar;
         Object.assign(plane.radar, radar, {
           target: toPlane(radar.target), selected: toPlane(radar.selected), pending: toPlane(radar.pending),
+          twsTarget: toPlane(radar.twsTarget),
           lostAt: radar.lostAt ?? -Infinity, echoes: new Map(radar.echoes.map(([id, echo]) => [planes[id], echo])),
         });
       }
 
       const currentMissiles = new Map(battle.missiles.map(missile => [missile.id, missile]));
-      battle.missiles = snapshot.missiles.map(state => Object.assign(currentMissiles.get(state.id) ?? {}, state, {
-        source: toPlane(state.source), target: toPlane(state.target),
-      }));
+      battle.missiles = snapshot.missiles.map(state => {
+        const previous = currentMissiles.get(state.id);
+        const firstPoint = state.trail[0];
+        // The first snapshot can arrive after the missile has already cleared the pylon.
+        const launchPoint = !previous && firstPoint?.time === state.bornAt && snapshot.time - state.bornAt < .075
+          ? firstPoint : null;
+        return Object.assign(previous ?? {}, state, {
+          source: toPlane(state.source), target: toPlane(state.target), launchPoint,
+        });
+      });
       if (followedMissile && !followedMissile.explosion) {
         const ended = snapshot.endedMissiles.find(missile => missile.id === followedMissile.id);
         if (ended) Object.assign(followedMissile, ended, { source: toPlane(ended.source) });
@@ -5647,7 +6060,6 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       battle.flares = snapshot.flares.map(flare => ({ ...flare, owner: toPlane(flare.owner), previous: { x: flare.x, z: flare.z } }));
       battle.chaff = snapshot.chaff.map(cloud => ({ ...cloud, owner: toPlane(cloud.owner) }));
       battle.explosions = snapshot.explosions;
-      aircraftName.value = battleDisplay.aircraft[battle.player.flight.airframe].name;
       if (snapshot.time > previousTime) {
         sampleWingWakes(battle);
         sampleSonicBooms(battle, previousTime);
@@ -5678,8 +6090,8 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       for (const [index, missile] of battle.missiles.entries()) {
         const base = current.missiles[index];
         const future = next?.missiles.find(item => item.id === base.id) ?? base;
-        missile.previousX = base.x;
-        missile.previousZ = base.z;
+        missile.previousX = (missile.launchPoint ?? base).x;
+        missile.previousZ = (missile.launchPoint ?? base).z;
         missile.x = future.x;
         missile.z = future.z;
       }
@@ -5701,9 +6113,26 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         if (type === 'configuration' && !battleDisplay) {
           battleDisplay = display;
           document.getElementById('minimap-name').textContent = display.map.name;
+          for (const field of display.airfields ?? []) {
+            const marker = document.createElement('span');
+            marker.className = 'minimap-airfield';
+            marker.title = field.name;
+            marker.dataset.team = field.team;
+            marker.style.setProperty('--map-heading', `${field.heading}rad`);
+            placeOnMinimap(marker, field.x, field.z);
+            minimapAirfields.append(marker);
+          }
           if (display.mission.mode === 'pve') {
             document.getElementById('friendly-label').textContent = '合作编队';
             document.getElementById('enemy-label').textContent = '剩余敌机';
+          }
+          if (display.mission.factory) {
+            const { name, x, z } = display.mission.factory;
+            minimapFactory.title = name;
+            minimapFactory.hidden = false;
+            placeOnMinimap(minimapFactory, x, z);
+            factoryStatus.hidden = false;
+            document.getElementById('friendly-label').textContent = '防御编队';
           }
           missionProgress.hidden = false;
           startGame();
@@ -5730,8 +6159,21 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     }
 
     function viewedAircraft() {
-      if (isAlive(battle.player) || awaitingWreckView()) return battle.player;
-      return battle.aircraft.find(aircraft => aircraft.team === battle.player.team && isAlive(aircraft)) ?? battle.player;
+      if (!isSpectating()) return battle.player;
+      const targets = spectatorTargets();
+      return targets.find(aircraft => aircraft.id === spectatedId) ?? targets[0] ?? battle.player;
+    }
+
+    function isSpectating() {
+      return deathAcknowledged && battle.player && !isAlive(battle.player);
+    }
+
+    function spectatorTargets() {
+      const friendly = battle.aircraft.filter(aircraft => aircraft.team === battle.player.team && isAlive(aircraft));
+      const players = friendly.filter(aircraft => aircraft.name);
+      if (players.length) return players;
+      if (friendly.length) return friendly;
+      return battleDisplay.mission.raid ? battle.aircraft.filter(aircraft => aircraft.role === 'bomber' && isAlive(aircraft)) : [];
     }
 
     function radarWarnings(battle, receiver) {
@@ -5801,14 +6243,29 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         context.fillStyle = '#629e86';
         context.fillRect(azimuth(radar.sweep), top, 2, innerHeight);
       }
-      for (const [target, echo] of radar.echoes) {
+      for (const target of radar.echoes.keys()) {
         const track = target === radar.target;
-        const { angle, range } = radarPosition(aircraft, track ? target.flight : echo);
+        const point = track ? target.flight : radarEchoPosition(radar, target, battle.time);
+        const { angle, range } = radarPosition(aircraft, point);
         if (!isAlive(target) || range > rangeKm || Math.abs(angle) > trackAngle) continue;
         const x = azimuth(angle);
         const y = distanceY(range);
-        context.fillStyle = target.team === aircraft.team ? '#8ed2d9' : '#b9edc4';
-        context.fillRect(x - 6, y - 2, 12, 4);
+        const friendly = target.team === aircraft.team;
+        const tws = radar.mode === 'tws' && !track && !friendly;
+        if (tws) {
+          context.strokeStyle = '#b9edc4';
+          context.lineWidth = 1.5;
+          context.beginPath();
+          context.moveTo(x - 5, y);
+          context.lineTo(x, y - 4);
+          context.lineTo(x + 5, y);
+          context.lineTo(x, y + 4);
+          context.closePath();
+          context.stroke();
+        } else {
+          context.fillStyle = friendly ? '#8ed2d9' : '#b9edc4';
+          context.fillRect(x - 6, y - 2, 12, 4);
+        }
         if (track || target === radar.selected) {
           context.strokeStyle = track ? '#b9edc4' : '#f1cf91';
           context.lineWidth = 2;
@@ -5874,13 +6331,15 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     function updateSensorDisplays(aircraft, warnings) {
       const { radar } = aircraft;
       const mode = radar.mode.toUpperCase();
-      const state = radar.target ? '跟踪' : radar.pending ? '锁定中' : battle.time - radar.lostAt < 0.8 ? '脱锁' : '搜索';
+      const state = radar.target ? '硬锁' : radar.pending ? '锁定中' : battle.time - radar.lostAt < 0.8 ? '脱锁'
+        : radar.mode === 'tws' ? '边扫边跟' : '搜索';
       radarStatus.value = `${mode} ${state}`;
-      const observation = radar.target?.flight ?? radar.echoes.get(radar.selected);
+      const observation = radar.target?.flight ?? radarEchoPosition(radar, radar.selected, battle.time);
       const distance = observation && radarPosition(aircraft, observation).range;
+      const tag = radar.target ? '硬锁' : radar.mode === 'tws' ? '已选 · Y 切换' : '目标';
       radarRange.textContent = observation && !battle.result
-        ? `目标 ${distance.toFixed(distance < 1 ? 2 : 1)} km`
-        : `${battleDisplay.aircraft[aircraft.flight.airframe].radarName} · km`;
+        ? `${tag} · ${distance.toFixed(distance < 1 ? 2 : 1)} km`
+        : `${battleDisplay.aircraft[aircraft.flight.airframe].radarName ?? '—'} · km`;
       drawRadarScope(radarScope, aircraft, battle.chaff);
       const danger = warnings.reduce((level, warning) => Math.max(level, warning.level), 0);
       rwrStatus.value = ['静默', '被搜索', '被锁定', '雷达弹告警'][danger];
@@ -5948,21 +6407,33 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     function updateLoadout(player, seeker, locked) {
       const weapons = { ir: player.rack, sarh: player.radarRack, arh: player.activeRack };
       const guidanceLabels = { ir: '红外', sarh: '半主动雷达', arh: '主动雷达' };
-      seekerOutput.value = `${guidanceLabels[player.weapon]} · ${seeker}`;
+      seekerOutput.value = player.weapon ? `${guidanceLabels[player.weapon]} · ${seeker}` : '无导弹挂载';
       seekerOutput.toggleAttribute('data-locked', locked);
       for (const { panel, kind, name, slots, ammo } of weaponRacks) {
         const rack = weapons[kind];
-        panel.hidden = !rack;
-        if (!rack) continue;
+        panel.hidden = !rack?.type;
+        if (!rack?.type) continue;
         const { capacity } = rack;
         if (name.textContent !== rack.type) name.textContent = rack.type;
+        const yieldIndex = battleDisplay.missiles[rack.type]?.blastPower;
+        if (yieldIndex) name.title = `游戏内爆炸当量 ${yieldIndex.toFixed(2)}`;
         ammo.value = String(rack.ammo).padStart(2, '0');
         panel.toggleAttribute('data-selected', kind === player.weapon);
         panel.toggleAttribute('data-empty', rack.ammo === 0);
-        if (slots.children.length !== capacity) {
+        if (slots.children.length !== capacity || slots.dataset.type !== rack.type) {
+          slots.dataset.type = rack.type;
+          const art = missileArt.getMissileArt(rack.type);
           slots.replaceChildren(...Array.from({ length: capacity }, () => {
-            const slot = document.createElement('span');
+            const slot = document.createElement('canvas');
             slot.className = 'weapon-slot';
+            slot.width = 48;
+            slot.height = 96;
+            if (art) {
+              const context = slot.getContext('2d');
+              context.translate(slot.width / 2, slot.height / 2);
+              context.scale(22, 22);
+              missileArt.paintMissileArt(context, art, '#d4eae1');
+            }
             return slot;
           }));
         }
@@ -5970,11 +6441,87 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       }
     }
 
+    function updateFuelAndAirport(player) {
+      const { flight } = player;
+      const airport = battleDisplay.airfields?.find(field => field.team === player.team);
+      if (!airport || flight.fuel === undefined) {
+        fuelGauge.hidden = true;
+        return;
+      }
+      const low = flight.fuel <= 0.25;
+      const critical = flight.fuel <= 0.1;
+      const ground = ['rollout', 'service', 'ready'].includes(flight.phase);
+      const seconds = Math.ceil(flight.fuelSeconds);
+      const fuelPercent = Math.round(flight.fuel * 100);
+      fuelAmount.value = `${fuelPercent}%`;
+      fuelTime.value = ground || !isAlive(player) ? '—' : `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+      fuelBar.value = flight.fuel;
+      fuelGauge.toggleAttribute('data-low', low);
+      fuelGauge.toggleAttribute('data-critical', critical);
+
+      if (isSpectating()) {
+        airportStatus.hidden = true;
+        return;
+      }
+      const limit = battleDisplay.runway.safeTouchdownKph;
+      let warning = false;
+      let status = '';
+      if (isAlive(player)) switch (flight.phase) {
+        case 'airborne': {
+          const dx = airport.x - flight.x;
+          const dz = airport.z - flight.z;
+          const distanceKm = Math.hypot(dx, dz) / battleDisplay.worldUnitsPerKilometer;
+          if (low || distanceKm < 8) {
+            const bearing = (Math.round(Math.atan2(dx, -dz) * 180 / Math.PI) + 360) % 360;
+            const prefix = flight.fuel === 0 ? '燃油耗尽 · 滑翔' : critical ? '燃油告急' : low ? '低燃油' : '';
+            const runwayHeading = Math.round(airport.heading * 180 / Math.PI);
+            const nearRunway = distanceKm < 4;
+            const fast = nearRunway && flight.speed > 500;
+            status = [prefix, `${airport.name} ${distanceKm.toFixed(1)} km / ${String(bearing).padStart(3, '0')}°`,
+              nearRunway ? `跑道 ${String(runwayHeading).padStart(3, '0')}°/${runwayHeading + 180}°` : '',
+              fast ? 'S / B 预减速' : ''].filter(Boolean).join(' · ');
+            warning = low || fast;
+          }
+          break;
+        }
+        case 'approach':
+          warning = flight.speed > limit;
+          status = warning ? `自动进近 · S 收油 / B 减速 · 接地 ≤ ${limit} km/h` : '自动进近 · 速度合适';
+          break;
+        case 'rollout':
+          status = '接地滑跑 · 自动制动';
+          break;
+        case 'service':
+          status = `补给燃油和弹药 · ${Math.ceil(flight.serviceRemaining)} 秒`;
+          break;
+        case 'ready':
+          status = '补给完成 · 按 W 起飞';
+          break;
+        case 'takeoff':
+          status = '起飞滑跑';
+          break;
+        case 'climb':
+          status = '已离地 · 恢复操控';
+          break;
+      }
+      if (airportStatus.value !== status) airportStatus.value = status;
+      airportStatus.hidden = !status;
+      airportStatus.toggleAttribute('data-danger', warning);
+    }
+
     function updateInstruments() {
-      const { player } = battle;
+      const player = viewedAircraft();
       const { flight, radar } = player;
-      const { topSpeedKph } = battleDisplay.aircraft[flight.airframe];
-      const radarWeapon = player.weapon !== 'ir';
+      const { name: modelName, topSpeedKph } = battleDisplay.aircraft[flight.airframe];
+      aircraftName.value = modelName;
+      const spectating = isSpectating();
+      spectatorStatus.hidden = !spectating;
+      if (spectating) {
+        const canSwitch = spectatorTargets().length > 1;
+        const pilotName = player.name ?? `${modelName} ${(player.slot ?? player.id) + 1}`;
+        spectatorStatus.value = `观战 ${pilotName} · ${canSwitch ? '左键切换 · ' : ''}按住 U 跟弹`;
+      }
+      const radarWeapon = player.weapon === 'arh' || player.weapon === 'sarh';
       const rack = player.weapon === 'arh' ? player.activeRack : radarWeapon ? player.radarRack : player.rack;
       const degrees = 180 / Math.PI;
       const heading = Math.round(flight.heading * degrees) % 360;
@@ -5982,6 +6529,14 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       headingOutput.value = `${String(heading).padStart(3, '0')}°`;
       updateCompass(flight.heading * degrees);
       speedOutput.value = String(Math.round(flight.speed));
+      const damage = flight.damage;
+      const damaged = isAlive(player) && damage && Math.min(damage.power, damage.control, damage.structure) < .99;
+      damageStatus.hidden = !damaged;
+      if (damaged) {
+        const percent = value => Math.round(value * 100) + '%';
+        const details = `动力 ${percent(damage.power)} · 操控 ${percent(damage.control)} · 结构 ${percent(damage.structure)}`;
+        damageStatus.value = details;
+      }
       drawSpeedDial(speedDial, flight.speed, topSpeedKph);
       loadFactorOutput.value = `${flight.loadFactor.toFixed(1)} G`;
       const pilotStrained = flight.pilotStrain > battleDisplay.pilotStrainThreshold;
@@ -5991,54 +6546,74 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       const fullThrottle = flight.throttle === 1;
       const airbrakeOpen = flight.airbrake || flight.airbrakeExtension > 0;
       throttleOutput.value = String(flight.throttle === 0 ? 0 : fullThrottle ? 100 : clamp(Math.round(flight.throttle * 100), 1, 99));
-      const throttleLabel = flight.afterburner ? '加力' : fullThrottle ? '再按 W' : '';
+      const throttleLabel = !isAlive(player) ? '' : flight.afterburner ? '加力'
+        : !spectating && fullThrottle && !['takeoff', 'ready'].includes(flight.phase) && flight.fuel > 0 ? '再按 W' : '';
       if (throttleMode.value !== throttleLabel) throttleMode.value = throttleLabel;
       throttleMode.hidden = !throttleLabel;
       throttleMode.toggleAttribute('data-afterburner', flight.afterburner);
-      airbrakeStatus.hidden = !airbrakeOpen;
+      airbrakeStatus.hidden = !isAlive(player) || !airbrakeOpen;
       throttleTrack.toggleAttribute('data-afterburner', flight.afterburner);
       throttleTrack.toggleAttribute('data-airbrake', airbrakeOpen);
       bankOutput.value = bank === 0 ? '0°' : `${bank < 0 ? '左' : '右'} ${Math.abs(bank)}°`;
       document.getElementById('wing-sweep-stat').hidden = flight.wingSweep === 0;
       wingSweepOutput.value = `${Math.round(flight.wingSweep)}°`;
-      const locked = isAlive(player) && (radarWeapon ? Boolean(radar.target) : rack.lock >= battleDisplay.missiles[rack.type].lockSeconds);
-      const sensors = viewedAircraft();
-      const radarDanger = updateSensorDisplays(sensors, radarWarnings(battle, sensors));
-      const seeker = locked ? '已锁定' : radarWeapon && radar.pending ? '锁定中' : rack.armed ? (rack.lock ? '锁定中' : '搜索') : '待机';
-      updateLoadout(player, seeker, locked);
+      const locked = isAlive(player) && Boolean(rack?.type)
+        && (radarWeapon ? Boolean(radar.target) : rack.lock >= battleDisplay.missiles[rack.type].lockSeconds);
+      const twsTarget = player.weapon === 'arh' ? radar.twsTarget : null;
+      const radarDanger = updateSensorDisplays(player, radarWarnings(battle, player));
+      const seeker = locked ? '已锁定' : twsTarget ? 'TWS 跟踪'
+        : radarWeapon && radar.pending ? '锁定中' : rack.armed ? (rack.lock ? '锁定中' : '搜索') : '待机';
+      updateLoadout(player, seeker, locked || Boolean(twsTarget));
       const { flareRack, chaffRack, missileOutcome: outcome } = player;
-      const flareCooling = flareRack.ammo > 0 && battle.time < flareRack.readyAt;
-      const chaffCooling = chaffRack.ammo > 0 && battle.time < chaffRack.readyAt;
-      flareOutput.value = `${flareRack.ammo} 枚${flareCooling ? ' · 冷却' : ''}`;
+      flareOutput.value = `${flareRack.ammo} 枚`;
       flareOutput.toggleAttribute('data-empty', flareRack.ammo === 0);
-      chaffOutput.value = `${chaffRack.ammo} 组${chaffCooling ? ' · 冷却' : ''}`;
+      chaffOutput.value = `${chaffRack.ammo} 组`;
       chaffOutput.toggleAttribute('data-empty', chaffRack.ammo === 0);
       const infraredIncoming = battle.missiles.some(missile =>
         missile.target === player && missile.lostAt === null && !missile.flare && battleDisplay.missiles[missile.type].guidance === 'ir');
       const lastLaunch = Math.max(player.rack.lastLaunch, player.radarRack.lastLaunch, player.activeRack?.lastLaunch ?? -Infinity);
       let feedback = '';
       if (awaitingWreckView()) {
-        feedback = '本机被击毁';
+        feedback = flight.crashReason === 'runway-overrun' ? '冲出跑道 · 本机损毁'
+          : flight.crashReason === 'fuel-exhausted' ? '燃油耗尽 · 本机坠毁'
+          : flight.crashReason === 'engine-failure' ? '发动机失效 · 本机坠毁' : '本机被击毁';
         if (wreckViewReady()) feedback += battle.result ? ' · 按任意键查看战果' : ' · 按任意键观战';
       } else if (!isAlive(player)) feedback = '本机出局 · 观战';
-      else if (radarDanger === 3) feedback = chaffRack.ammo > 0 && !chaffCooling ? '雷达弹告警 · C 干扰箔' : '雷达弹告警';
-      else if (infraredIncoming) feedback = flareRack.ammo > 0 && !flareCooling ? '红外弹来袭 · X 热诱弹' : '红外弹来袭';
+      else if (radarDanger === 3) feedback = !spectating && chaffRack.ammo > 0 ? '雷达弹告警 · C 干扰箔' : '雷达弹告警';
+      else if (infraredIncoming) feedback = !spectating && flareRack.ammo > 0 ? '红外弹来袭 · X 热诱弹' : '红外弹来袭';
+      else if (battle.time - (player.damageReport?.time ?? -Infinity) < 1.4) feedback = `近炸 · ${player.damageReport.part}受损`;
       else if (battle.time - flareRack.lastRedirect < 1.1) feedback = '导弹已被诱偏';
       else if (outcome && outcome.time >= lastLaunch && battle.time - outcome.time < 1.5) feedback = outcome.text;
       else if (battle.time - lastLaunch < 0.65) feedback = '导弹已发射';
-      else if (locked && rack.ammo) {
-        feedback = radarWeapon && radarPosition(player, radar.target.flight).range > battleDisplay.missiles[rack.type].launchRangeKm
-          ? '已锁定 · 距离过远' : '空格发射';
+      else if (!spectating && (locked || twsTarget) && rack.ammo) {
+        const target = radar.target ?? twsTarget;
+        const observation = radar.target?.flight ?? radarEchoPosition(radar, target, battle.time);
+        feedback = radarWeapon && observation && radarPosition(player, observation).range > battleDisplay.missiles[rack.type].launchRangeKm
+          ? '目标距离过远' : twsTarget ? '空格发射 AIM-54C · Y 切换目标' : '空格发射';
       } else if (radarWeapon && radar.pending) feedback = '锁定中';
-      else if (radarWeapon && radar.selected) feedback = 'T 锁定目标';
+      else if (!spectating && radarWeapon && radar.selected) feedback = 'T 锁定目标';
       else if (rack.armed) feedback = rack.target ? '锁定中' : '机头指向目标';
       else if (battle.flares.some(flare => flare.owner === player)) feedback = '热诱弹已释放';
       else if (battle.chaff.some(cloud => cloud.owner === player)) feedback = '干扰箔已释放';
       if (missileFeedback.textContent !== feedback) missileFeedback.textContent = feedback;
       missileFeedback.toggleAttribute('data-danger', infraredIncoming || radarDanger === 3);
       throttleTrack.style.setProperty('--throttle', flight.throttle);
+      updateFuelAndAirport(player);
 
       const live = battle.aircraft.filter(isAlive);
+      const { factory, raid } = battleDisplay.mission;
+      if (factory) {
+        const bombers = live.filter(aircraft => aircraft.role === 'bomber');
+        const nearest = Math.min(...bombers.map(({ flight }) => Math.hypot(flight.x - factory.x, flight.z - factory.z)))
+          / battleDisplay.worldUnitsPerKilometer;
+        const hit = battle.resultReason === 'factory-hit';
+        const damage = hit ? '工厂被炸毁' : battle.strike ? `炸弹已投下 · ${Math.max(1, Math.ceil(battle.strike.impactAt - battle.time))} 秒`
+          : bombers.length ? `距工厂最近 ${nearest.toFixed(1)} km` : '工厂安全';
+        const objective = `${factory.name} · B-52 ${bombers.length}/${raid.bombers} · ${damage}`;
+        if (factoryStatus.value !== objective) factoryStatus.value = objective;
+        factoryStatus.toggleAttribute('data-danger', Boolean(battle.strike) || nearest < 5);
+        minimapFactory.toggleAttribute('data-danger', Boolean(battle.strike) || nearest < 5);
+      }
       const uk = String(live.filter(aircraft => aircraft.team === 0).length);
       const france = String(live.length - Number(uk));
       if (ukRemaining.value !== uk) ukRemaining.value = uk;
@@ -6060,20 +6635,23 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     }
 
     function updateMinimap() {
-      const position = battle.player.flight;
+      const subject = viewedAircraft();
+      const position = subject.flight;
       const inBounds = placeOnMinimap(minimapMarker, position.x, position.z);
-      minimapMarker.hidden = !isAlive(battle.player);
+      minimapMarker.hidden = !isAlive(subject);
       minimapMarker.style.setProperty('--map-heading', `${position.heading}rad`);
       const status = inBounds ? '' : '地图外';
       if (minimapStatus.textContent !== status) minimapStatus.textContent = status;
-      const radar = viewedAircraft().radar;
+      for (const marker of minimapAirfields.children) marker.classList.toggle('friendly', Number(marker.dataset.team) === battle.player.team);
+      const { radar } = subject;
       let index = 0;
       for (const aircraft of battle.aircraft) {
-        if (aircraft === battle.player) continue;
+        if (aircraft === subject) continue;
         const marker = minimapTargets[index++];
         const friendly = aircraft.team === battle.player.team;
-        const position = friendly || aircraft === radar.target ? aircraft.flight : radar.echoes.get(aircraft);
+        const position = friendly || aircraft === radar.target ? aircraft.flight : radarEchoPosition(radar, aircraft, battle.time);
         marker.classList.toggle('friendly', friendly);
+        marker.toggleAttribute('data-bomber', aircraft.role === 'bomber');
         marker.hidden = !isAlive(aircraft) || !position;
         if (!marker.hidden) placeOnMinimap(marker, position.x, position.z);
       }
@@ -6122,9 +6700,13 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       updateInstruments();
       resumeButton.textContent = '返回大厅';
       const cooperative = battleDisplay.mission.mode === 'pve';
-      const title = cooperative ? (battle.result === 'won' ? '拦截任务完成' : '拦截任务失败')
+      const title = battleDisplay.mission.raid ? (battle.result === 'won' ? '工厂防御成功' : '工厂防御失败')
+        : cooperative ? (battle.result === 'won' ? '拦截任务完成' : '拦截任务失败')
         : { won: '英国侧获胜', lost: '法国侧获胜', draw: '本轮平局' }[battle.result];
       const details = {
+        'factory-hit': '炸弹命中肯特工厂。',
+        'bombers-stopped': '4 架 B-52 已全部拦截，肯特工厂安全。',
+        'factory-held': '防御时间结束，肯特工厂安全。',
         timeout: cooperative ? '任务时间已到，仍有敌机在场。' : '时间已到，按双方存活机数结算。',
         'out-of-ammo': '双方弹药用尽。',
         elimination: cooperative ? (battle.result === 'won' ? '已清除所有敌机。' : '合作编队已出局。') : '',
@@ -6138,12 +6720,14 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         followedMissile = null;
         return null;
       }
+      const subject = viewedAircraft();
+      if (followedMissile?.source !== subject) followedMissile = null;
       if (followedMissile?.explosion) {
         if (time - followedMissile.endedAt < MISSILE_IMPACT_VIEW_SECONDS) return followedMissile;
         if (keys.has('KeyU')) return null;
       }
       followedMissile = keys.has('KeyU') && !battle.result
-        ? battle.missiles.findLast(missile => missile.source === battle.player) ?? null
+        ? battle.missiles.findLast(missile => missile.source === subject) ?? null
         : null;
       return followedMissile;
     }
@@ -6154,11 +6738,22 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       for (const aircraft of battle.aircraft) {
         const next = online.next?.aircraft[aircraft.id].flight ?? aircraft.flight;
         interpolateFlight(aircraft.display, aircraft.flight, next, fraction);
+        const visual = aircraft.display;
+        visual.damage = aircraft.flight.damage;
+        const elapsed = clamp(time - (aircraft.lastBurnerSample ?? time), 0, .09);
+        aircraft.lastBurnerSample = time;
+        const delta = visual.afterburner ? elapsed / .46 : -elapsed / .19;
+        aircraft.burnerProgress = clamp((aircraft.burnerProgress ?? 0) + delta, 0, 1);
+        const growth = aircraft.burnerProgress;
+        visual.burnerGlow = growth * growth * (3 - 2 * growth);
       }
       const missile = missileForView(time);
       missileView.hidden = !missile;
       missileView.toggleAttribute('data-impact', Boolean(missile?.explosion));
-      if (missile) {
+      if (battle.resultReason === 'factory-hit' && !awaitingWreckView()) {
+        missileView.hidden = true;
+        renderer.draw(battleDisplay.mission.factory, null, battle, fraction, time);
+      } else if (missile) {
         const label = missile.explosion ? `${missile.type} · ${missile.endStatus}` : `${missile.type} 导弹视角`;
         if (missileViewLabel.textContent !== label) missileViewLabel.textContent = label;
         const focus = missile.explosion ?? {
@@ -6238,15 +6833,29 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
 
     async function startGame() {
       try {
-        terrainData = await loadDoverTerrain();
+        [terrainData, missileArt] = await Promise.all([
+          loadDoverTerrain(), import('./lobby/missile-art.js'),
+        ]);
         startRenderer();
       } catch (error) {
         console.error(error);
-        showMessage('无法读取多佛地形', '请使用支持 WebGL2 和内置解压功能的桌面浏览器。', false);
+        showMessage('无法加载战场资源', '请刷新页面，或确认本地服务器已启动。', false);
       }
     }
 
     canvas.addEventListener('contextmenu', event => event.preventDefault());
+    canvas.addEventListener('click', (event) => {
+      if (event.button !== 0 || !renderer || !isSpectating() || battle.result) return;
+      const candidates = spectatorTargets();
+      if (candidates.length < 2) return;
+      const index = candidates.indexOf(viewedAircraft());
+      spectatedId = candidates[(index + 1) % candidates.length].id;
+      followedMissile = null;
+      centerView();
+      drawInterpolatedFrame();
+      updateInstruments();
+    });
+
     canvas.addEventListener('pointerdown', (event) => {
       if (event.button !== 2 || !renderer || !battle.player || battle.result || awaitingWreckView() || viewPointerId !== null) return;
       event.preventDefault();
@@ -6285,6 +6894,10 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         event.preventDefault();
         if (!event.repeat && wreckViewReady()) {
           deathAcknowledged = true;
+          if (event.code === 'KeyU' && !battle.result) {
+            keys.add('KeyU');
+            document.querySelector('[data-key="KeyU"]').classList.add('active');
+          }
           centerView();
           drawInterpolatedFrame();
           if (battle.result) {
@@ -6299,9 +6912,6 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         event.preventDefault();
         if (!renderer || !battle.player || battle.result || (event.code !== 'KeyU' && !isAlive(battle.player))) return;
         if (event.repeat || keys.has(event.code) || !online.connected || online.frames.at(-1)?.state !== 'playing') return;
-        if (event.code === 'KeyU' && !event.repeat && !keys.has('KeyU') && !followedMissile?.explosion) {
-          followedMissile = battle.missiles.findLast(missile => missile.source === battle.player) ?? null;
-        }
         const action = ACTION_KEYS.has(event.code) && !(event.code === 'KeyW' && keys.has('KeyS'))
           ? event.code : null;
         keys.add(event.code);
