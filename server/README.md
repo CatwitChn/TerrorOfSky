@@ -1,5 +1,24 @@
 # Terror of Sky 命令行服务端
 
+## CentOS Stream 10 x86_64 部署
+
+先把游戏子域名解析到服务器公网地址，例如 `play.catwitchn.cn`。在云安全组或外部防火墙放行 TCP 80 和 443。服务器使用 Git 拉取同一版本的大厅和联机服务。
+
+```bash
+sudo dnf install -y git
+git clone https://github.com/CatwitChn/TerrorOfSky.git
+cd TerrorOfSky
+sudo bash tools/deploy-centos.sh --domain play.catwitchn.cn
+```
+
+脚本安装 Node.js 和锁定的 npm 依赖，下载并校验指定版本的 Caddy，然后注册 `tosky-game.service` 和 `tosky-proxy.service`。Node.js 监听 `127.0.0.1:3000`。Caddy 公布独立的静态目录，验证 `/ws` 的浏览器来源后再代理。游戏和代理各自以低权限运行。已有程序占用 TCP 80、443 或 Node.js 端口时，脚本会报出占用情况。
+
+如果服务器通过 firewalld 管理入站规则，先用 `sudo firewall-cmd --get-active-zones` 查看公网网卡的区域，再传入对应的 `--firewall-zone`。例如 `--firewall-zone public` 会放行该区域的 HTTP 和 HTTPS。也可以用 `--port 3100` 指定联机服务的本机端口。
+
+部署后打开 `https://play.catwitchn.cn/`。如果脚本提示证书仍在等待验证，检查 DNS、80 和 443 的外网连通性，以及 `sudo journalctl -u tosky-proxy -n 50`。通过浏览器从外网进入大厅并建房即可验证 WebSocket 链路。
+
+更新时再次运行相同的部署命令即可。默认拉取 `master`，可用 `--ref` 指定分支、标签或提交。切换版本会重启对局服务并结束当前房间。部署保留本地版本目录，启动检查失败时会尝试恢复上一版。
+
 ## Windows Server 部署
 
 Windows x64 发布包自带 Node.js 和 WebSocket 依赖。将 `terror-of-sky-server-0.6.0-windows-x64.zip` 上传到服务器，在 PowerShell 中解压并启动。Node.js 24 的官方 Windows x64 支持范围从 Windows Server 2016 起。 [Node.js 平台支持表](https://github.com/nodejs/node/blob/v24.x/BUILDING.md#platform-list)

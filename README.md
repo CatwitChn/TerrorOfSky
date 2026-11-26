@@ -2,7 +2,7 @@
 
 - `lobby/` 是游戏入口，负责建房、选边和准备。
 - `index.html` 是大厅加载的战场页面，负责输入、画面和仪表。
-- `server/` 是独立命令行服务端。Windows x64 发布包解压后用 `start-server.cmd` 启动。 [部署说明](server/README.md)
+- `server/` 是独立命令行服务端。仓库提供 CentOS Stream 10 部署脚本和 Windows x64 服务端打包。 [部署说明](server/README.md)
 
 ## 本地开发
 
