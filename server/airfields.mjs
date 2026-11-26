@@ -108,6 +108,7 @@ function serviceAircraft(aircraft, dt) {
     aircraft.damageReport = null;
     aircraft.flareRack.ammo = aircraft.flareRack.capacity;
     aircraft.chaffRack.ammo = aircraft.chaffRack.capacity;
+    if (aircraft.cannonRack) aircraft.cannonRack.ammo = aircraft.cannonRack.capacity;
     flight.phase = 'ready';
   }
 }

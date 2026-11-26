@@ -1,4 +1,4 @@
-export const PROTOCOL_VERSION = 7;
+export const PROTOCOL_VERSION = 9;
 
 export const MISSIONS = {
   'dover-pvp': {

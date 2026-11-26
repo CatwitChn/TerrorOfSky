@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import { startServer } from '../server/server.mjs';
+import { readLocalBuild } from './local-build.mjs';
 
 const { values } = parseArgs({
   options: { port: { type: 'string', default: '8081' } },
@@ -9,6 +10,7 @@ const port = Number(values.port);
 if (!/^\d+$/.test(values.port) || port < 1 || port > 65535) {
   throw new Error('Use --port with a port number from 1 to 65535.');
 }
+const build = await readLocalBuild();
 
 const routes = new Map([
   ['/index.html', ['index.html', 'text/html; charset=utf-8']],
@@ -27,6 +29,13 @@ async function servePage(request, response) {
     return;
   }
   const path = request.url.split('?')[0];
+  if (path === '/local-build') {
+    response.writeHead(200, {
+      'Content-Type': 'text/plain; charset=utf-8', 'Content-Length': build.length, 'Cache-Control': 'no-store',
+    });
+    response.end(request.method === 'HEAD' ? undefined : build);
+    return;
+  }
   if (path === '/' || path === '/lobby') {
     response.writeHead(302, { Location: '/lobby/' + request.url.slice(path.length) }).end();
     return;

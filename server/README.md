@@ -18,7 +18,7 @@ Set-Location .\terror-of-sky-server-0.6.0-windows-x64
 
 将 `lobby/` 和 `index.html` 一起发布到 `https://play.example.com`，大厅地址为 `https://play.example.com/lobby/`。在 `lobby/config.js` 中填写服务端的公网地址。
 
-0.6.0 服务端使用第 7 版协议。更新服务端时一并发布新版大厅和战场页面。
+当前服务端使用第 9 版协议。更新服务端时一并发布新版大厅和战场页面。
 
 ```js
 export const serverUrl = 'wss://game.example.com/ws';

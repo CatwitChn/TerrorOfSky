@@ -1,4 +1,4 @@
-import { advanceBattle, airframeIndex, applyFlightAction, initialBattle, isAlive, PILOT_ACTIONS, STEP, twsLaunchTarget } from './simulation.mjs';
+import { advanceBattle, airframeIndex, applyFlightAction, BATTLE_DISPLAY, initialBattle, isAlive, PILOT_ACTIONS, STEP, twsLaunchTarget } from './simulation.mjs';
 
 const LOAD_TIMEOUT_MS = 8000;
 const INPUT_TIMEOUT_MS = 700;
@@ -12,7 +12,8 @@ export function createMatch(players, now, mission) {
   const seats = new Map();
   for (const player of roster) {
     const aircraft = battle.aircraft.find(plane => plane.team === player.team && plane.slot === player.slot);
-    const controls = { aircraft, seat: aircraft.id, ready: false, throttle: 0, turn: 0, commands: new Set(), receivedAt: now };
+    const controls = { aircraft, seat: aircraft.id, ready: false, throttle: 0, turn: 0, fireCannon: false,
+      commands: new Set(), receivedAt: now };
     pilots.set(player.id, controls);
     seats.set(aircraft.id, controls);
   }
@@ -23,18 +24,20 @@ export function createMatch(players, now, mission) {
 }
 
 export function acceptInput(pilot, message, now) {
-  const { throttle, turn, action } = message;
+  const { throttle, turn, action, fireCannon = false } = message;
   if (![-1, 0, 1].includes(throttle) || ![-1, 0, 1].includes(turn)
-      || (action != null && !PILOT_ACTIONS.has(action))) return;
+      || typeof fireCannon !== 'boolean' || (action != null && !PILOT_ACTIONS.has(action))) return;
   pilot.receivedAt = now;
   pilot.throttle = throttle;
   pilot.turn = turn;
+  pilot.fireCannon = fireCannon;
   if (action) pilot.commands.add(action);
 }
 
 export function neutralizePilot(pilot) {
   pilot.throttle = 0;
   pilot.turn = 0;
+  pilot.fireCannon = false;
   pilot.commands.clear();
 }
 
@@ -83,29 +86,42 @@ function snapshotAircraft(aircraft, battle) {
       twsTarget: ref(twsLaunchTarget(battle, aircraft)),
       echoes: [...radar.echoes].map(([target, echo]) => [target.id, echo]),
     },
-    flareRack, chaffRack, missileOutcome,
+    flareRack, chaffRack, missileOutcome, cannonAmmo: aircraft.cannonRack?.ammo ?? null,
+  };
+}
+
+function snapshotMissileReadout(missile) {
+  const { boostUntil, poweredUntil, tws, activeRadar, lostAt, flare, speed, loadG, distance } = missile;
+  const { worldUnitsPerKilometer } = BATTLE_DISPLAY;
+  return {
+    boostUntil, poweredUntil, tws, activeRadar, lostAt, flare: Boolean(flare),
+    telemetry: { speedKph: speed * 3600 / worldUnitsPerKilometer, loadG, distanceKm: distance / worldUnitsPerKilometer },
   };
 }
 
 function snapshotMissile(missile) {
-  const { id, team, type, heading, x, z, bornAt, poweredUntil, trail, trackId, tws, activeRadar, lostAt, flare } = missile;
+  const { id, team, type, heading, x, z, bornAt, trail, trackId } = missile;
   return {
-    id, team, type, heading, x, z, bornAt, poweredUntil, trail, trackId, tws, activeRadar, lostAt, flare: Boolean(flare),
+    id, team, type, heading, x, z, bornAt, trail, trackId, ...snapshotMissileReadout(missile),
     source: ref(missile.source), target: ref(missile.target),
   };
 }
 
 export function encodeMatchFrame(id, match) {
-  const { time, result, resultReason, aircraft, missiles, flares, chaff, explosions, endedMissiles, raid } = match.battle;
+  const { time, result, resultReason, aircraft, missiles, cannonRounds, flares, chaff, explosions, endedMissiles, raid } = match.battle;
   const frame = {
     type: 'battle', id, state: match.state, time, result, resultReason,
     aircraft: aircraft.map(plane => snapshotAircraft(plane, match.battle)),
     ...(raid && { strike: raid.bomb }),
     missiles: missiles.map(snapshotMissile),
+    cannonTracers: cannonRounds.filter(round => round.tracer).map(({ originX, originZ, vx, vz, bornAt }) =>
+      [originX, originZ, vx, vz, bornAt]),
     flares: flares.map(({ x, z, vx, vz, bornAt, owner }) => ({ x, z, vx, vz, bornAt, owner: ref(owner) })),
     chaff: chaff.map(({ x, z, bornAt, owner }) => ({ x, z, bornAt, owner: ref(owner) })), explosions,
-    endedMissiles: endedMissiles.map(({ id, source, type, endedAt, endStatus, explosion }) =>
-      ({ id, source: ref(source), type, endedAt, endStatus, explosion })),
+    endedMissiles: endedMissiles.map(missile => {
+      const { id, source, type, endedAt, endStatus, explosion } = missile;
+      return { id, source: ref(source), type, endedAt, endStatus, explosion, ...snapshotMissileReadout(missile) };
+    }),
   };
   // Limit the precision of network snapshots to keep the per-frame payload small.
   return JSON.stringify(frame, (_, value) => Number.isFinite(value) ? Math.round(value * 1000) / 1000 : value);

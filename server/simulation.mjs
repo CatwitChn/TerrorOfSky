@@ -31,6 +31,7 @@ const AIRBRAKE_TRAVEL_SECONDS = 0.32;
 const AIRCRAFT = [
   {
     id: 'f15', name: 'F-15A', radarName: 'APG-63', launchWarning: true,
+    cannon: { muzzleSpeedMps: 850, roundsPerSecond: 54, capacity: 500, muzzle: { x: 1.6, y: 0.2, z: -4.4 } },
     flight: {
       massKg: 14406, limitIasKph: 1629, limitMach: 2.4, turnSeconds: 20.5, spoolSeconds: 0.12,
       noseResponse: [[300, 20], [450, 25], [600, 27], [730, 23], [900, 16.5], [1200, 12], [1950, 7.5]],
@@ -43,6 +44,7 @@ const AIRCRAFT = [
   },
   {
     id: 'su27', name: 'Su-27', radarName: 'N001', launchWarning: true,
+    cannon: { muzzleSpeedMps: 790, roundsPerSecond: 36, capacity: 240, muzzle: { x: 1.4, y: 0.2, z: -4.7 } },
     flight: {
       massKg: 18810, limitIasKph: 1540, limitMach: 2.35, turnSeconds: 23.5, spoolSeconds: 0.12,
       noseResponse: [[300, 25], [450, 30], [560, 29], [680, 21], [900, 14.5], [1200, 10.5], [1850, 7]],
@@ -55,6 +57,7 @@ const AIRCRAFT = [
   },
   {
     id: 'f14d', name: 'F-14D', radarName: 'APG-71', launchWarning: true,
+    cannon: { muzzleSpeedMps: 850, roundsPerSecond: 54, capacity: 620, muzzle: { x: -1.5, y: 0.2, z: -5 } },
     radarModes: ['src', 'pd', 'tws'],
     flight: {
       massKg: 21805, limitIasKph: 1555, limitMach: 2.4, turnSeconds: 24, spoolSeconds: 0.12,
@@ -104,11 +107,13 @@ const MISSILES = {
   },
   'R-27R': { ...MISSILE_DEFAULTS, guidance: 'sarh', mach: 3.5, g: 35, boostSeconds: 6, lifetime: 15, launchRangeKm: 12,
     fuse: 8.8, blastRadius: 21, blastPower: 1.48 },
-  // Live game AIM-54C speed cap, load limit, and powered duration. Handoff and range are match rules.
-  'AIM-54C': { ...MISSILE_DEFAULTS, guidance: 'arh', mach: 5.7, g: 25, boostSeconds: 27.8,
+  // Target speed and motor stages tuned for the fixed-altitude match.
+  'AIM-54C': { ...MISSILE_DEFAULTS, guidance: 'arh', mach: 4.2, g: 25,
+    boostSeconds: 5.5, sustainSeconds: 6.5, boostSpeedShare: 0.82,
     launchRangeKm: 21, lifetime: 35, handoffSeconds: 2.5, fuse: 10, blastRadius: 25, blastPower: 1.72 },
 };
 const MISSILE_SMOKE = { interval: 0.055, lifetime: 0.75 };
+const MISSILE_COAST_DECAY_PER_SECOND = 0.07;
 const EXPLOSION_SECONDS = 1.2;
 const MISSILE_AIM_PREVIEW_SECONDS = 0.8;
 const FLARE = { lifetime: 1.35 };
@@ -117,6 +122,9 @@ const RADAR = { rangeKm: 22, scanAngle: 0.88, trackAngle: 1.08, scanSeconds: 2.2
 // FLIGHT_SPEED_SCALE converts a speed in km/h to world units per second.
 const WORLD_UNITS_PER_KILOMETER = 3600 * FLIGHT_SPEED_SCALE;
 const WORLD_UNITS_PER_METER = WORLD_UNITS_PER_KILOMETER / 1000;
+const CANNON_RANGE = 800 * WORLD_UNITS_PER_METER;
+const CANNON_FADE_DISTANCE = 260 * WORLD_UNITS_PER_METER;
+const CANNON_DAMAGE = 0.08;
 const BOMBER = { airframe: AIRCRAFT.length, name: 'B-52', speedKph: 820, countermeasures: { flares: 192, chaff: 1126 } };
 const FACTORY_DROP_RADIUS = 150 * WORLD_UNITS_PER_METER;
 const BOMB_FALL_SECONDS = 4;
@@ -139,7 +147,7 @@ const AI_OPENINGS = [
   { angle: 0.25, throttle: 0.85, joinKm: 6 },
   { angle: 0.12, throttle: 0.72, joinKm: 5 }
 ];
-const BATTLE_KEYS = new Set(['Space', 'KeyQ', 'KeyT', 'KeyY', 'KeyG', 'KeyX', 'KeyC']);
+const BATTLE_KEYS = new Set(['Space', 'KeyF', 'KeyQ', 'KeyT', 'KeyY', 'KeyG', 'KeyX', 'KeyC']);
 const PILOT_ACTIONS = new Set(['KeyB', 'KeyW', 'KeyS', ...BATTLE_KEYS]);
 const DEFAULT_RADAR_MODES = ['src', 'pd'];
 
@@ -153,12 +161,15 @@ export const BATTLE_DISPLAY = {
   pilotStrainThreshold: PILOT_STRAIN_THRESHOLD,
   airbrakeReferenceKph: AIRBRAKE_REFERENCE_KPH,
   missileSmokeLifetime: MISSILE_SMOKE.lifetime,
+  cannonRange: CANNON_RANGE,
+  cannonFadeDistance: CANNON_FADE_DISTANCE,
   explosionSeconds: EXPLOSION_SECONDS,
   flareLifetime: FLARE.lifetime,
   chaffLifetime: CHAFF.lifetime,
   radar: { rangeKm: RADAR.rangeKm, scanAngle: RADAR.scanAngle, trackAngle: RADAR.trackAngle, scanSeconds: RADAR.scanSeconds },
-  aircraft: [...AIRCRAFT.map(({ id, name, flight, radarName, launchWarning }) => ({
+  aircraft: [...AIRCRAFT.map(({ id, name, flight, radarName, launchWarning, cannon }) => ({
     name, topSpeedKph: flight.topSpeedKph, radarName, launchWarning,
+    cannon: { muzzleSpeedMps: cannon.muzzleSpeedMps, roundsPerSecond: cannon.roundsPerSecond, capacity: cannon.capacity },
     stations: Object.fromEntries(AIRFRAME_LOADOUTS[id].stations.map(({ id, x, y, z }) => [id, [x, y, z]])),
   })), { name: BOMBER.name, topSpeedKph: BOMBER.speedKph, radarName: null, launchWarning: false, stations: {} }],
   missiles: Object.fromEntries(Object.entries(MISSILES).map(([type, { guidance, launchRangeKm, lockSeconds, blastPower }]) =>
@@ -298,10 +309,12 @@ function initialAircraft(id, team, slot, role, spawn, pilot, teamAirframe = team
   const rack = initialMissileRack(ir, installed);
   const radarRack = initialMissileRack(sarh, installed);
   const activeRack = arh ? initialMissileRack(arh, installed) : null;
+  const cannonCapacity = AIRCRAFT[model]?.cannon.capacity;
   const flight = initialFlight(model, spawn, bomber || role === 'escort' ? BOMBER.speedKph : START_SPEED);
   return {
     id, team, slot, role, name: pilot?.name ?? null, flight, previous: { ...flight },
     stores, originalStores: { ...stores }, runway: null, rack, radarRack, activeRack,
+    cannonRack: cannonCapacity ? { capacity: cannonCapacity, ammo: cannonCapacity, nextShotAt: 0 } : null,
     weapon: bomber ? null : rack.capacity ? 'ir' : radarRack.capacity ? 'sarh' : 'arh', destroyedAt: null,
     flareRack: { capacity: flares, ammo: flares, lastRedirect: -Infinity },
     chaffRack: { capacity: chaff, ammo: chaff }, missileOutcome: null,
@@ -337,7 +350,7 @@ function initialBattle(roster, mission = MISSIONS['dover-pvp']) {
     }
   }
   return {
-    mission, raid, aircraft, missiles: [], flares: [], chaff: [], explosions: [], time: 0, result: null, resultReason: null,
+    mission, raid, aircraft, missiles: [], cannonRounds: [], flares: [], chaff: [], explosions: [], time: 0, result: null, resultReason: null,
     nextMissileId: 1, endedMissiles: [],
   };
 }
@@ -539,6 +552,13 @@ function updateLock(battle, aircraft, dt) {
   rack.lock = target ? Math.min(profile.lockSeconds, rack.lock + dt) : 0;
 }
 
+function airframePoint(flight, point) {
+  // Match the renderer's local bank followed by heading rotation.
+  const across = point.x * Math.cos(flight.bank) + point.y * Math.sin(flight.bank);
+  const cos = Math.cos(flight.heading), sin = Math.sin(flight.heading);
+  return { x: flight.x + across * cos - point.z * sin, z: flight.z + across * sin + point.z * cos };
+}
+
 function launchMissile(battle, aircraft, rack = aircraft.rack) {
   const { flight, team, radar } = aircraft;
   const profile = MISSILES[rack.type];
@@ -550,12 +570,7 @@ function launchMissile(battle, aircraft, rack = aircraft.rack) {
   const airframe = AIRCRAFT[flight.airframe].id;
   const station = AIRFRAME_LOADOUTS[airframe].stations.find(({ id }) => aircraft.stores[id] === rack.type);
   if (!station) return false;
-  // Match the renderer's local bank followed by heading rotation.
-  const across = station.x * Math.cos(flight.bank) + station.y * Math.sin(flight.bank);
-  const headingCos = Math.cos(flight.heading);
-  const headingSin = Math.sin(flight.heading);
-  const x = flight.x + across * headingCos - station.z * headingSin;
-  const z = flight.z + across * headingSin + station.z * headingCos;
+  const { x, z } = airframePoint(flight, station);
   const topSpeed = profile.mach * MACH_ONE_KPH * FLIGHT_SPEED_SCALE;
   const speed = Math.min(topSpeed, flight.speed * FLIGHT_SPEED_SCALE + profile.launchSpeedBonus);
   const boostUntil = battle.time + profile.boostSeconds;
@@ -565,6 +580,7 @@ function launchMissile(battle, aircraft, rack = aircraft.rack) {
     id: battle.nextMissileId++, team, source: aircraft, target, trackId: radar.trackId, tws: Boolean(twsTarget),
     type: rack.type, heading: flight.heading,
     x, z, previousX: x, previousZ: z, bornAt: battle.time, speed,
+    loadG: 0, distance: 0,
     boostUntil, poweredUntil: boostUntil + sustainSeconds,
     boostAcceleration: boostSpeedGain / profile.boostSeconds,
     sustainAcceleration: sustainSeconds ? (topSpeed - speed - boostSpeedGain) / sustainSeconds : 0,
@@ -669,15 +685,59 @@ function heatDecoy(battle, missile, target, profile) {
   return candidate;
 }
 
-function findMissileImpact(battle, missile, fuse) {
+function findProjectileImpact(battle, projectile, fuse) {
   let first = null;
   for (const aircraft of battle.aircraft) {
-    if (aircraft.team === missile.team || !canBeTracked(aircraft)) continue;
-    if (Math.abs(missile.x - aircraft.flight.x) > 36 + fuse || Math.abs(missile.z - aircraft.flight.z) > 36 + fuse) continue;
-    const contact = missilePass(missile, aircraft.flight, aircraft.previous, fuse);
+    if (aircraft.team === projectile.team || !canBeTracked(aircraft)) continue;
+    if (Math.abs(projectile.x - aircraft.flight.x) > 36 + fuse || Math.abs(projectile.z - aircraft.flight.z) > 36 + fuse) continue;
+    const contact = missilePass(projectile, aircraft.flight, aircraft.previous, fuse);
     if (contact && (!first || contact.along < first.along)) first = { ...contact, aircraft };
   }
   return first;
+}
+
+function fireCannon(battle, aircraft, dt) {
+  const { cannonRack, flight, team } = aircraft;
+  if (!cannonRack?.ammo || battle.time + 1e-9 < cannonRack.nextShotAt) return;
+  const { muzzle, muzzleSpeedMps, roundsPerSecond } = AIRCRAFT[flight.airframe].cannon;
+  const { x, z } = airframePoint(flight, muzzle);
+  const speed = muzzleSpeedMps * WORLD_UNITS_PER_METER;
+  const shotAt = battle.time - cannonRack.nextShotAt < dt ? cannonRack.nextShotAt : battle.time;
+  cannonRack.nextShotAt = shotAt + 1 / roundsPerSecond;
+  battle.cannonRounds.push({
+    team, x, z, originX: x, originZ: z, previousX: x, previousZ: z,
+    vx: Math.sin(flight.heading) * speed, vz: -Math.cos(flight.heading) * speed,
+    heading: flight.heading, speed, distance: 0, bornAt: battle.time,
+    tracer: (cannonRack.capacity - cannonRack.ammo) % 3 === 0,
+  });
+  cannonRack.ammo--;
+}
+
+function stepCannonRounds(battle, dt) {
+  battle.cannonRounds = battle.cannonRounds.filter(round => {
+    const step = round.speed * dt;
+    const remaining = CANNON_RANGE - round.distance;
+    round.previousX = round.x;
+    round.previousZ = round.z;
+    round.x += round.vx * dt;
+    round.z += round.vz * dt;
+    round.distance += step;
+    const hit = remaining > 0 && findProjectileImpact(battle, round, 0);
+    if (hit && hit.along * step <= remaining) {
+      const { aircraft, along } = hit;
+      const { damage } = aircraft.flight;
+      damage.structure = Math.max(0, damage.structure - CANNON_DAMAGE);
+      aircraft.damageReport = { part: '机体', time: battle.time, cause: 'cannon' };
+      if (damage.structure === 0) {
+        aircraft.destroyedAt = battle.time;
+        battle.explosions.push({ x: lerp(round.previousX, round.x, along), z: lerp(round.previousZ, round.z, along),
+          time: battle.time, size: 9, direction: round.heading });
+      }
+      return false;
+    }
+    // Only tracer rounds remain visible after their hit range.
+    return round.distance < CANNON_RANGE + (round.tracer ? CANNON_FADE_DISTANCE : 0);
+  });
 }
 
 function detonateMissile(battle, index, status, contact) {
@@ -686,6 +746,7 @@ function detonateMissile(battle, index, status, contact) {
   const center = contact ? {
     x: lerp(missile.previousX, missile.x, contact.along), z: lerp(missile.previousZ, missile.z, contact.along)
   } : missile;
+  if (contact) missile.distance = Math.max(0, missile.distance - Math.hypot(missile.x - center.x, missile.z - center.z));
   let damageMessage = '';
   for (const aircraft of battle.aircraft) {
     if (aircraft.team === missile.team || !canBeTracked(aircraft)) continue;
@@ -767,7 +828,10 @@ function stepMissiles(battle, dt) {
     const stepStart = battle.time - dt;
     const boostTime = clamp(missile.boostUntil - stepStart, 0, dt);
     const sustainTime = Math.max(0, Math.min(battle.time, missile.poweredUntil) - Math.max(stepStart, missile.boostUntil));
+    const coastTime = clamp(battle.time - missile.poweredUntil, 0, dt);
     missile.speed += missile.boostAcceleration * boostTime + missile.sustainAcceleration * sustainTime;
+    if (coastTime > 0) missile.speed *= Math.exp(-MISSILE_COAST_DECAY_PER_SECOND * coastTime);
+    missile.loadG = 0;
     if (destination) {
       // Convert the lateral acceleration limit to the same world units as speed.
       const lateralAcceleration = profile.g * GRAVITY * WORLD_UNITS_PER_METER;
@@ -780,19 +844,23 @@ function stepMissiles(battle, dt) {
         z: destination.z + (destination.z - previousDestination.z) * previewFrames
       };
       const desired = angleDelta(missile.heading, bearing(missile, aim));
-      missile.heading += clamp(desired, -turnLimit, turnLimit);
+      const turn = clamp(desired, -turnLimit, turnLimit);
+      missile.heading += turn;
+      missile.loadG = profile.g * Math.abs(turn / turnLimit);
     }
     missile.previousX = missile.x;
     missile.previousZ = missile.z;
-    missile.x += Math.sin(missile.heading) * missile.speed * dt;
-    missile.z -= Math.cos(missile.heading) * missile.speed * dt;
+    const travel = missile.speed * dt;
+    missile.x += Math.sin(missile.heading) * travel;
+    missile.z -= Math.cos(missile.heading) * travel;
+    missile.distance += travel;
 
     if (missile.flare && destination && missileContact(missile, destination, previousDestination, 2.4)) {
       detonateMissile(battle, index, '导弹被诱偏');
       continue;
     }
     const fuse = battle.time - missile.bornAt >= .16 ? profile.fuse : 0;
-    const impact = findMissileImpact(battle, missile, fuse);
+    const impact = findProjectileImpact(battle, missile, fuse);
     if (impact) {
       detonateMissile(battle, index, '近炸', impact);
       continue;
@@ -979,6 +1047,13 @@ function stepWeapons(battle, aircraft, commands, dt) {
   }
 }
 
+function aiCanFireCannon(aircraft) {
+  const { target, defense } = aircraft.ai;
+  if (defense || !canBeTracked(target)) return false;
+  const { angle, range } = radarPosition(aircraft, target.flight);
+  return Math.abs(angle) < 0.055 && range <= CANNON_RANGE / WORLD_UNITS_PER_KILOMETER;
+}
+
 function applyFlightAction(flight, action) {
   if (flight.phase !== 'airborne' && flight.phase !== 'approach' && flight.phase !== 'climb') return;
   if (action === 'KeyW' && flight.throttle === 1 && flight.fuel > 0 && flight.damage.power > .01) flight.afterburner = true;
@@ -1084,11 +1159,16 @@ function advanceBattle(battle, getControls, dt) {
     if (canFight(aircraft)) stepRadar(battle, aircraft, getControls(aircraft)?.commands, dt);
   }
   stepMissiles(battle, dt);
+  stepCannonRounds(battle, dt);
   if (battle.raid) resolveFactoryDefense(battle);
   else resolveAirBattle(battle);
   if (battle.result) return;
   for (const aircraft of battle.aircraft) {
-    if (canFight(aircraft)) stepWeapons(battle, aircraft, getControls(aircraft)?.commands, dt);
+    if (!canFight(aircraft)) continue;
+    const controls = getControls(aircraft);
+    const firing = controls ? controls.fireCannon || controls.commands.has('KeyF') : aiCanFireCannon(aircraft);
+    if (firing) fireCannon(battle, aircraft, dt);
+    stepWeapons(battle, aircraft, controls?.commands, dt);
   }
 }
 
