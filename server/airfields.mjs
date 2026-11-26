@@ -1,4 +1,7 @@
 import { freshDamage } from './combat.mjs';
+import { stepFuel } from './flight-model.mjs';
+
+export { fuelRate, stepFuel } from './flight-model.mjs';
 
 export const AIRFIELDS = [
   { team: 0, name: '肯特机场', x: -2800, z: -1600, heading: 1.2 },
@@ -27,19 +30,6 @@ const clamp01 = value => Math.max(0, Math.min(1, value));
 const angleDelta = (from, to) => ((to - from + 1.5 * TAU) % TAU) - Math.PI;
 const normalizedHeading = heading => (heading + TAU) % TAU;
 const smooth = fraction => fraction * fraction * (3 - 2 * fraction);
-
-export function fuelRate(throttle, afterburner) {
-  if (afterburner) return 1 / 80;
-  if (throttle <= 0.55) return 1 / 800 + (1 / 240 - 1 / 800) * throttle / 0.55;
-  return 1 / 240 + (1 / 150 - 1 / 240) * (throttle - 0.55) / 0.45;
-}
-
-export function stepFuel(flight, dt) {
-  const rate = fuelRate(flight.throttle, flight.afterburner);
-  flight.fuel = Math.max(0, flight.fuel - rate * dt);
-  flight.fuelSeconds = flight.fuel / rate;
-  if (flight.fuel === 0) flight.afterburner = false;
-}
 
 export function captureApproach(aircraft, scale) {
   const { flight, team } = aircraft;

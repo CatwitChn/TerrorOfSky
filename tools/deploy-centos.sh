@@ -154,6 +154,9 @@ if [[ ! -d $release ]]; then
   install -d "$staged" "$staged/public"
   git -C "$work/source" archive "$commit" server lobby index.html | tar -x -C "$staged"
   mv -- "$staged/lobby" "$staged/index.html" "$staged/public/"
+  if [[ -f $staged/server/flight-model.mjs ]]; then
+    install -m 644 "$staged/server/flight-model.mjs" "$staged/public/lobby/flight-model.mjs"
+  fi
   [[ -z $(find "$staged/public" -type l -print -quit) ]] || fail 'The public web root contains a symbolic link.'
   npm ci --prefix "$staged/server" --omit=dev --ignore-scripts --no-audit --no-fund
   printf 'HOST=127.0.0.1\nPORT=%s\nLOBBY_ORIGINS=%s\n' "$port" "$origin" >"$staged/game.env"

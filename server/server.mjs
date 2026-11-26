@@ -81,7 +81,17 @@ const server = createServer((request, response) => {
   }
 });
 
-const sockets = new WebSocketServer({ noServer: true, maxPayload: 4096 });
+const sockets = new WebSocketServer({
+  noServer: true,
+  maxPayload: 4096,
+  perMessageDeflate: {
+    serverNoContextTakeover: true,
+    clientNoContextTakeover: true,
+    zlibDeflateOptions: { level: 3 },
+    concurrencyLimit: 4,
+    threshold: 1024,
+  },
+});
 
 server.on('upgrade', (request, connection, head) => {
   const { origin } = request.headers;
@@ -104,7 +114,9 @@ function send(socket, message) {
     socket.terminate();
     return;
   }
-  socket.send(typeof message === 'string' ? message : JSON.stringify(message));
+  // Only pre-encoded battle snapshots use compression. Session messages contain reconnect tokens.
+  const snapshot = typeof message === 'string';
+  socket.send(snapshot ? message : JSON.stringify(message), { compress: snapshot });
 }
 
 function teamSize(room, team) {

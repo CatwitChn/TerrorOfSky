@@ -13,7 +13,7 @@ export function createMatch(players, now, mission) {
   for (const player of roster) {
     const aircraft = battle.aircraft.find(plane => plane.team === player.team && plane.slot === player.slot);
     const controls = { aircraft, seat: aircraft.id, ready: false, throttle: 0, turn: 0, fireCannon: false,
-      commands: new Set(), receivedAt: now };
+      commands: new Set(), receivedAt: now, inputSequence: 0, appliedInput: [0, 0, 0] };
     pilots.set(player.id, controls);
     seats.set(aircraft.id, controls);
   }
@@ -24,10 +24,12 @@ export function createMatch(players, now, mission) {
 }
 
 export function acceptInput(pilot, message, now) {
-  const { throttle, turn, action, fireCannon = false } = message;
+  const { sequence, throttle, turn, action, fireCannon = false } = message;
   if (![-1, 0, 1].includes(throttle) || ![-1, 0, 1].includes(turn)
-      || typeof fireCannon !== 'boolean' || (action != null && !PILOT_ACTIONS.has(action))) return;
+      || typeof fireCannon !== 'boolean' || (action != null && !PILOT_ACTIONS.has(action))
+      || !Number.isSafeInteger(sequence) || sequence <= pilot.inputSequence) return;
   pilot.receivedAt = now;
+  pilot.inputSequence = sequence;
   pilot.throttle = throttle;
   pilot.turn = turn;
   pilot.fireCannon = fireCannon;
@@ -67,7 +69,12 @@ export function tickMatch(match, now) {
       for (const command of pilot.commands) applyFlightAction(pilot.aircraft.flight, command);
     }
     advanceBattle(match.battle, match.controlsFor, STEP);
-    for (const pilot of match.pilots.values()) pilot.commands.clear();
+    for (const pilot of match.pilots.values()) {
+      pilot.commands.clear();
+      pilot.appliedInput[0] = pilot.inputSequence;
+      pilot.appliedInput[1] = pilot.throttle;
+      pilot.appliedInput[2] = pilot.turn;
+    }
     match.accumulator -= STEP;
   }
   if (match.battle.result) match.state = 'finished';
@@ -75,10 +82,11 @@ export function tickMatch(match, now) {
 
 const ref = aircraft => aircraft?.id ?? null;
 
-function snapshotAircraft(aircraft, battle) {
+function snapshotAircraft(aircraft, battle, pilot) {
   const { id, team, slot, role, name, flight, destroyedAt, weapon, stores, rack, radarRack, activeRack, radar, flareRack, chaffRack, missileOutcome } = aircraft;
   return {
     id, team, slot, role, name, flight, destroyedAt, weapon, stores, damageReport: aircraft.damageReport,
+    ...(pilot && { input: pilot.appliedInput }),
     rack: { ...rack, target: ref(rack.target) }, radarRack: { ...radarRack, target: ref(radarRack.target) },
     activeRack,
     radar: {
@@ -111,7 +119,7 @@ export function encodeMatchFrame(id, match) {
   const { time, result, resultReason, aircraft, missiles, cannonRounds, flares, chaff, explosions, endedMissiles, raid } = match.battle;
   const frame = {
     type: 'battle', id, state: match.state, time, result, resultReason,
-    aircraft: aircraft.map(plane => snapshotAircraft(plane, match.battle)),
+    aircraft: aircraft.map(plane => snapshotAircraft(plane, match.battle, match.seats.get(plane.id))),
     ...(raid && { strike: raid.bomb }),
     missiles: missiles.map(snapshotMissile),
     cannonTracers: cannonRounds.filter(round => round.tracer).map(({ originX, originZ, vx, vz, bornAt }) =>
@@ -124,5 +132,5 @@ export function encodeMatchFrame(id, match) {
     }),
   };
   // Limit the precision of network snapshots to keep the per-frame payload small.
-  return JSON.stringify(frame, (_, value) => Number.isFinite(value) ? Math.round(value * 1000) / 1000 : value);
+  return JSON.stringify(frame, (_, value) => Number.isFinite(value) && !Number.isInteger(value) ? Math.round(value * 1000) / 1000 : value);
 }

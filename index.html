@@ -6129,9 +6129,14 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     let slowFrames = 0;
 
     const onlineMatchId = window.parent !== window ? new URLSearchParams(location.search).get('online') : null;
+    const SNAPSHOT_BUFFER = { minSeconds: 0.10, maxSeconds: 0.50, marginSeconds: 0.035, recoveryPerSecond: 0.02, frameLimit: 32 };
+    const MAX_PREDICTION_MS = 900;
+    const FLIGHT_ACTIONS = new Set(['KeyW', 'KeyS', 'KeyB']);
+    let flightModel;
     const online = {
       connected: false, frames: [], current: null, next: null, seat: null,
-      at: 0, time: 0, fraction: 0, inputAt: -Infinity,
+      at: 0, time: 0, fraction: 0, inputAt: -Infinity, bufferSeconds: SNAPSHOT_BUFFER.minSeconds,
+      inputSequence: 0, pendingInputs: [], oneWayMs: null, prediction: null, predictedFlight: null,
     };
 
     function postOnline(type, fields = {}) {
@@ -6143,7 +6148,78 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       const throttle = Number(keys.has('KeyW')) - Number(keys.has('KeyS'));
       const turn = Number(keys.has('KeyD')) - Number(keys.has('KeyA'));
       online.inputAt = performance.now();
-      postOnline('input', { throttle, turn, action, fireCannon: keys.has('KeyF') });
+      const sequence = ++online.inputSequence;
+      online.pendingInputs.push({ sequence, throttle, turn, at: online.inputAt, action: FLIGHT_ACTIONS.has(action) ? action : null });
+      if (online.pendingInputs.length > 120) online.pendingInputs.shift();
+      postOnline('input', { sequence, throttle, turn, action, fireCannon: keys.has('KeyF') });
+    }
+
+    function predictPlayerFlight(now) {
+      const anchor = online.prediction;
+      if (!anchor) return null;
+      const { STEP, stepFlight, applyFlightAction } = flightModel;
+      const flight = { ...anchor.flight };
+      const profile = battleDisplay.aircraft[flight.airframe].flight;
+      let { throttle, turn } = anchor;
+      let at = anchor.at;
+      const until = clamp(now, at, at + MAX_PREDICTION_MS);
+      // Preserve each input's duration while stepping with the same integrator as the server.
+      const advanceTo = next => {
+        let remaining = (next - at) / 1000;
+        while (remaining >= STEP) {
+          stepFlight(flight, profile, throttle, turn, STEP, true);
+          remaining -= STEP;
+        }
+        if (remaining > 1e-6) stepFlight(flight, profile, throttle, turn, remaining, true);
+        at = next;
+      };
+      for (const input of online.pendingInputs) {
+        if (input.at > until) break;
+        advanceTo(Math.max(at, input.at));
+        if (input.action) applyFlightAction(flight, input.action);
+        ({ throttle, turn } = input);
+      }
+      advanceTo(until);
+      return flight;
+    }
+
+    function updatePredictionAnchor(snapshot, plane, now) {
+      if (!plane.input) return;
+      const [acknowledged, throttle, turn] = plane.input;
+      const previous = online.prediction;
+      if (previous?.time === snapshot.time) return;
+      const before = predictPlayerFlight(now);
+      online.inputSequence = Math.max(online.inputSequence, acknowledged);
+      const confirmed = online.pendingInputs.find(input => input.sequence === acknowledged);
+      if (confirmed) {
+        // Confirmation includes both network directions and the wait for a snapshot.
+        const sample = clamp((now - confirmed.at) / 2, 0, 350);
+        online.oneWayMs = lerp(online.oneWayMs ?? sample, sample, 0.2);
+      }
+      online.pendingInputs = online.pendingInputs.filter(input => input.sequence > acknowledged && input.at >= now - 2500);
+      if (snapshot.state !== 'playing' || !isAlive(plane) || plane.flight.phase !== 'airborne'
+          || !battleDisplay.aircraft[plane.flight.airframe]?.flight) {
+        online.prediction = null;
+        return;
+      }
+      const anchor = online.prediction = {
+        time: snapshot.time, at: now - (online.oneWayMs ?? 0), flight: plane.flight, throttle, turn,
+        correction: { x: 0, z: 0, heading: 0, at: now },
+      };
+      if (!before) return;
+      const after = predictPlayerFlight(now);
+      // Carry the visible pose into the new prediction, then let the remaining error decay.
+      const decay = predictionCorrectionWeight(previous, now);
+      const x = before.x - after.x + previous.correction.x * decay;
+      const z = before.z - after.z + previous.correction.z * decay;
+      const heading = angleDelta(after.heading, before.heading) + previous.correction.heading * decay;
+      if (Math.hypot(x, z) < battleDisplay.worldUnitsPerKilometer * 0.25 && Math.abs(heading) < Math.PI / 3) {
+        anchor.correction = { x, z, heading, at: now };
+      }
+    }
+
+    function predictionCorrectionWeight(anchor, now) {
+      return Math.exp(-Math.max(0, now - anchor.correction.at) / 110);
     }
 
     function returnToLobby() {
@@ -6160,11 +6236,22 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       if (snapshot.id !== onlineMatchId || !snapshot.aircraft[seat]) return;
       online.seat = seat;
       const { frames } = online;
-      if (snapshot.time < (frames.at(-1)?.time ?? -1)) return;
-      if (frames.at(-1)?.time === snapshot.time) frames[frames.length - 1] = snapshot;
-      else frames.push(snapshot);
-      if (frames.length > 12) frames.shift();
-      online.at = performance.now();
+      const previous = frames.at(-1);
+      if (previous && snapshot.time < previous.time) return;
+      const receivedAt = performance.now();
+      updatePredictionAnchor(snapshot, snapshot.aircraft[seat], receivedAt);
+      if (previous?.time === snapshot.time) frames[frames.length - 1] = snapshot;
+      else {
+        if (online.at > 0 && previous?.state === 'playing' && snapshot.state === 'playing') {
+          const gap = (receivedAt - online.at) / 1000;
+          const { minSeconds, maxSeconds, marginSeconds, recoveryPerSecond } = SNAPSHOT_BUFFER;
+          const needed = clamp(gap + marginSeconds, minSeconds, maxSeconds);
+          online.bufferSeconds = Math.max(needed, online.bufferSeconds - gap * recoveryPerSecond);
+        }
+        frames.push(snapshot);
+        if (frames.length > SNAPSHOT_BUFFER.frameLimit) frames.shift();
+      }
+      online.at = receivedAt;
     }
 
     function useOnlineSnapshot(snapshot) {
@@ -6251,8 +6338,9 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       const { frames } = online;
       if (!frames.length) return false;
       const latest = frames.at(-1);
-      // Render about two snapshots behind the server to absorb network timing variation.
-      const desired = latest.time - 0.10 + clamp((now - online.at) / 1000, 0, 0.10);
+      // Leave enough time for the next snapshot to arrive before the playhead reaches the last one.
+      const { bufferSeconds } = online;
+      const desired = latest.time - bufferSeconds + clamp((now - online.at) / 1000, 0, bufferSeconds);
       const rate = clamp(1 + (desired - online.time) * 4, 0.6, 1.4);
       online.time = clamp(online.time + dt * rate, frames[0].time, latest.time);
       while (frames[1] && frames[1].time <= online.time) frames.shift();
@@ -6318,6 +6406,11 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         else if (type === 'connection') {
           online.connected = connected;
           if (!connected) {
+            online.at = 0;
+            online.bufferSeconds = SNAPSHOT_BUFFER.minSeconds;
+            online.pendingInputs.length = 0;
+            online.oneWayMs = null;
+            online.prediction = null;
             clearKeys();
             endMouseLook();
           }
@@ -6727,7 +6820,8 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
 
     function updateInstruments() {
       const player = viewedAircraft();
-      const { flight, radar } = player;
+      const { radar } = player;
+      const flight = (player === battle.player && online.predictedFlight) || player.flight;
       const { name: modelName, topSpeedKph } = battleDisplay.aircraft[flight.airframe];
       aircraftName.value = modelName;
       const spectating = isSpectating();
@@ -6985,12 +7079,24 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       positionMissileInstruments(missile.explosion?.direction ?? missile.heading);
     }
 
-    function drawInterpolatedFrame() {
+    function drawInterpolatedFrame(now = performance.now()) {
       const { fraction } = online;
       const time = online.time + resultElapsed;
+      const pilot = battle.player;
+      online.predictedFlight = online.connected && pilot && isAlive(pilot) && pilot.flight.phase === 'airborne'
+        ? predictPlayerFlight(now) : null;
+      if (online.predictedFlight) {
+        const flight = online.predictedFlight;
+        const weight = predictionCorrectionWeight(online.prediction, now);
+        const { x, z, heading } = online.prediction.correction;
+        flight.x += x * weight;
+        flight.z += z * weight;
+        flight.heading = (flight.heading + heading * weight + Math.PI * 2) % (Math.PI * 2);
+      }
       for (const aircraft of battle.aircraft) {
         const next = online.next?.aircraft[aircraft.id].flight ?? aircraft.flight;
-        interpolateFlight(aircraft.display, aircraft.flight, next, fraction);
+        if (aircraft === battle.player && online.predictedFlight) Object.assign(aircraft.display, online.predictedFlight);
+        else interpolateFlight(aircraft.display, aircraft.flight, next, fraction);
         const visual = aircraft.display;
         visual.damage = aircraft.flight.damage;
         if (!isAlive(aircraft)) {
@@ -7057,7 +7163,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       }
 
       if (battle.result) centerView();
-      drawInterpolatedFrame();
+      drawInterpolatedFrame(now);
       const latestExplosion = battle.explosions.at(-1);
       const time = online.time + resultElapsed;
       const explosionVisible = latestExplosion && time - latestExplosion.time < battleDisplay.explosionSeconds;
@@ -7090,8 +7196,8 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
 
     async function startGame() {
       try {
-        [terrainData, missileArt] = await Promise.all([
-          loadDoverTerrain(), import('./lobby/missile-art.js'),
+        [terrainData, missileArt, flightModel] = await Promise.all([
+          loadDoverTerrain(), import('./lobby/missile-art.js'), import('./lobby/flight-model.mjs'),
         ]);
         startRenderer();
       } catch (error) {

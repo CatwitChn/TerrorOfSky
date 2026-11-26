@@ -2,7 +2,7 @@ import * as settings from './config.js';
 import { getMissileArt, paintMissileArt } from './missile-art.js';
 
 const { serverUrl, battleUrl = '../index.html' } = settings;
-const PROTOCOL_VERSION = 9;
+const PROTOCOL_VERSION = 10;
 
 const find = id => document.getElementById(id);
 const entry = find('entry');
@@ -354,7 +354,7 @@ function notifyReady() {
 
 window.addEventListener('message', event => {
   if (!battleView || event.origin !== location.origin || event.source !== battleView.frame.contentWindow) return;
-  const { channel, id, type, throttle, turn, action, fireCannon } = event.data ?? {};
+  const { channel, id, type, sequence, throttle, turn, action, fireCannon } = event.data ?? {};
   if (channel !== 'tos-flight' || id !== battleView.id) return;
   if (type === 'configure') {
     sendBattleView({ type: 'configuration', display: battleView.display });
@@ -368,7 +368,7 @@ window.addEventListener('message', event => {
     enterBattle.focus();
   } else if (type === 'input' && online && socket.readyState === WebSocket.OPEN && socket.bufferedAmount < 64_000) {
     if (battleScreen.hidden && (action || throttle || turn || fireCannon)) return;
-    socket.send(JSON.stringify({ type: 'battle-input', id, throttle, turn, action, fireCannon }));
+    socket.send(JSON.stringify({ type: 'battle-input', id, sequence, throttle, turn, action, fireCannon }));
   }
 });
 

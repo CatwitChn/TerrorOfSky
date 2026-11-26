@@ -3,7 +3,7 @@
   "version": "0.6.0",
   "private": true,
   "type": "module",
-  "files": ["server.mjs", "match.mjs", "simulation.mjs", "missions.mjs", "airfields.mjs", "combat.mjs", "README.md"],
+  "files": ["server.mjs", "match.mjs", "simulation.mjs", "flight-model.mjs", "missions.mjs", "airfields.mjs", "combat.mjs", "README.md"],
   "bundleDependencies": ["ws"],
   "scripts": {
     "start": "node server.mjs"

@@ -37,9 +37,9 @@ Set-Location .\terror-of-sky-server-0.6.0-windows-x64
 
 ## 接入单独托管的大厅
 
-将 `lobby/` 和 `index.html` 一起发布到 `https://play.example.com`，大厅地址为 `https://play.example.com/lobby/`。在 `lobby/config.js` 中填写服务端的公网地址。
+将 `lobby/` 和 `index.html` 一起发布到 `https://play.example.com`，并将 `server/flight-model.mjs` 复制到发布目录中的 `lobby/flight-model.mjs`。大厅地址为 `https://play.example.com/lobby/`。在 `lobby/config.js` 中填写服务端的公网地址。
 
-当前服务端使用第 9 版协议。更新服务端时一并发布新版大厅和战场页面。
+当前服务端使用第 10 版协议。更新服务端时一并发布新版大厅和战场页面。
 
 ```js
 export const serverUrl = 'wss://game.example.com/ws';

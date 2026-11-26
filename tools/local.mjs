@@ -19,6 +19,7 @@ const routes = new Map([
   ['/lobby/config.js', ['lobby/config.js', 'text/javascript; charset=utf-8']],
   ['/lobby/lobby.js', ['lobby/lobby.js', 'text/javascript; charset=utf-8']],
   ['/lobby/missile-art.js', ['lobby/missile-art.js', 'text/javascript; charset=utf-8']],
+  ['/lobby/flight-model.mjs', ['server/flight-model.mjs', 'text/javascript; charset=utf-8']],
   ['/lobby/lobby.css', ['lobby/lobby.css', 'text/css; charset=utf-8']],
   ['/lobby/dover.webp', ['lobby/dover.webp', 'image/webp']],
 ]);

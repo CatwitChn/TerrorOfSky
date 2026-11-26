@@ -1,31 +1,16 @@
 import { AIRFRAME_LOADOUTS, defaultCountermeasures, defaultLoadout, MISSIONS } from './missions.mjs';
-import { AIRFIELDS, RUNWAY, captureApproach, stepFuel, stepRunway } from './airfields.mjs';
+import { AIRFIELDS, RUNWAY, captureApproach, stepRunway } from './airfields.mjs';
 import { blastDamage, freshDamage, missilePass } from './combat.mjs';
 
+import {
+  AIRBRAKE_REFERENCE_KPH, FLIGHT_ALTITUDE_M, FLIGHT_SPEED_SCALE, GRAVITY, MACH_ONE_KPH, PILOT_STRAIN_THRESHOLD,
+  STEP, TAS_PER_IAS, TURN_REFERENCE_KPH, angleDelta, applyFlightAction, clamp, engineThrustKn, lerp, levelDragKn,
+  sampleCurve, stepFlight as integrateFlight,
+} from './flight-model.mjs';
+
 const TAU = Math.PI * 2;
-const MAX_BANK = 55 * Math.PI / 180;
-const MAX_HEADING_LEAD = 20 * Math.PI / 180;
-const COURSE_RESPONSE_SECONDS = 0.16;
-const PILOT_COMFORT_G = 7;
-const PILOT_STRAIN_THRESHOLD = 0.5;
-const STEP = 1 / 120;
 const START_THROTTLE = 0.55;
 const START_SPEED = 695;
-const FLIGHT_ALTITUDE_M = 3000;
-const TEMPERATURE_RATIO = 1 - 0.0065 * FLIGHT_ALTITUDE_M / 288.15;
-// Standard-atmosphere density approximation for converting the airspeed limits.
-const TAS_PER_IAS = TEMPERATURE_RATIO ** -2.128;
-const AIR_DENSITY = 1.225 / TAS_PER_IAS ** 2;
-const GRAVITY = 9.80665;
-const MACH_ONE_KPH = 340.3 * 3.6 * Math.sqrt(TEMPERATURE_RATIO);
-const TURN_REFERENCE_KPH = 700 * TAS_PER_IAS;
-const MIN_LEVEL_SPEED_KPH = 300;
-const THRUST_MULTIPLIER = 2;
-const AFTERBURNER_SPOOL_MULTIPLIER = 0.3;
-const AIRBRAKE_REFERENCE_KPH = 700;
-const AIRBRAKE_REFERENCE_DRAG_KN = 155;
-const AIRBRAKE_MAX_DRAG_KN = 235;
-const AIRBRAKE_TRAVEL_SECONDS = 0.32;
 // War Thunder vehicle cards. Reference masses use 30% internal fuel.
 // Thrust and nose response [TAS km/h, degrees/second] are tuned for the planar game.
 const AIRCRAFT = [
@@ -85,7 +70,6 @@ for (const { flight: profile } of AIRCRAFT) {
   profile.turnDragAtReferenceKn = sampleCurve(profile.thrust, TURN_REFERENCE_KPH, 2) - levelDragKn(profile, TURN_REFERENCE_KPH);
 }
 
-const FLIGHT_SPEED_SCALE = 0.064;
 // War Thunder game data informs the speed caps, turning limits and motor durations.
 // Speed gain by stage, ranges, lifetimes and sensor rules are tuned for this 2D game.
 const MISSILE_DEFAULTS = {
@@ -168,7 +152,7 @@ export const BATTLE_DISPLAY = {
   chaffLifetime: CHAFF.lifetime,
   radar: { rangeKm: RADAR.rangeKm, scanAngle: RADAR.scanAngle, trackAngle: RADAR.trackAngle, scanSeconds: RADAR.scanSeconds },
   aircraft: [...AIRCRAFT.map(({ id, name, flight, radarName, launchWarning, cannon }) => ({
-    name, topSpeedKph: flight.topSpeedKph, radarName, launchWarning,
+    name, topSpeedKph: flight.topSpeedKph, flight, radarName, launchWarning,
     cannon: { muzzleSpeedMps: cannon.muzzleSpeedMps, roundsPerSecond: cannon.roundsPerSecond, capacity: cannon.capacity },
     stations: Object.fromEntries(AIRFRAME_LOADOUTS[id].stations.map(({ id, x, y, z }) => [id, [x, y, z]])),
   })), { name: BOMBER.name, topSpeedKph: BOMBER.speedKph, radarName: null, launchWarning: false, stations: {} }],
@@ -189,100 +173,11 @@ function initialFlight(airframe, spawn, speed = START_SPEED) {
 }
 
 function stepFlight(flight, throttleInput, turnInput, dt, burnFuel = false) {
-  const profile = AIRCRAFT[flight.airframe].flight;
-  flight.throttle = Math.max(0, Math.min(1, flight.throttle + throttleInput * 0.48 * dt));
-  if (flight.throttle < 1 || flight.damage.power <= .01) flight.afterburner = false;
-  if (burnFuel) stepFuel(flight, dt);
-  const brakeTravel = dt / AIRBRAKE_TRAVEL_SECONDS;
-  flight.airbrakeExtension = clamp(Number(flight.airbrake), flight.airbrakeExtension - brakeTravel, flight.airbrakeExtension + brakeTravel);
-  const spoolSeconds = flight.afterburner ? profile.spoolSeconds * AFTERBURNER_SPOOL_MULTIPLIER : profile.spoolSeconds;
-  flight.enginePower += (flight.throttle - flight.enginePower) * (1 - Math.exp(-dt / spoolSeconds));
-  const pilotAuthority = 1 - Math.max(0, flight.pilotStrain - PILOT_STRAIN_THRESHOLD);
-  const desiredBank = turnInput * pilotAuthority * flight.damage.control * MAX_BANK;
-  flight.bank += (desiredBank - flight.bank) * (1 - Math.exp(-dt / 0.14));
-
-  // The nose can move ahead of the course while lift bends the flight path.
-  const noseRate = sampleCurve(profile.noseResponse, flight.speed) * Math.PI / 180;
-  const desiredHeading = flight.heading + noseRate * (flight.bank / MAX_BANK) * dt;
-  const headingLead = clamp(angleDelta(flight.course, desiredHeading), -MAX_HEADING_LEAD, MAX_HEADING_LEAD);
-  flight.heading = (flight.course + headingLead + TAU) % TAU;
-  const speedMps = flight.speed / 3.6;
-  const maxLift = maxLiftAcceleration(profile, flight.speed)
-    * (0.50 + 0.25 * (flight.damage.leftWing + flight.damage.rightWing));
-  // A level turn reserves enough lift to balance gravity.
-  const availableAcceleration = Math.sqrt(Math.max(0, maxLift ** 2 - GRAVITY ** 2));
-  const requestedAcceleration = speedMps * headingLead / COURSE_RESPONSE_SECONDS;
-  flight.turnAcceleration = clamp(requestedAcceleration, -availableAcceleration, availableAcceleration);
-  flight.course = (flight.course + flight.turnAcceleration / speedMps * dt + TAU) % TAU;
-
-  flight.loadFactor = Math.hypot(1, flight.turnAcceleration / GRAVITY);
-  flight.liftUse = flight.loadFactor * GRAVITY / Math.max(maxLift, GRAVITY);
-  const strainRate = clamp((flight.loadFactor - PILOT_COMFORT_G) / 4, -0.28, 0.75);
-  flight.pilotStrain = clamp(flight.pilotStrain + strainRate * dt, 0, 1);
-
-  const acceleration = flightAcceleration(profile, flight);
-  flight.speed = clamp(flight.speed + acceleration * 3.6 * dt, MIN_LEVEL_SPEED_KPH, profile.topSpeedKph);
-  if (profile.wingSweep) {
-    const { byMach, rate } = profile.wingSweep;
-    const desiredSweep = sampleCurve(byMach, flight.speed / MACH_ONE_KPH);
-    flight.wingSweep += clamp(desiredSweep - flight.wingSweep, -rate * dt, rate * dt);
-  }
-  const distance = flight.speed * FLIGHT_SPEED_SCALE * dt;
-  flight.x += Math.sin(flight.course) * distance;
-  flight.z -= Math.cos(flight.course) * distance;
-}
-
-function flightAcceleration(profile, flight) {
-  const turnLoadRatio = flight.turnAcceleration / profile.turnAccelerationAtReference;
-  const turnDragKn = profile.turnDragAtReferenceKn * (turnLoadRatio * TURN_REFERENCE_KPH / flight.speed) ** 2;
-  const straightDragKn = levelDragKn(profile, flight.speed, flight.airbrakeExtension);
-  const thrustKn = flight.fuel > 0 ? engineThrustKn(profile, flight.speed, flight.enginePower, flight.afterburner) * flight.damage.power : 0;
-  return (thrustKn - (straightDragKn + turnDragKn)) * 1000 / profile.massKg;
-}
-
-function maxLiftAcceleration(profile, speedKph) {
-  const speedMps = speedKph / 3.6;
-  const liftArea = sampleCurve(profile.liftAreaByMach, speedKph / MACH_ONE_KPH);
-  return 0.5 * AIR_DENSITY * speedMps ** 2 * liftArea / profile.massKg;
-}
-
-function sampleCurve(points, value, column = 1) {
-  for (let i = 1; i < points.length; i++) {
-    const next = points[i];
-    if (value <= next[0]) {
-      const previous = points[i - 1];
-      const fraction = clamp((value - previous[0]) / (next[0] - previous[0]), 0, 1);
-      return lerp(previous[column], next[column], fraction);
-    }
-  }
-  return points[points.length - 1][column];
-}
-
-function engineThrustKn(profile, speedKph, power, afterburner) {
-  const maxDryThrust = sampleCurve(profile.thrust, speedKph, 1);
-  const dryThrust = maxDryThrust * sampleCurve(profile.dryThrottle, power);
-  // Apply the afterburner gain while the dry engine continues to spool.
-  const boostThrust = afterburner ? sampleCurve(profile.thrust, speedKph, 2) - maxDryThrust : 0;
-  return THRUST_MULTIPLIER * (dryThrust + boostThrust);
-}
-
-function levelDragKn(profile, speedKph, airbrakeExtension = 0) {
-  const relativeSpeed = speedKph / profile.topSpeedKph;
-  const transonic = Math.max(0, 1 - Math.abs(speedKph - MACH_ONE_KPH) / 220);
-  const brakeDragKn = Math.min(AIRBRAKE_REFERENCE_DRAG_KN * (speedKph / AIRBRAKE_REFERENCE_KPH) ** 2, AIRBRAKE_MAX_DRAG_KN);
-  return profile.dragAtTopKn * (relativeSpeed ** 2 + 0.16 * transonic ** 2) + brakeDragKn * airbrakeExtension;
-}
-
-function clamp(value, lower, upper) {
-  return Math.max(lower, Math.min(upper, value));
+  integrateFlight(flight, AIRCRAFT[flight.airframe].flight, throttleInput, turnInput, dt, burnFuel);
 }
 
 function bearing(from, to) {
   return Math.atan2(to.x - from.x, from.z - to.z);
-}
-
-function angleDelta(from, to) {
-  return Math.atan2(Math.sin(to - from), Math.cos(to - from));
 }
 
 function initialMissileRack(type, installed) {
@@ -1054,13 +949,6 @@ function aiCanFireCannon(aircraft) {
   return Math.abs(angle) < 0.055 && range <= CANNON_RANGE / WORLD_UNITS_PER_KILOMETER;
 }
 
-function applyFlightAction(flight, action) {
-  if (flight.phase !== 'airborne' && flight.phase !== 'approach' && flight.phase !== 'climb') return;
-  if (action === 'KeyW' && flight.throttle === 1 && flight.fuel > 0 && flight.damage.power > .01) flight.afterburner = true;
-  else if (action === 'KeyS') flight.afterburner = false;
-  else if (action === 'KeyB') flight.airbrake = !flight.airbrake;
-}
-
 function crashAircraft(battle, aircraft, reason) {
   const { flight } = aircraft;
   flight.altitudeM = 0;
@@ -1186,10 +1074,6 @@ function resolveAirBattle(battle) {
     battle.resultReason = 'timeout';
     return;
   }
-}
-
-function lerp(start, end, fraction) {
-  return start + (end - start) * fraction;
 }
 
 export { STEP, PILOT_ACTIONS, initialBattle, advanceBattle, applyFlightAction, isAlive };
