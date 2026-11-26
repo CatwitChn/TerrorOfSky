@@ -2,7 +2,7 @@
 
 ## CentOS Stream 10 x86_64 部署
 
-先把游戏子域名解析到服务器公网地址，例如 `play.catwitchn.cn`。在云安全组或外部防火墙放行 TCP 80 和 443。服务器使用 Git 拉取同一版本的大厅和联机服务。
+先把游戏子域名解析到服务器公网地址，例如 `play.catwitchn.cn`。在云安全组或外部防火墙放行 TCP 80 和游戏的 HTTPS 端口，默认 443。服务器使用 Git 拉取同一版本的大厅和联机服务。
 
 ```bash
 sudo dnf install -y git
@@ -11,11 +11,13 @@ cd TerrorOfSky
 sudo bash tools/deploy-centos.sh --domain play.catwitchn.cn
 ```
 
-脚本安装 Node.js 和锁定的 npm 依赖，下载并校验指定版本的 Caddy，然后注册 `tosky-game.service` 和 `tosky-proxy.service`。Node.js 监听 `127.0.0.1:3000`。Caddy 公布独立的静态目录，验证 `/ws` 的浏览器来源后再代理。游戏和代理各自以低权限运行。已有程序占用 TCP 80、443 或 Node.js 端口时，脚本会报出占用情况。
+脚本安装 Node.js 和锁定的 npm 依赖，下载并校验指定版本的 Caddy，然后注册 `tosky-game.service` 和 `tosky-proxy.service`。Node.js 监听 `127.0.0.1:3000`。Caddy 公布独立的静态目录，验证 `/ws` 的浏览器来源后再代理。游戏和代理各自以低权限运行。已有程序占用 TCP 80、配置的 HTTPS 端口或 Node.js 端口时，脚本会报出占用情况。
 
 如果服务器通过 firewalld 管理入站规则，先用 `sudo firewall-cmd --get-active-zones` 查看公网网卡的区域，再传入对应的 `--firewall-zone`。例如 `--firewall-zone public` 会放行该区域的 HTTP 和 HTTPS。也可以用 `--port 3100` 指定联机服务的本机端口。
 
-部署后打开 `https://play.catwitchn.cn/`。如果脚本提示证书仍在等待验证，检查 DNS、80 和 443 的外网连通性，以及 `sudo journalctl -u tosky-proxy -n 50`。通过浏览器从外网进入大厅并建房即可验证 WebSocket 链路。
+如果 443 已被占用，可以使用 `--https-port 8443`。放行公网 TCP 80 和 8443，然后访问 `https://play.catwitchn.cn:8443/`。证书签发和续期仍通过 TCP 80 验证。使用 `--firewall-zone` 时，脚本会为指定区域放行 TCP 80 和所选 HTTPS 端口。[ACME 验证端口](https://letsencrypt.org/docs/challenge-types/)
+
+使用默认端口时，部署后打开 `https://play.catwitchn.cn/`。如果脚本提示证书仍在等待验证，检查 DNS、80 和所选 HTTPS 端口的外网连通性，以及 `sudo journalctl -u tosky-proxy -n 50`。通过浏览器从外网进入大厅并建房即可验证 WebSocket 链路。
 
 更新时再次运行相同的部署命令即可。默认拉取 `master`，可用 `--ref` 指定分支、标签或提交。切换版本会重启对局服务并结束当前房间。部署保留本地版本目录，启动检查失败时会尝试恢复上一版。
 

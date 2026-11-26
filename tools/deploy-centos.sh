@@ -11,6 +11,7 @@ Usage: sudo bash tools/deploy-centos.sh --domain HOSTNAME [options]
   --ref REF              Git branch, tag, or commit (default: master)
   --repo URL             Git repository (default: CatwitChn/TerrorOfSky)
   --port PORT            Local Node.js port (default: 3000)
+  --https-port PORT      Public Caddy HTTPS port (default: 443)
   --firewall-zone ZONE   Open HTTP and HTTPS in this firewalld zone
   --help                 Show this help
 EOF
@@ -22,17 +23,19 @@ domain=
 ref=master
 repo=https://github.com/CatwitChn/TerrorOfSky.git
 port=3000
+https_port=443
 firewall_zone=
 while (($#)); do
   case $1 in
     --help|-h) usage; exit 0 ;;
-    --domain|--ref|--repo|--port|--firewall-zone)
+    --domain|--ref|--repo|--port|--https-port|--firewall-zone)
       [[ $# -ge 2 && -n $2 && $2 != -* ]] || fail "Missing value for $1"
       case $1 in
         --domain) domain=${2,,} ;;
         --ref) ref=$2 ;;
         --repo) repo=$2 ;;
         --port) port=$2 ;;
+        --https-port) https_port=$2 ;;
         --firewall-zone) firewall_zone=$2 ;;
       esac
       shift 2 ;;
@@ -45,6 +48,10 @@ done
 [[ $port =~ ^[0-9]{1,5}$ ]] || fail 'Invalid --port.'
 port=$((10#$port))
 ((port >= 1024 && port <= 65535)) || fail '--port must be between 1024 and 65535.'
+[[ $https_port =~ ^[0-9]{1,5}$ ]] || fail 'Invalid --https-port.'
+https_port=$((10#$https_port))
+((https_port >= 1 && https_port <= 65535 && https_port != 80 && https_port != port)) \
+  || fail '--https-port must be a valid TCP port different from 80 and the local Node.js port.'
 ((EUID == 0)) || fail 'Run this deployer with sudo or as root.'
 [[ $(uname -s) == Linux && $(uname -m) == x86_64 ]] || fail 'This deployer targets CentOS Stream 10 x86_64.'
 command -v dnf >/dev/null && command -v systemctl >/dev/null || fail 'DNF and systemd are required.'
@@ -53,6 +60,17 @@ if [[ -n $firewall_zone ]]; then
   firewall-cmd --state >/dev/null || fail 'Start firewalld before using --firewall-zone.'
   firewall-cmd --zone="$firewall_zone" --list-services >/dev/null || fail 'Unknown firewalld zone.'
 fi
+
+site=$domain
+tls_options=
+http_redirect=
+if ((https_port != 443)); then
+  site=$domain:$https_port
+  # ACME checks TLS-ALPN on 443. Use HTTP-01 on 80 when another service owns 443.
+  tls_options=$'    tls {\n        issuer acme {\n            disable_tlsalpn_challenge\n        }\n    }'
+  printf -v http_redirect '\nhttp://%s {\n    redir https://%s{uri} 308\n}' "$domain" "$site"
+fi
+origin=https://$site
 
 app=/opt/tosky
 current=$app/current
@@ -112,7 +130,7 @@ check_port() {
   done <<< "$listening"
 }
 check_port 80 "$proxy"
-check_port 443 "$proxy"
+check_port "$https_port" "$proxy"
 check_port "$port" "$game"
 
 # Use the fixed official release asset so installation does not depend on third-party RPM repositories.
@@ -128,7 +146,7 @@ fi
 git init --quiet "$work/source"
 git -C "$work/source" fetch --quiet --depth 1 -- "$repo" "$ref"
 commit=$(git -C "$work/source" rev-parse --verify 'FETCH_HEAD^{commit}')
-release_config=$(printf '%s\n' "$domain" "$port" "$caddy_version" | sha256sum)
+release_config=$(printf '%s\n' "$origin" "$port" "$caddy_version" | sha256sum)
 release=$app/releases/$commit-${release_config:0:12}
 
 if [[ ! -d $release ]]; then
@@ -138,17 +156,19 @@ if [[ ! -d $release ]]; then
   mv -- "$staged/lobby" "$staged/index.html" "$staged/public/"
   [[ -z $(find "$staged/public" -type l -print -quit) ]] || fail 'The public web root contains a symbolic link.'
   npm ci --prefix "$staged/server" --omit=dev --ignore-scripts --no-audit --no-fund
-  printf 'HOST=127.0.0.1\nPORT=%s\nLOBBY_ORIGINS=https://%s\n' "$port" "$domain" >"$staged/game.env"
+  printf 'HOST=127.0.0.1\nPORT=%s\nLOBBY_ORIGINS=%s\n' "$port" "$origin" >"$staged/game.env"
 
   cat >"$staged/Caddyfile" <<EOF
 {
     admin off
+    https_port $https_port
     servers {
         protocols h1 h2
     }
 }
 
-$domain {
+$site {
+$tls_options
     encode zstd gzip
     header {
         X-Content-Type-Options nosniff
@@ -157,7 +177,7 @@ $domain {
     }
 
     handle /ws {
-        @wrong_origin not header Origin https://$domain
+        @wrong_origin not header Origin $origin
         respond @wrong_origin 403
         reverse_proxy 127.0.0.1:$port
     }
@@ -168,6 +188,7 @@ $domain {
         file_server
     }
 }
+$http_redirect
 EOF
 
   XDG_DATA_HOME="$work/caddy-data" XDG_CONFIG_HOME="$work/caddy-config" \
@@ -237,20 +258,22 @@ systemctl enable "$game" "$proxy"
 switched=0
 
 if [[ -n $firewall_zone ]]; then
-  for service in http https; do
-    firewall-cmd --permanent --zone="$firewall_zone" --add-service="$service"
-    firewall-cmd --zone="$firewall_zone" --add-service="$service"
+  https_rule=--add-service=https
+  if ((https_port != 443)); then https_rule=--add-port=$https_port/tcp; fi
+  for rule in --add-service=http "$https_rule"; do
+    firewall-cmd --permanent --zone="$firewall_zone" "$rule"
+    firewall-cmd --zone="$firewall_zone" "$rule"
   done
 fi
 
 printf 'Installed commit %s\n' "$commit"
 for ((attempt=0; attempt<12; attempt++)); do
-  if curl --noproxy '*' --fail --silent --max-time 2 --resolve "$domain:443:127.0.0.1" \
-       "https://$domain/lobby/" >/dev/null; then
-    printf 'HTTPS lobby is ready at https://%s/\n' "$domain"
+  if curl --noproxy '*' --fail --silent --max-time 2 --resolve "$domain:$https_port:127.0.0.1" \
+       "$origin/lobby/" >/dev/null; then
+    printf 'HTTPS lobby is ready at %s/\n' "$origin"
     exit 0
   fi
   sleep 1
 done
-printf 'Services are running. HTTPS validation is pending for https://%s/.\n' "$domain" >&2
-printf 'Check DNS and inbound TCP 80/443, then run journalctl -u %s -n 50.\n' "$proxy" >&2
+printf 'Services are running. HTTPS validation is pending for %s/.\n' "$origin" >&2
+printf 'Check DNS and inbound TCP 80/%s, then run journalctl -u %s -n 50.\n' "$https_port" "$proxy" >&2
