@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 const runtimeFiles = [
   './local.mjs', './local-build.mjs',
   '../server/server.mjs', '../server/match.mjs', '../server/simulation.mjs', '../server/flight-model.mjs',
-  '../server/missions.mjs', '../server/airfields.mjs', '../server/combat.mjs',
+  '../server/missions.mjs', '../server/airfields.mjs', '../server/combat.mjs', '../server/package.json',
 ];
 
 export async function readLocalBuild() {

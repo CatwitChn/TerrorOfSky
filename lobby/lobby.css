@@ -34,6 +34,7 @@ p, h1, h2, h3, dl, dd { margin: 0; }
 
 .topbar-inner, .layout { width: min(1120px, calc(100% - 64px)); margin-inline: auto; }
 .topbar-inner { min-height: 72px; display: flex; align-items: center; gap: 34px; }
+.brand-group { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; }
 .brand { display: inline-flex; align-items: center; gap: 10px; white-space: nowrap; font-size: 14px; font-weight: 800; letter-spacing: .14em; }
 .brand-mark {
   width: 27px;
@@ -42,6 +43,7 @@ p, h1, h2, h3, dl, dd { margin: 0; }
   background: var(--brass);
   clip-path: polygon(50% 0%, 100% 82%, 68% 70%, 50% 100%, 32% 70%, 0% 82%);
 }
+.game-version { color: var(--muted); white-space: nowrap; font-size: 12px; font-variant-numeric: tabular-nums; }
 
 .connection { display: inline-flex; align-items: center; gap: 7px; margin-left: auto; color: var(--muted); white-space: nowrap; font-size: 12px; }
 .connection::before { width: 7px; height: 7px; border-radius: 50%; background: #8b989b; content: ""; }

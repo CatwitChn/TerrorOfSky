@@ -1,16 +1,33 @@
 import { readFile } from 'node:fs/promises';
+import { isIP } from 'node:net';
 import { parseArgs } from 'node:util';
-import { startServer } from '../server/server.mjs';
+import { parseBrowserOrigin, startServer } from '../server/server.mjs';
 import { readLocalBuild } from './local-build.mjs';
 
 const { values } = parseArgs({
-  options: { port: { type: 'string', default: '8081' } },
+  options: {
+    port: { type: 'string', default: '8081' },
+    host: { type: 'string', default: '127.0.0.1' },
+    origin: { type: 'string', multiple: true },
+  },
 });
 const port = Number(values.port);
 if (!/^\d+$/.test(values.port) || port < 1 || port > 65535) {
   throw new Error('Use --port with a port number from 1 to 65535.');
 }
-const build = await readLocalBuild();
+const host = values.host.trim();
+const addressFamily = isIP(host);
+if (!addressFamily) throw new Error('Specify an IP address with --host.');
+const urlHost = addressFamily === 6 ? `[${host}]` : host;
+const origins = new Set([parseBrowserOrigin(`http://${urlHost}:${port}`), ...(values.origin ?? []).map(parseBrowserOrigin)]);
+if (host === '127.0.0.1' || host === '::1') origins.add(parseBrowserOrigin(`http://localhost:${port}`));
+
+const [build, packageJson] = await Promise.all([readLocalBuild(), readFile(new URL('../server/package.json', import.meta.url), 'utf8')]);
+const { version } = JSON.parse(packageJson);
+const metadata = new Map([
+  ['/local-build', [build, 'text/plain; charset=utf-8']],
+  ['/lobby/version.json', [JSON.stringify({ version }), 'application/json; charset=utf-8']],
+]);
 
 const routes = new Map([
   ['/index.html', ['index.html', 'text/html; charset=utf-8']],
@@ -30,11 +47,13 @@ async function servePage(request, response) {
     return;
   }
   const path = request.url.split('?')[0];
-  if (path === '/local-build') {
+  const document = metadata.get(path);
+  if (document) {
+    const [body, type] = document;
     response.writeHead(200, {
-      'Content-Type': 'text/plain; charset=utf-8', 'Content-Length': build.length, 'Cache-Control': 'no-store',
+      'Content-Type': type, 'Content-Length': Buffer.byteLength(body), 'Cache-Control': 'no-store',
     });
-    response.end(request.method === 'HEAD' ? undefined : build);
+    response.end(request.method === 'HEAD' ? undefined : body);
     return;
   }
   if (path === '/' || path === '/lobby') {
@@ -59,8 +78,4 @@ async function servePage(request, response) {
   }
 }
 
-startServer({
-  host: '127.0.0.1',
-  port,
-  origins: new Set([`http://127.0.0.1:${port}`, `http://localhost:${port}`]),
-}, servePage);
+startServer({ host, port, origins }, servePage);

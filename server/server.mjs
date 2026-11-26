@@ -42,16 +42,18 @@ function readOptions() {
   if (!/^\d+$/.test(portText) || Number(portText) > 65535) throw new Error('Port must be an integer from 0 to 65535.');
   const sites = values.origin ?? process.env.LOBBY_ORIGINS?.split(',')
     ?? ['http://localhost:8080', 'http://127.0.0.1:8080'];
-  const origins = new Set(sites.map(site => {
-    const origin = site.trim();
-    const url = URL.canParse(origin) ? new URL(origin) : null;
-    if (!url || !['http:', 'https:'].includes(url.protocol) || url.username || url.password
-        || url.pathname !== '/' || url.search || url.hash) {
-      throw new Error(`Invalid browser origin: "${site}". Specify the scheme, host and optional port.`);
-    }
-    return url.origin;
-  }));
+  const origins = new Set(sites.map(parseBrowserOrigin));
   return { host, port: Number(portText), origins };
+}
+
+export function parseBrowserOrigin(site) {
+  const origin = site.trim();
+  const url = URL.canParse(origin) ? new URL(origin) : null;
+  if (!url || !['http:', 'https:'].includes(url.protocol) || url.username || url.password
+      || url.pathname !== '/' || url.search || url.hash) {
+    throw new Error(`Invalid browser origin: "${site}". Specify the scheme, host and optional port.`);
+  }
+  return url.origin;
 }
 
 let options;

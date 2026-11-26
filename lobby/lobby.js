@@ -30,6 +30,15 @@ const invitedCode = new URL(location.href).searchParams.get('room')?.toUpperCase
 if (/^[A-HJ-NP-Z2-9]{6}$/.test(invitedCode)) code.value = invitedCode;
 callsign.value = sessionStorage.getItem('tos-callsign') ?? '';
 
+fetch('./version.json', { cache: 'no-cache' }).then(async response => {
+  if (!response.ok) return;
+  const { version } = await response.json();
+  if (!/^\d+\.\d+\.\d+([-+][a-z0-9.-]+)*$/i.test(version)) return;
+  const label = find('game-version');
+  label.textContent = `v${version}`;
+  label.hidden = false;
+}).catch(error => console.warn('Could not read the game version:', error));
+
 let socket;
 let playerId;
 let room = null;
