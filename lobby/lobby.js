@@ -2,13 +2,17 @@ import * as settings from './config.js';
 import { getMissileArt, paintMissileArt } from './missile-art.js';
 
 const { serverUrl, battleUrl = '../index.html' } = settings;
-const PROTOCOL_VERSION = 10;
+const PROTOCOL_VERSION = 11;
 
 const find = id => document.getElementById(id);
 const entry = find('entry');
 const roomPanel = find('room');
 const connection = find('connection');
 const notice = find('notice');
+const presence = find('presence');
+const tutorial = find('tutorial');
+const tutorialTabs = tutorial.querySelectorAll('[aria-controls]');
+const startPractice = find('start-practice');
 const callsign = find('callsign');
 const code = find('room-code');
 const missionSelect = find('mission-select');
@@ -43,6 +47,7 @@ let socket;
 let playerId;
 let room = null;
 let online = false;
+let maintenance = false;
 let reconnectDelay = 750;
 let battleView = null;
 let missions = new Map();
@@ -205,7 +210,7 @@ function updateLoadoutControls(editingField = null) {
   applyLoadout.disabled = locked || !dirty || count < 1;
   cancelLoadout.disabled = locked || !dirty;
   ready.disabled = locked || dirty;
-  start.disabled = locked || dirty || !room.canStart;
+  start.disabled = locked || dirty || !room.canStart || maintenance;
   aircraft.disabled = locked;
 }
 
@@ -263,6 +268,8 @@ function render() {
   missionSelect.disabled = !online;
   find('create').disabled = !online || !missions.has(missionSelect.value);
   find('join').disabled = !online;
+  startPractice.disabled = !online || Boolean(room) || maintenance;
+  find('maintenance-notice').hidden = !maintenance;
   entry.hidden = Boolean(room);
   roomPanel.hidden = !room;
   if (!room) {
@@ -325,7 +332,7 @@ function sendBattleView(message) {
 }
 
 function showBattle(visible) {
-  if (!visible) sendBattleView({ type: 'suspend' });
+  sendBattleView({ type: visible ? 'resume' : 'suspend' });
   battleScreen.hidden = !visible;
   document.body.classList.toggle('battle-open', visible);
   for (const region of lobbyRegions) region.inert = visible;
@@ -374,7 +381,10 @@ window.addEventListener('message', event => {
     notifyReady();
   } else if (type === 'return') {
     showBattle(false);
-    enterBattle.focus();
+    if (room?.match?.display.practice) {
+      send('leave');
+      find('show-tutorial').focus();
+    } else enterBattle.focus();
   } else if (type === 'input' && online && socket.readyState === WebSocket.OPEN && socket.bufferedAmount < 64_000) {
     if (battleScreen.hidden && (action || throttle || turn || fireCannon)) return;
     socket.send(JSON.stringify({ type: 'battle-input', id, sequence, throttle, turn, action, fireCannon }));
@@ -383,6 +393,11 @@ window.addEventListener('message', event => {
 
 function setConnection(state, text) {
   online = state === 'online';
+  if (!online) {
+    presence.hidden = true;
+    presence.open = false;
+    maintenance = false;
+  }
   connection.dataset.state = state;
   connection.textContent = text;
   render();
@@ -393,7 +408,7 @@ function connect(endpoint) {
   let incompatible = false;
   socket = new WebSocket(endpoint);
   socket.addEventListener('open', () => {
-    socket.send(JSON.stringify({ type: 'hello', token: sessionStorage.getItem(tokenKey) }));
+    socket.send(JSON.stringify({ type: 'hello', token: sessionStorage.getItem(tokenKey), name: callsign.value.trim() }));
   });
   socket.addEventListener('message', ({ data }) => {
     if (incompatible) return;
@@ -423,6 +438,24 @@ function connect(endpoint) {
         reconnectDelay = 750;
         setConnection('online', '服务在线');
         break;
+      case 'presence': {
+        const { count, callsigns } = message;
+        find('online-count').textContent = `在线 ${count} 人`;
+        find('online-callsigns').replaceChildren(...callsigns.map(name => {
+          const item = document.createElement('li');
+          item.textContent = name;
+          return item;
+        }));
+        const unnamed = find('unnamed-pilots');
+        unnamed.textContent = `未设置呼号 ${count - callsigns.length} 人`;
+        unnamed.hidden = count === callsigns.length;
+        presence.hidden = false;
+        if (maintenance !== message.maintenance) {
+          maintenance = message.maintenance;
+          render();
+        }
+        break;
+      }
       case 'room':
         if (room?.code !== message.room?.code) find('share').hidden = true;
         room = message.room;
@@ -473,6 +506,26 @@ function enterRoom(type) {
 }
 
 callsign.addEventListener('input', () => callsign.setCustomValidity(''));
+callsign.addEventListener('change', () => {
+  const name = callsign.value.trim();
+  if ([...name].length > 16) return;
+  sessionStorage.setItem('tos-callsign', name);
+  send('callsign', { name });
+});
+find('show-tutorial').addEventListener('click', () => tutorial.showModal());
+for (const tab of tutorialTabs) {
+  tab.addEventListener('click', () => {
+    for (const other of tutorialTabs) {
+      const selected = other === tab;
+      other.setAttribute('aria-pressed', String(selected));
+      find(other.getAttribute('aria-controls')).hidden = !selected;
+    }
+  });
+}
+startPractice.addEventListener('click', () => {
+  tutorial.close();
+  send('practice', { name: callsign.value.trim() });
+});
 missionSelect.addEventListener('change', render);
 find('create').addEventListener('click', () => enterRoom('create'));
 find('join-form').addEventListener('submit', event => {

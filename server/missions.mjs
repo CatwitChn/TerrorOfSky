@@ -1,4 +1,4 @@
-export const PROTOCOL_VERSION = 10;
+export const PROTOCOL_VERSION = 11;
 
 export const MISSIONS = {
   'dover-pvp': {
@@ -36,14 +36,14 @@ export const AIRFRAME_LOADOUTS = {
     ],
   },
   su27: {
-    name: 'Su-27', ir: 'R-73', sarh: 'R-27R', countermeasureCapacity: 96,
+    name: 'Su-27', ir: 'R-73', sarh: 'R-27ER', countermeasureCapacity: 96,
     stations: [
       ...stationPair('tip', '翼尖架', 7.35, -.13, 4.25, 'R-73'),
       ...stationPair('outer', '外翼架', 4.8, -.25, 2.65, 'R-73'),
-      ...stationPair('wing', '内翼架', 2.95, -.39, 1.85, 'R-27R', 'R-73'),
-      ...stationPair('body', '机腹架', 1.15, -1.39, 3.85, 'R-27R'),
-      { id: 'center-front', label: '中线前挂架', x: 0, y: -1.12, z: -.65, weapons: ['R-27R'] },
-      { id: 'center-rear', label: '中线后挂架', x: 0, y: -1.42, z: 5.65, weapons: ['R-27R'] },
+      ...stationPair('wing', '内翼架', 2.95, -.39, 1.85, 'R-27ER', 'R-73'),
+      ...stationPair('body', '机腹架', 1.15, -1.39, 3.85, 'R-27ER'),
+      { id: 'center-front', label: '中线前挂架', x: 0, y: -1.12, z: -.65, weapons: ['R-27ER'] },
+      { id: 'center-rear', label: '中线后挂架', x: 0, y: -1.42, z: 5.65, weapons: ['R-27ER'] },
     ],
   },
   f14d: {

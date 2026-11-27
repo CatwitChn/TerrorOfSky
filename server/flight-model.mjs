@@ -15,6 +15,9 @@ export const GRAVITY = 9.80665;
 export const MACH_ONE_KPH = 340.3 * 3.6 * Math.sqrt(TEMPERATURE_RATIO);
 export const TURN_REFERENCE_KPH = 700 * TAS_PER_IAS;
 const MIN_LEVEL_SPEED_KPH = 300;
+const FUEL_STALL_SPEED_KPH = 100;
+// Minimum speed loss in the game's fixed-altitude glide.
+export const FUEL_OUT_DECEL_KPH_PER_SECOND = 12;
 const THRUST_MULTIPLIER = 2;
 const AFTERBURNER_SPOOL_MULTIPLIER = 0.3;
 export const AIRBRAKE_REFERENCE_KPH = 700;
@@ -27,10 +30,12 @@ export function stepFlight(flight, profile, throttleInput, turnInput, dt, burnFu
   flight.throttle = Math.max(0, Math.min(1, flight.throttle + throttleInput * 0.48 * dt));
   if (flight.throttle < 1 || flight.damage.power <= .01) flight.afterburner = false;
   if (burnFuel) stepFuel(flight, dt);
+  const hasFuel = flight.fuel > 0;
   const brakeTravel = dt / AIRBRAKE_TRAVEL_SECONDS;
   flight.airbrakeExtension = clamp(Number(flight.airbrake), flight.airbrakeExtension - brakeTravel, flight.airbrakeExtension + brakeTravel);
   const spoolSeconds = flight.afterburner ? profile.spoolSeconds * AFTERBURNER_SPOOL_MULTIPLIER : profile.spoolSeconds;
-  flight.enginePower += (flight.throttle - flight.enginePower) * (1 - Math.exp(-dt / spoolSeconds));
+  const engineTarget = hasFuel ? flight.throttle : 0;
+  flight.enginePower += (engineTarget - flight.enginePower) * (1 - Math.exp(-dt / spoolSeconds));
   const pilotAuthority = 1 - Math.max(0, flight.pilotStrain - PILOT_STRAIN_THRESHOLD);
   const desiredBank = turnInput * pilotAuthority * flight.damage.control * MAX_BANK;
   flight.bank += (desiredBank - flight.bank) * (1 - Math.exp(-dt / 0.14));
@@ -40,7 +45,7 @@ export function stepFlight(flight, profile, throttleInput, turnInput, dt, burnFu
   const desiredHeading = flight.heading + noseRate * (flight.bank / MAX_BANK) * dt;
   const headingLead = clamp(angleDelta(flight.course, desiredHeading), -MAX_HEADING_LEAD, MAX_HEADING_LEAD);
   flight.heading = (flight.course + headingLead + TAU) % TAU;
-  const speedMps = flight.speed / 3.6;
+  const speedMps = Math.max(1, flight.speed) / 3.6;
   const maxLift = maxLiftAcceleration(profile, flight.speed)
     * (0.50 + 0.25 * (flight.damage.leftWing + flight.damage.rightWing));
   // A level turn reserves enough lift to balance gravity.
@@ -54,8 +59,10 @@ export function stepFlight(flight, profile, throttleInput, turnInput, dt, burnFu
   const strainRate = clamp((flight.loadFactor - PILOT_COMFORT_G) / 4, -0.28, 0.75);
   flight.pilotStrain = clamp(flight.pilotStrain + strainRate * dt, 0, 1);
 
-  const acceleration = flightAcceleration(profile, flight);
-  flight.speed = clamp(flight.speed + acceleration * 3.6 * dt, MIN_LEVEL_SPEED_KPH, profile.topSpeedKph);
+  const speedRate = flightAcceleration(profile, flight) * 3.6;
+  const effectiveRate = hasFuel ? speedRate : Math.min(speedRate, -FUEL_OUT_DECEL_KPH_PER_SECOND);
+  const minimumSpeed = hasFuel ? MIN_LEVEL_SPEED_KPH : 0;
+  flight.speed = clamp(flight.speed + effectiveRate * dt, minimumSpeed, profile.topSpeedKph);
   if (profile.wingSweep) {
     const { byMach, rate } = profile.wingSweep;
     const desiredSweep = sampleCurve(byMach, flight.speed / MACH_ONE_KPH);
@@ -68,7 +75,7 @@ export function stepFlight(flight, profile, throttleInput, turnInput, dt, burnFu
 
 function flightAcceleration(profile, flight) {
   const turnLoadRatio = flight.turnAcceleration / profile.turnAccelerationAtReference;
-  const turnDragKn = profile.turnDragAtReferenceKn * (turnLoadRatio * TURN_REFERENCE_KPH / flight.speed) ** 2;
+  const turnDragKn = profile.turnDragAtReferenceKn * (turnLoadRatio * TURN_REFERENCE_KPH / Math.max(1, flight.speed)) ** 2;
   const straightDragKn = levelDragKn(profile, flight.speed, flight.airbrakeExtension);
   const thrustKn = flight.fuel > 0 ? engineThrustKn(profile, flight.speed, flight.enginePower, flight.afterburner) * flight.damage.power : 0;
   return (thrustKn - (straightDragKn + turnDragKn)) * 1000 / profile.massKg;
@@ -120,9 +127,8 @@ export function lerp(start, end, fraction) {
 }
 
 export function fuelRate(throttle, afterburner) {
-  if (afterburner) return 1 / 80;
-  if (throttle <= 0.55) return 1 / 800 + (1 / 240 - 1 / 800) * throttle / 0.55;
-  return 1 / 240 + (1 / 150 - 1 / 240) * (throttle - 0.55) / 0.45;
+  if (afterburner) return 1 / 180;
+  return lerp(1 / 800, 1 / 300, throttle);
 }
 
 export function stepFuel(flight, dt) {
@@ -130,6 +136,10 @@ export function stepFuel(flight, dt) {
   flight.fuel = Math.max(0, flight.fuel - rate * dt);
   flight.fuelSeconds = flight.fuel / rate;
   if (flight.fuel === 0) flight.afterburner = false;
+}
+
+export function fuelStalled(flight) {
+  return flight.altitudeM > 0 && flight.fuel === 0 && flight.speed + 1e-6 < FUEL_STALL_SPEED_KPH;
 }
 
 export function applyFlightAction(flight, action) {

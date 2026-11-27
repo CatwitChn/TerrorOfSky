@@ -3,11 +3,11 @@ import { advanceBattle, airframeIndex, applyFlightAction, BATTLE_DISPLAY, initia
 const LOAD_TIMEOUT_MS = 8000;
 const INPUT_TIMEOUT_MS = 700;
 
-export function createMatch(players, now, mission) {
+export function createMatch(players, now, mission, practice = false) {
   const roster = players.map(player => ({
     ...player, team: player.team === 'uk' ? 0 : 1, airframe: airframeIndex(player.aircraft),
   }));
-  const battle = initialBattle(roster, mission);
+  const battle = initialBattle(roster, mission, practice);
   const pilots = new Map();
   const seats = new Map();
   for (const player of roster) {

@@ -15,7 +15,9 @@ const localNode = fileURLToPath(new URL('node/node.exe', localDirectory));
 const serverLog = fileURLToPath(new URL('server.log', localDirectory));
 const serverRequire = createRequire(new URL('../server/package.json', import.meta.url));
 const run = promisify(execFile);
-const ports = [8081, 8082, 8083];
+const firstPort = 8081;
+const lastPort = 8090;
+const ports = Array.from({ length: lastPort - firstPort + 1 }, (_, index) => firstPort + index);
 const localOrigin = port => `http://127.0.0.1:${port}`;
 
 async function lobbyStatus(origin, build) {
@@ -46,8 +48,8 @@ async function clearOldServers(build) {
   let listeners;
   try {
     const { stdout } = await run('netstat.exe', ['-ano', '-p', 'tcp'], { windowsHide: true });
-    listeners = new Map([...stdout.matchAll(/^\s*TCP\s+127\.0\.0\.1:(808[123])\s+0\.0\.0\.0:0\s+LISTENING\s+(\d+)\s*$/gm)]
-      .map(([, port, pid]) => [Number(port), pid]));
+    listeners = new Map([...stdout.matchAll(/^\s*TCP\s+127\.0\.0\.1:(\d+)\s+0\.0\.0\.0:0\s+LISTENING\s+(\d+)\s*$/gm)]
+      .map(([, port, pid]) => [Number(port), pid]).filter(([port]) => ports.includes(port)));
   } catch {
     return;
   }
@@ -123,12 +125,15 @@ async function openLobby() {
   const origins = ports.map(localOrigin);
   const build = await readLocalBuild();
   const status = origin => lobbyStatus(origin, build);
-  if (!(await Promise.all(origins.map(status))).includes('ready')) checkServerDependencies();
-  await clearOldServers(build);
-  const statuses = await Promise.all(origins.map(status));
+  let statuses = await Promise.all(origins.map(status));
+  if (!statuses.includes('ready')) {
+    checkServerDependencies();
+    await clearOldServers(build);
+    statuses = await Promise.all(origins.map(status));
+  }
   const ready = statuses.indexOf('ready');
   const free = statuses.indexOf('free');
-  if (ready < 0 && free < 0) throw new Error('8081–8083 端口均已被占用，请检查占用进程。');
+  if (ready < 0 && free < 0) throw new Error(`${firstPort}–${lastPort} 端口均已被占用，请检查占用进程。`);
   const origin = origins[ready >= 0 ? ready : free];
   if (ready < 0) await startLocalServer(origin, build);
   const lobby = `${origin}/lobby/`;

@@ -35,6 +35,16 @@ sudo bash tools/deploy-centos.sh --domain play.catwitchn.cn
 
 更新时再次运行相同的部署命令即可。默认拉取 `master`，可用 `--ref` 指定分支、标签或提交。切换版本会重启对局服务并结束当前房间。部署保留本地版本目录，启动检查失败时会尝试恢复上一版。
 
+### 自动更新
+
+在 Linux 上部署时加 `--auto-update`，并保留这台服务器原来的域名和端口参数。
+
+```bash
+sudo bash tools/deploy-linux.sh --domain play.example.com --auto-update
+```
+
+`tosky-update.timer` 每五分钟检查部署分支。发现新提交后先准备发布文件，再提示维护并等待已开局的对战结束。更新会重启服务，等待中的房间需要重建。启动或 HTTPS 检查失败后会恢复上一版，回滚过的提交可通过手动部署重试。定时任务使用安装时的部署脚本，升级脚本时重新执行上面的命令。运行 `sudo journalctl -u tosky-update -n 60` 查看记录，或用 `sudo systemctl disable --now tosky-update.timer` 停止后续自动检查。
+
 ## Windows Server 部署
 
 ### 从 GitHub 启动大厅和联机服务
@@ -58,11 +68,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\deploy-windows.ps1 -
 
 ### 使用 Windows x64 服务端 ZIP
 
-Windows x64 发布包自带 Node.js 和 WebSocket 依赖。将 `terror-of-sky-server-0.6.0-windows-x64.zip` 上传到服务器，在 PowerShell 中解压并启动。Node.js 24 的官方 Windows x64 支持范围从 Windows Server 2016 起。 [Node.js 平台支持表](https://github.com/nodejs/node/blob/v24.x/BUILDING.md#platform-list)
+Windows x64 发布包自带 Node.js 和 WebSocket 依赖。将 `terror-of-sky-server-0.7.0-windows-x64.zip` 上传到服务器，在 PowerShell 中解压并启动。Node.js 24 的官方 Windows x64 支持范围从 Windows Server 2016 起。 [Node.js 平台支持表](https://github.com/nodejs/node/blob/v24.x/BUILDING.md#platform-list)
 
 ```powershell
-Expand-Archive -LiteralPath .\terror-of-sky-server-0.6.0-windows-x64.zip -DestinationPath .
-Set-Location .\terror-of-sky-server-0.6.0-windows-x64
+Expand-Archive -LiteralPath .\terror-of-sky-server-0.7.0-windows-x64.zip -DestinationPath .
+Set-Location .\terror-of-sky-server-0.7.0-windows-x64
 .\start-server.cmd --host 127.0.0.1 --port 3000 --origin https://play.example.com
 ```
 
@@ -80,7 +90,7 @@ Set-Location .\terror-of-sky-server-0.6.0-windows-x64
 node -e "require('node:fs').writeFileSync('lobby/version.json', JSON.stringify({ version: require('./server/package.json').version }))"
 ```
 
-当前服务端使用第 10 版协议。更新服务端时一并发布新版大厅和战场页面。
+当前服务端使用第 11 版协议。更新服务端时一并发布新版大厅和战场页面。
 
 ```js
 export const serverUrl = 'wss://game.example.com/ws';

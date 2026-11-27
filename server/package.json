@@ -1,6 +1,6 @@
 {
   "name": "terror-of-sky-server",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "type": "module",
   "files": ["server.mjs", "match.mjs", "simulation.mjs", "flight-model.mjs", "missions.mjs", "airfields.mjs", "combat.mjs", "README.md"],

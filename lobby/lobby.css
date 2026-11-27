@@ -45,15 +45,45 @@ p, h1, h2, h3, dl, dd { margin: 0; }
 }
 .game-version { color: var(--muted); white-space: nowrap; font-size: 12px; font-variant-numeric: tabular-nums; }
 
-.connection { display: inline-flex; align-items: center; gap: 7px; margin-left: auto; color: var(--muted); white-space: nowrap; font-size: 12px; }
+.topbar-status { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 4px 16px; margin-left: auto; }
+.connection { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); white-space: nowrap; font-size: 12px; }
 .connection::before { width: 7px; height: 7px; border-radius: 50%; background: #8b989b; content: ""; }
 .connection[data-state="online"]::before { background: #87d4a3; box-shadow: 0 0 9px #87d4a388; }
 .connection[data-state="connecting"]::before { background: #e4ba73; }
+.presence { position: relative; font-size: 12px; }
+.presence summary { padding-block: 4px; cursor: pointer; white-space: nowrap; color: var(--uk); }
+.presence-panel { position: absolute; right: 0; top: 100%; z-index: 2; width: 180px; max-height: 260px; overflow: auto;
+  padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); box-shadow: 0 12px 30px #05090c80; }
+.presence-panel ul { list-style: none; margin: 0; padding: 0; overflow-wrap: anywhere; }
+.presence-panel li { padding-block: 4px; }
 
 .layout { padding-block: clamp(34px, 5vh, 54px) 32px; }
 .intro { margin-bottom: 26px; }
 .intro h1 { font-size: clamp(36px, 5.7vw, 64px); line-height: 1.12; font-weight: 800; letter-spacing: .035em; }
 .intro p { margin-top: 14px; color: var(--muted); font-size: 15px; line-height: 1.6; }
+.tutorial-button { margin-top: 16px; }
+.tutorial-dialog { width: min(1016px, calc(100% - 24px)); max-height: 94vh; padding: clamp(12px, 2.4vw, 24px);
+  border: 1px solid var(--border); border-radius: 14px; background: var(--panel); color: var(--text); }
+.tutorial-dialog::backdrop { background: #040a0cbd; }
+.tutorial-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 12px; }
+.tutorial-header .button, .tutorial-tabs .button { min-height: 34px; padding-block: 5px; }
+.tutorial-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.tutorial-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
+.tutorial-tabs .button[aria-pressed="true"] { border-color: var(--brass); color: var(--brass); background: var(--field); }
+.tutorial-figure { margin: 0; }
+.tutorial-screenshot { position: relative; overflow: hidden; border: 1px solid var(--border); border-radius: 8px; background: #0b151a; }
+.tutorial-screenshot img { display: block; width: 100%; height: auto; }
+.tutorial-mark { position: absolute; left: var(--x); top: var(--y); width: var(--w); height: var(--h);
+  border: 2px solid #ff584e; border-radius: 7px; box-shadow: 0 0 0 1px #2b0809; pointer-events: none; }
+.tutorial-mark b, .tutorial-notes strong > span { display: inline-grid; place-items: center; border-radius: 50%;
+  width: 18px; height: 18px; background: #bd302a; color: #fff; font: 700 12px/1 "Segoe UI", sans-serif; }
+.tutorial-mark b { position: absolute; left: -6px; top: -9px; }
+.tutorial-mark b::after { position: absolute; top: 13px; left: 11px; width: 12px; height: 10px;
+  clip-path: polygon(0 0, 100% 100%, 30% 90%); background: #ff584e; content: ""; }
+.tutorial-notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: 9px 16px; margin-top: 12px; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.tutorial-notes strong { display: flex; gap: 6px; align-items: center; margin-bottom: 3px; color: var(--text); }
+.tutorial-notes kbd { color: var(--brass); }
 
 .workspace { display: grid; grid-template-columns: minmax(0, 1.28fr) minmax(0, 1fr); align-items: start; gap: 24px; }
 .panel { min-width: 0; border: 1px solid var(--border); border-radius: 14px; background: var(--panel); box-shadow: 0 14px 38px #05090c40; }

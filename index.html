@@ -701,6 +701,12 @@
       .minimap { width: min(100%, 18vh); }
       .minimap-header, .minimap-footer { padding: 3px 4px; font-size: .625rem; }
     }
+    .practice-guide { position: absolute; top: var(--hud-top); left: 50%; z-index: 6; transform: translateX(-50%);
+      width: min(350px, calc(100% - 28px)); padding: 9px 11px; font-size: .775rem; line-height: 1.45; }
+    .practice-guide p { margin: 3px 0 6px; }
+    .practice-guide button { min-height: 24px; padding: 2px 8px; }
+    .sound-settings { display: grid; gap: 8px; width: 156px; }
+    .sound-settings input { width: 100%; margin: 0; }
   </style>
 </head>
 <body>
@@ -743,6 +749,14 @@
               <div class="control-group"><kbd data-key="KeyC">C</kbd><span>干扰箔</span></div>
               <div class="control-group"><kbd data-key="KeyU">U</kbd><span>按住跟弹</span></div>
               <div class="control-group"><kbd class="mouse-key">右键</kbd><span>看向鼠标</span></div>
+            </div>
+          </details>
+          <details class="control-help">
+            <summary class="button">声音</summary>
+            <div class="instrument controls sound-settings">
+              <button class="button" id="sound-toggle" type="button">开启声音</button>
+              <label for="sound-volume">音量</label>
+              <input id="sound-volume" type="range" min="0" max="100" value="55">
             </div>
           </details>
         </div>
@@ -860,6 +874,12 @@
         </div>
       </div>
     </div>
+
+    <section class="instrument practice-guide" id="practice-guide" aria-label="飞行练习" hidden>
+      <strong id="practice-heading"></strong>
+      <p id="practice-detail"></p>
+      <button class="button" id="skip-practice" type="button">收起提示</button>
+    </section>
 
     <div class="message-overlay" id="message" hidden>
       <section class="instrument message-panel" role="dialog" aria-labelledby="message-title" aria-describedby="message-detail">
@@ -4623,10 +4643,12 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       return !tws && isAlive(source) && source.radar.target === target && source.radar.trackId === trackId;
     }
 
-    function radarEchoPosition(radar, target, time) {
+    function radarEchoPosition(aircraft, target, time) {
+      const { radar, flight } = aircraft;
       const echo = radar.echoes.get(target);
       if (radar.mode !== 'tws' || echo?.vx === undefined) return echo;
-      const age = clamp(time - echo.time, 0, battleDisplay.radar.scanSeconds);
+      const { scanSeconds } = battleDisplay.aircraft[flight.airframe].radar;
+      const age = clamp(time - echo.time, 0, scanSeconds);
       return { x: echo.x + echo.vx * age, z: echo.z + echo.vz * age };
     }
 
@@ -5709,7 +5731,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         context.lineWidth = Math.max(0.30, 1 / scaleY);
         context.strokeRect(x - 12, z - 12, 24, 24);
       } else if (radar.twsTarget) {
-        const echo = radarEchoPosition(radar, radar.twsTarget, renderTime);
+        const echo = radarEchoPosition(subject, radar.twsTarget, renderTime);
         if (!echo) return;
         const radius = radar.twsTarget.role === 'bomber' ? 30 : 13;
         context.save();
@@ -6105,6 +6127,14 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     const missionProgress = document.getElementById('mission-progress');
     const keycaps = document.querySelectorAll('[data-key]');
     const keys = new Set();
+    const practiceGuide = document.getElementById('practice-guide');
+    const practiceSteps = [
+      ['飞行 · 1 / 3', '按住 W 或 S 调整油门，再按住 A 或 D 转向。'],
+      ['锁定与发射 · 2 / 3', '飞向右侧雷达上的目标。用 Q 切到半主动雷达弹，按 T 锁定，显示已锁定后按空格发射。'],
+      ['警告与反制 · 3 / 3', '左侧 RWR 会显示被搜索、锁定及雷达弹告警。按 C 释放箔条，按 X 释放热诱弹。'],
+      ['练习完成', '你可以继续练习，或按 Esc 返回大厅。'],
+    ];
+    const practice = { step: 0, turned: false, throttled: false, beganAt: 0, skipped: false };
     const battle = {
       aircraft: [], player: null, missiles: [], cannonTracers: [], flares: [], chaff: [], explosions: [], time: 0,
       result: null, resultReason: null, nextWakeSampleAt: 0, sonicBooms: [],
@@ -6115,6 +6145,12 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     let viewReturnTime = 0;
     let terrainData;
     let missileArt;
+    let battleAudio;
+    let battleVisible = true;
+    let soundEnabled = false;
+    const soundToggle = document.getElementById('sound-toggle');
+    const soundVolume = document.getElementById('sound-volume');
+    soundVolume.value = localStorage.getItem('tos-sound-volume') ?? soundVolume.value;
     let renderer;
     let followedMissile = null;
     let deathAcknowledged = false;
@@ -6254,6 +6290,65 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       online.at = receivedAt;
     }
 
+    function updatePractice(snapshot) {
+      if (!battleDisplay.practice || practice.skipped || snapshot.state !== 'playing' || snapshot.result) {
+        practiceGuide.hidden = true;
+        return;
+      }
+      const plane = snapshot.aircraft[online.seat];
+      if (!isAlive(plane)) {
+        practiceGuide.hidden = true;
+        return;
+      }
+      if (practice.step === 0) {
+        practice.turned ||= Boolean(plane.input?.[2]);
+        practice.throttled ||= Boolean(plane.input?.[1]);
+        if (practice.turned && practice.throttled) {
+          practice.step = 1;
+          practice.beganAt = snapshot.time;
+        }
+      } else if (practice.step === 1 && (plane.radarRack.lastLaunch ?? -Infinity) > practice.beganAt) {
+        practice.step = 2;
+        practice.flares = plane.flareRack.ammo;
+        practice.chaff = plane.chaffRack.ammo;
+      } else if (practice.step === 2 && plane.flareRack.ammo < practice.flares && plane.chaffRack.ammo < practice.chaff) {
+        practice.step = 3;
+      }
+      const [heading, detail] = practiceSteps[practice.step];
+      if (practiceGuide.dataset.step !== String(practice.step)) {
+        practiceGuide.dataset.step = practice.step;
+        document.getElementById('practice-heading').textContent = heading;
+        document.getElementById('practice-detail').textContent = detail;
+      }
+      practiceGuide.hidden = false;
+    }
+
+    function updateSoundActivity() {
+      battleAudio?.setActive(soundEnabled && online.connected && battleVisible && !document.hidden && !resultShown);
+    }
+
+    function playSnapshotSounds(snapshot, previousTime, planes) {
+      if (!soundEnabled || !battleVisible || document.hidden || snapshot.time <= previousTime) return;
+      const listener = snapshot.aircraft[online.seat].flight;
+      const radius = battleDisplay.worldUnitsPerKilometer * 7;
+      const volumeAt = ({ x, z }) => Math.max(0, 1 - Math.hypot(listener.x - x, listener.z - z) / radius);
+      const cutoff = Math.max(previousTime, snapshot.time - .35);
+      let shots = 0, launch = 0, blast = 0;
+      for (const plane of snapshot.aircraft) {
+        const volume = volumeAt(plane.flight);
+        if (plane.cannonAmmo < planes[plane.id].cannonAmmo && snapshot.time - previousTime <= .35) shots = Math.max(shots, volume);
+        if ([plane.rack, plane.radarRack, plane.activeRack].some(rack => (rack?.lastLaunch ?? -Infinity) > cutoff)) {
+          launch = Math.max(launch, volume);
+        }
+      }
+      for (const explosion of snapshot.explosions) {
+        if (explosion.time > cutoff) blast = Math.max(blast, volumeAt(explosion));
+      }
+      battleAudio.play('cannon', shots);
+      battleAudio.play('launch', launch);
+      battleAudio.play('explosion', blast);
+    }
+
     function useOnlineSnapshot(snapshot) {
       const planes = battle.aircraft;
       if (!planes.length) {
@@ -6274,6 +6369,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       const wasAlive = !battle.player || isAlive(battle.player);
       battle.player = planes[online.seat];
       const previousTime = battle.time;
+      playSnapshotSounds(snapshot, previousTime, planes);
       battle.time = snapshot.time;
       battle.result = snapshot.result;
       battle.resultReason = snapshot.resultReason;
@@ -6332,6 +6428,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         clearKeys();
         centerView();
       }
+      updatePractice(snapshot);
     }
 
     function advanceOnlineView(now, dt) {
@@ -6405,6 +6502,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         } else if (type === 'snapshot') queueOnlineSnapshot(snapshot, seat);
         else if (type === 'connection') {
           online.connected = connected;
+          updateSoundActivity();
           if (!connected) {
             online.at = 0;
             online.bufferSeconds = SNAPSHOT_BUFFER.minSeconds;
@@ -6414,7 +6512,12 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
             clearKeys();
             endMouseLook();
           }
+        } else if (type === 'resume') {
+          battleVisible = true;
+          updateSoundActivity();
         } else if (type === 'suspend') {
+          battleVisible = false;
+          battleAudio?.setActive(false);
           clearKeys();
           endMouseLook();
         }
@@ -6482,11 +6585,17 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     function drawRadarScope(context, aircraft, clouds) {
       const { width, height } = context.canvas;
       const { radar } = aircraft;
-      const { rangeKm, trackAngle, scanAngle } = battleDisplay.radar;
+      const profile = battleDisplay.aircraft[aircraft.flight.airframe].radar;
+      if (!profile) {
+        context.fillStyle = '#061a1f';
+        context.fillRect(0, 0, width, height);
+        return;
+      }
+      const { rangeKm, displayKm, trackAngle, scanAngle } = profile;
       const left = 40, right = width - 22, top = 16, bottom = height - 32;
       const innerWidth = right - left, innerHeight = bottom - top;
       const azimuth = angle => left + (0.5 + angle / (2 * trackAngle)) * innerWidth;
-      const distanceY = km => bottom - (km / rangeKm) * innerHeight;
+      const distanceY = km => bottom - (km / displayKm) * innerHeight;
       context.fillStyle = '#061a1f';
       context.fillRect(0, 0, width, height);
       context.lineWidth = 1.25;
@@ -6498,7 +6607,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       context.textAlign = 'right';
       context.textBaseline = 'middle';
       for (let i = 0; i <= 4; i++) {
-        const range = rangeKm * i / 4;
+        const range = displayKm * i / 4;
         const y = distanceY(range);
         context.moveTo(left - 4, y);
         context.lineTo(right, y);
@@ -6525,7 +6634,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       }
       for (const target of radar.echoes.keys()) {
         const track = target === radar.target;
-        const point = track ? target.flight : radarEchoPosition(radar, target, battle.time);
+        const point = track ? target.flight : radarEchoPosition(aircraft, target, battle.time);
         const { angle, range } = radarPosition(aircraft, point);
         if (!isAlive(target) || range > rangeKm || Math.abs(angle) > trackAngle) continue;
         const x = azimuth(angle);
@@ -6591,7 +6700,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       context.lineTo(x - 5, y - radius + 1);
       context.lineTo(x + 5, y - radius + 1);
       context.fill();
-      const { rangeKm } = battleDisplay.radar;
+      const rangeKm = battleDisplay.rwrRangeKm;
       for (const { angle, level, range } of warnings) {
         const missile = level === 3;
         const ring = missile ? lerp(0.14, 1, clamp(range / rangeKm, 0, 1)) : level === 1 ? 0.78 : 0.55;
@@ -6629,7 +6738,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       const state = radar.target ? '硬锁' : radar.pending ? '锁定中' : battle.time - radar.lostAt < 0.8 ? '脱锁'
         : radar.mode === 'tws' ? '边扫边跟' : '搜索';
       radarStatus.value = `${mode} ${state}`;
-      const observation = radar.target?.flight ?? radarEchoPosition(radar, radar.selected, battle.time);
+      const observation = radar.target?.flight ?? radarEchoPosition(aircraft, radar.selected, battle.time);
       const distance = observation && radarPosition(aircraft, observation).range;
       const tag = radar.target ? '硬锁' : radar.mode === 'tws' ? '已选 · Y 切换' : '目标';
       radarRange.textContent = observation && !battle.result
@@ -6741,7 +6850,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       cannonPanel.hidden = !cannon;
       if (!cannon) return;
       const ammo = player.cannonAmmo;
-      cannonName.title = `游戏内初速 ${cannon.muzzleSpeedMps} m/s · 射速 ${cannon.roundsPerSecond} 发/秒 · 备弹 ${cannon.capacity} 发`;
+      cannonName.title = `炮口初速 ${cannon.muzzleSpeedMps} m/s · 叠加载机速度 · 射速 ${cannon.roundsPerSecond} 发/秒 · 备弹 ${cannon.capacity} 发`;
       cannonAmmo.value = String(ammo);
       cannonAmmo.title = `${ammo} / ${cannon.capacity} 发`;
       cannonMeter.style.setProperty('--remaining', `${ammo / cannon.capacity * 100}%`);
@@ -6837,7 +6946,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       const heading = Math.round(flight.heading * degrees) % 360;
       headingOutput.value = `${String(heading).padStart(3, '0')}°`;
       updateCompass(flight.heading * degrees);
-      speedOutput.value = String(Math.round(flight.speed));
+      speedOutput.value = String(flight.fuel === 0 ? Math.floor(flight.speed) : Math.round(flight.speed));
       const damage = flight.damage;
       const damaged = isAlive(player) && damage && Math.min(damage.power, damage.control, damage.structure) < .99;
       damageStatus.hidden = !damaged;
@@ -6855,7 +6964,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       const fullThrottle = flight.throttle === 1;
       const airbrakeOpen = flight.airbrake || flight.airbrakeExtension > 0;
       throttleOutput.value = String(flight.throttle === 0 ? 0 : fullThrottle ? 100 : clamp(Math.round(flight.throttle * 100), 1, 99));
-      const throttleLabel = !isAlive(player) ? '' : flight.afterburner ? '加力'
+      const throttleLabel = !isAlive(player) ? '' : flight.fuel === 0 ? '断油' : flight.afterburner ? '加力'
         : !spectating && fullThrottle && !['takeoff', 'ready'].includes(flight.phase) && flight.fuel > 0 ? '再按 W' : '';
       if (throttleMode.value !== throttleLabel) throttleMode.value = throttleLabel;
       throttleMode.hidden = !throttleLabel;
@@ -6870,6 +6979,8 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         && (radarWeapon ? Boolean(radar.target) : rack.lock >= battleDisplay.missiles[rack.type].lockSeconds);
       const twsTarget = player.weapon === 'arh' ? radar.twsTarget : null;
       const radarDanger = updateSensorDisplays(player, radarWarnings(battle, player, online.fraction));
+      battleAudio?.engine(isAlive(player) && flight.fuel > 0 ? flight : null);
+      battleAudio?.warning(radarDanger);
       const seeker = locked ? '已锁定' : twsTarget ? 'TWS 跟踪'
         : radarWeapon && radar.pending ? '锁定中' : rack.armed ? (rack.lock ? '锁定中' : '搜索') : '待机';
       updateLoadout(player, seeker, locked || Boolean(twsTarget));
@@ -6884,7 +6995,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       let feedback = '';
       if (awaitingWreckView()) {
         feedback = flight.crashReason === 'runway-overrun' ? '冲出跑道 · 本机损毁'
-          : flight.crashReason === 'fuel-exhausted' ? '燃油耗尽 · 本机坠毁'
+          : flight.crashReason === 'fuel-exhausted' ? '断油失速 · 本机坠毁'
           : flight.crashReason === 'engine-failure' ? '发动机失效 · 本机坠毁' : '本机被击毁';
         if (wreckViewReady()) feedback += battle.result ? ' · 按任意键查看战果' : ' · 按任意键观战';
       } else if (!isAlive(player)) feedback = '本机出局 · 观战';
@@ -6899,7 +7010,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       else if (battle.time - lastLaunch < 0.65) feedback = '导弹已发射';
       else if (!spectating && (locked || twsTarget) && rack.ammo) {
         const target = radar.target ?? twsTarget;
-        const observation = radar.target?.flight ?? radarEchoPosition(radar, target, battle.time);
+        const observation = radar.target?.flight ?? radarEchoPosition(player, target, battle.time);
         feedback = radarWeapon && observation && radarPosition(player, observation).range > battleDisplay.missiles[rack.type].launchRangeKm
           ? '目标距离过远' : twsTarget ? '空格发射 AIM-54C · Y 切换目标' : '空格发射';
       } else if (radarWeapon && radar.pending) feedback = '锁定中';
@@ -6961,7 +7072,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         if (aircraft === subject) continue;
         const marker = minimapTargets[index++];
         const friendly = aircraft.team === battle.player.team;
-        const position = friendly || aircraft === radar.target ? aircraft.flight : radarEchoPosition(radar, aircraft, battle.time);
+        const position = friendly || aircraft === radar.target ? aircraft.flight : radarEchoPosition(subject, aircraft, battle.time);
         marker.classList.toggle('friendly', friendly);
         marker.toggleAttribute('data-bomber', aircraft.role === 'bomber');
         marker.hidden = !isAlive(aircraft) || !position;
@@ -7171,6 +7282,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       if (battle.result && !resultShown && !awaitingWreckView() && missileView.hidden && !explosionVisible
         && (!wreck || wreckHasSettled(wreck, time))) {
         showBattleResult();
+        updateSoundActivity();
       }
       if (resultShown && !battle.aircraft.some(aircraft => !isAlive(aircraft))) return;
       if (!resultShown && now - lastInstrumentsAt >= 50) {
@@ -7196,9 +7308,12 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
 
     async function startGame() {
       try {
-        [terrainData, missileArt, flightModel] = await Promise.all([
-          loadDoverTerrain(), import('./lobby/missile-art.js'), import('./lobby/flight-model.mjs'),
+        let audioModule;
+        [terrainData, missileArt, flightModel, audioModule] = await Promise.all([
+          loadDoverTerrain(), import('./lobby/missile-art.js'), import('./lobby/flight-model.mjs'), import('./lobby/battle-audio.mjs'),
         ]);
+        battleAudio = audioModule.createBattleAudio();
+        battleAudio.setVolume(Number(soundVolume.value) / 100);
         startRenderer();
       } catch (error) {
         console.error(error);
@@ -7207,6 +7322,29 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     }
 
     canvas.addEventListener('contextmenu', event => event.preventDefault());
+    soundToggle.addEventListener('click', async () => {
+      if (!battleAudio) return;
+      soundToggle.disabled = true;
+      try {
+        if (!soundEnabled) await battleAudio.start();
+        soundEnabled = !soundEnabled;
+        soundToggle.textContent = soundEnabled ? '静音' : '开启声音';
+        updateSoundActivity();
+      } catch (error) {
+        soundToggle.textContent = '重试开启声音';
+      } finally {
+        soundToggle.disabled = false;
+      }
+    });
+    soundVolume.addEventListener('input', () => {
+      localStorage.setItem('tos-sound-volume', soundVolume.value);
+      battleAudio?.setVolume(Number(soundVolume.value) / 100);
+    });
+    document.getElementById('skip-practice').addEventListener('click', () => {
+      practice.skipped = true;
+      practiceGuide.hidden = true;
+      canvas.focus();
+    });
     canvas.addEventListener('click', (event) => {
       if (event.button !== 0 || !renderer || !isSpectating() || battle.result) return;
       const candidates = spectatorTargets();
@@ -7294,6 +7432,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       endMouseLook();
     });
     document.addEventListener('visibilitychange', () => {
+      updateSoundActivity();
       if (document.hidden) clearKeys();
     });
     window.addEventListener('resize', () => {

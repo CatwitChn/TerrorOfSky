@@ -1,5 +1,5 @@
 import { randomBytes, randomInt, randomUUID } from 'node:crypto';
-import { realpathSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -65,8 +65,11 @@ const ROOM_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const RECONNECT_MS = 20_000;
 const rooms = new Map();
 const sessions = new Map();
+const maintenanceFile = process.env.TOS_MAINTENANCE_FILE;
+const isMaintenance = () => Boolean(maintenanceFile && existsSync(maintenanceFile));
+let maintenance = isMaintenance();
+let presenceTimer;
 
-const health = JSON.stringify({ status: 'ok', protocol: PROTOCOL_VERSION }) + '\n';
 const server = createServer((request, response) => {
   if (request.url !== '/healthz') {
     if (servePage) servePage(request, response);
@@ -74,6 +77,8 @@ const server = createServer((request, response) => {
   } else if (!['GET', 'HEAD'].includes(request.method)) {
     response.writeHead(405, { Allow: 'GET, HEAD' }).end();
   } else {
+    const activeMatches = [...rooms.values()].filter(room => room.arena && room.arena.state !== 'finished').length;
+    const health = JSON.stringify({ status: 'ok', protocol: PROTOCOL_VERSION, maintenance: isMaintenance(), activeMatches }) + '\n';
     response.writeHead(200, {
       'Content-Type': 'application/json',
       'Content-Length': Buffer.byteLength(health),
@@ -116,9 +121,25 @@ function send(socket, message) {
     socket.terminate();
     return;
   }
-  // Only pre-encoded battle snapshots use compression. Session messages contain reconnect tokens.
-  const snapshot = typeof message === 'string';
-  socket.send(snapshot ? message : JSON.stringify(message), { compress: snapshot });
+  // Only pre-encoded public state uses compression. Session messages contain reconnect tokens.
+  const encoded = typeof message === 'string';
+  socket.send(encoded ? message : JSON.stringify(message), { compress: encoded });
+}
+
+function queuePresence() {
+  if (presenceTimer) return;
+  presenceTimer = setTimeout(() => {
+    presenceTimer = undefined;
+    const online = [...sessions.values()].filter(player => player.socket?.readyState === WebSocket.OPEN);
+    const callsigns = online.flatMap(player => player.name ? [player.name] : []).sort((a, b) => a.localeCompare(b, 'zh-CN'));
+    const message = JSON.stringify({ type: 'presence', count: online.length, callsigns, maintenance });
+    for (const player of online) send(player.socket, message);
+  }, 100).unref();
+}
+
+function validCallsign(input) {
+  const name = typeof input === 'string' ? input.trim() : '';
+  return name && [...name].length <= 16 && !/[\p{Cc}\p{Cf}]/u.test(name) ? name : null;
 }
 
 function teamSize(room, team) {
@@ -157,7 +178,7 @@ function addPlayer(room, player, name) {
   Object.assign(player, { room, name, team, aircraft, loadout: defaultLoadout(aircraft),
     countermeasures: defaultCountermeasures(aircraft), ready: false });
   room.players.push(player);
-  publishRoom(room);
+  queuePresence();
 }
 
 function leaveRoom(player) {
@@ -186,12 +207,12 @@ function startMatch(room) {
     map: mission.map,
     startedAt: Date.now(),
     state: 'loading',
-    display: { ...BATTLE_DISPLAY, mission },
+    display: { ...BATTLE_DISPLAY, mission, practice: Boolean(room.practice) },
     players: room.players.map(({ id, name, team, aircraft, loadout, countermeasures }) => ({
       id, name, team, aircraft, loadout: { ...loadout }, countermeasures: { ...countermeasures }, slot: nextSlot[team]++,
     })),
   };
-  room.arena = createMatch(room.match.players, performance.now(), mission);
+  room.arena = createMatch(room.match.players, performance.now(), mission, room.practice);
 }
 
 function publishMatch(room, recipient) {
@@ -202,18 +223,38 @@ function publishMatch(room, recipient) {
 
 function perform(player, action) {
   const { room } = player;
+  if (action.type === 'callsign') {
+    const name = validCallsign(action.name);
+    if (!room && name !== player.name) {
+      player.name = name;
+      queuePresence();
+    }
+    return;
+  }
+  if (action.type === 'practice') {
+    requireLobby(!room, '请先离开当前房间。');
+    requireLobby(!isMaintenance(), '服务器准备更新，请稍后开始练习。');
+    const practice = newRoom(player, MISSIONS['dover-intercept']);
+    practice.practice = true;
+    addPlayer(practice, player, validCallsign(action.name) ?? '飞行学员');
+    startMatch(practice);
+    publishRoom(practice);
+    publishMatch(practice, player);
+    return;
+  }
   if (action.type === 'create' || action.type === 'join') {
     requireLobby(!room, '请先离开当前房间。');
-    const name = typeof action.name === 'string' ? action.name.trim() : '';
-    requireLobby(name && [...name].length <= 16 && !/[\p{Cc}\p{Cf}]/u.test(name), '请输入 1 至 16 个字符的呼号。');
+    const name = validCallsign(action.name);
+    requireLobby(name, '请输入 1 至 16 个字符的呼号。');
     const code = typeof action.code === 'string' ? action.code.trim().toUpperCase() : '';
     const creating = action.type === 'create';
     if (creating) requireLobby(typeof action.mission === 'string' && Object.hasOwn(MISSIONS, action.mission), '请选择任务。');
     const destination = creating ? newRoom(player, MISSIONS[action.mission]) : rooms.get(code);
     requireLobby(destination, '找不到该房间，请检查房间代码。');
-    requireLobby(!destination.match, '该房间已开局。');
+    requireLobby(!destination.practice && !destination.match, '该房间已开局。');
     requireLobby(destination.players.length < destination.mission.playerLimit, '房间已满。');
     addPlayer(destination, player, name);
+    publishRoom(destination);
     return;
   }
 
@@ -272,6 +313,7 @@ function perform(player, action) {
       break;
     case 'start':
       requireLobby(room.hostId === player.id, '仅房主可以开始。');
+      requireLobby(!isMaintenance(), '服务器准备更新，请稍后开局。');
       requireLobby(canStart(room), room.mission.mode === 'pve' ? '请让所有玩家准备。' : '请让所有玩家准备。多人对抗需要两队均有玩家。');
       startMatch(room);
       break;
@@ -289,11 +331,13 @@ function perform(player, action) {
   if (action.type === 'start') publishMatch(room);
 }
 
-function establishSession(socket, token) {
+function establishSession(socket, token, name) {
   let player = sessions.get(token);
   if (!player) {
-    player = { id: randomUUID(), token: randomBytes(24).toString('base64url'), room: null };
+    player = { id: randomUUID(), token: randomBytes(24).toString('base64url'), room: null, name: validCallsign(name) };
     sessions.set(player.token, player);
+  } else if (!player.room && typeof name === 'string') {
+    player.name = validCallsign(name);
   }
   clearTimeout(player.expiry);
   player.socket?.close(4001, 'Session resumed');
@@ -305,6 +349,7 @@ function establishSession(socket, token) {
     publishRoom(player.room);
     if (player.room.arena) publishMatch(player.room, player);
   } else send(socket, { type: 'room', room: null });
+  queuePresence();
   return player;
 }
 
@@ -326,7 +371,7 @@ sockets.on('connection', socket => {
       if (!player) {
         requireLobby(action.type === 'hello', '请先建立会话。');
         clearTimeout(helloDeadline);
-        player = establishSession(socket, action.token);
+        player = establishSession(socket, action.token, action.name);
       } else if (player.socket === socket) {
         perform(player, action);
       }
@@ -343,6 +388,7 @@ sockets.on('connection', socket => {
     clearTimeout(helloDeadline);
     if (player?.socket !== socket) return;
     player.socket = null;
+    queuePresence();
     if (player.room) {
       const pilot = player.room.arena?.pilots.get(player.id);
       if (pilot) {
@@ -372,6 +418,15 @@ setInterval(() => {
     if (changed || room.arena.state === 'playing') publishMatch(room);
   }
 }, 50).unref();
+
+if (maintenanceFile) {
+  setInterval(() => {
+    const next = isMaintenance();
+    if (next === maintenance) return;
+    maintenance = next;
+    queuePresence();
+  }, 500).unref();
+}
 
 setInterval(() => {
   for (const socket of sockets.clients) {

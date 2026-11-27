@@ -1,6 +1,18 @@
 // Top-down game art in the same meter-based model coordinates as the aircraft.
 // Fins give the full span and one half-outline from root (0) to tip (1).
 // The second coordinate of each point is the fraction of the length from nose to tail.
+// Figures for the short-body R-27R1 exterior in the Rosoboronexport catalog.
+const r27r = {
+  length: 4.08, diameter: .23, noseColor: '#dbe0d7',
+  nose: [[0, 0], [.038, .37], [.082, .72], [.124, .93], [.161, 1], [.199, 1]],
+  fins: [
+    { span: .37, outline: [[0,.201],[.76,.233],[1,.26],[.8,.29],[0,.286]] },
+    { span: .972, outline: [[0,.405],[.39,.359],[.83,.342],[1,.359],[.96,.509],[.69,.547],[0,.59]] },
+    { span: .774, outline: [[0,.805],[.59,.852],[1,.894],[.91,.966],[0,.975]] },
+  ],
+  bands: [[.304, '#a9b2af'], [.74, '#8b989b']],
+};
+
 const models = {
   // U.S. Air Force AIM-9M art and Air Combat Command fact sheet.
   'AIM-9M': {
@@ -34,17 +46,8 @@ const models = {
     ],
     bands: [[.259, '#cea954'], [.714, '#8f7055']],
   },
-  // Figures for the short-body R-27R1 exterior in the Rosoboronexport catalog.
-  'R-27R': {
-    length: 4.08, diameter: .23, noseColor: '#dbe0d7',
-    nose: [[0, 0], [.038, .37], [.082, .72], [.124, .93], [.161, 1], [.199, 1]],
-    fins: [
-      { span: .37, outline: [[0,.201],[.76,.233],[1,.26],[.8,.29],[0,.286]] },
-      { span: .972, outline: [[0,.405],[.39,.359],[.83,.342],[1,.359],[.96,.509],[.69,.547],[0,.59]] },
-      { span: .774, outline: [[0,.805],[.59,.852],[1,.894],[.91,.966],[0,.975]] },
-    ],
-    bands: [[.304, '#a9b2af'], [.74, '#8b989b']],
-  },
+  'R-27R': r27r,
+  'R-27ER': { ...r27r, length: 4.8, diameter: .26 },
   // NAVAIR AIM-54C dimensions and U.S. Navy exterior photos.
   'AIM-54C': {
     length: 3.96, diameter: .38, noseColor: '#e3dfcc',

@@ -18,7 +18,16 @@
         </a>
         <span class="game-version" id="game-version" title="游戏版本" hidden></span>
       </div>
-      <p class="connection" id="connection" role="status" data-state="connecting">连接中</p>
+      <div class="topbar-status">
+        <details class="presence" id="presence" hidden>
+          <summary id="online-count"></summary>
+          <div class="presence-panel">
+            <ul id="online-callsigns" aria-label="在线呼号"></ul>
+            <p class="hint" id="unnamed-pilots" hidden></p>
+          </div>
+        </details>
+        <p class="connection" id="connection" role="status" data-state="connecting">连接中</p>
+      </div>
     </div>
   </header>
 
@@ -26,6 +35,8 @@
     <section class="intro" aria-labelledby="title">
       <h1 id="title">联机大厅</h1>
       <p>创建房间，或输入房间代码加入好友的编队。</p>
+      <button class="button secondary tutorial-button" id="show-tutorial" type="button">入门教程</button>
+      <p class="notice" id="maintenance-notice" role="status" hidden>服务器即将更新。进行中的对局可以继续，更新完成后可开新局。</p>
     </section>
 
     <div class="workspace">
@@ -155,6 +166,63 @@
       </aside>
     </div>
   </main>
+  <dialog class="tutorial-dialog" id="tutorial" aria-labelledby="tutorial-title">
+    <header class="tutorial-header">
+      <h2 id="tutorial-title">入门教程</h2>
+      <div class="tutorial-actions">
+        <form method="dialog"><button class="button secondary">关闭</button></form>
+        <button class="button primary" id="start-practice" type="button" disabled>进入单人练习</button>
+      </div>
+    </header>
+    <nav class="tutorial-tabs" aria-label="教程章节">
+      <button class="button secondary" id="tutorial-flight-tab" type="button" aria-controls="tutorial-flight" aria-pressed="true">飞行仪表</button>
+      <button class="button secondary" id="tutorial-radar-tab" type="button" aria-controls="tutorial-radar" aria-pressed="false">雷达与发射</button>
+      <button class="button secondary" id="tutorial-rwr-tab" type="button" aria-controls="tutorial-rwr" aria-pressed="false">警告与反制</button>
+    </nav>
+    <section id="tutorial-flight" aria-labelledby="tutorial-flight-tab">
+      <figure class="tutorial-figure">
+        <div class="tutorial-screenshot">
+          <img src="./tutorial/flight.webp" width="1160" height="680" alt="F-15A 飞越多佛海峡时的航向、飞机状态和小地图" loading="lazy">
+          <span class="tutorial-mark" style="--x:45.7%;--y:6.5%;--w:8.6%;--h:5%" aria-hidden="true"><b>1</b></span>
+          <span class="tutorial-mark" style="--x:2.3%;--y:52.6%;--w:18.1%;--h:37%" aria-hidden="true"><b>2</b></span>
+          <span class="tutorial-mark" style="--x:79.6%;--y:58.8%;--w:18.1%;--h:38.5%" aria-hidden="true"><b>3</b></span>
+        </div>
+        <figcaption class="tutorial-notes">
+          <p><strong><span>1</span> 航向</strong><kbd>A</kbd> / <kbd>D</kbd> 左右转向。数字是机头朝向，0° 为正北。</p>
+          <p><strong><span>2</span> 飞机状态</strong><kbd>W</kbd> / <kbd>S</kbd> 调油门。右侧滑条显示油门，表盘显示空速，下方读数显示过载、马赫数和燃油。</p>
+          <p><strong><span>3</span> 小地图</strong>朝上的 N 表示北方。黄色箭头为本机，青色为友机，橙色为已探测的敌机。</p>
+        </figcaption>
+      </figure>
+    </section>
+    <section id="tutorial-radar" aria-labelledby="tutorial-radar-tab" hidden>
+      <figure class="tutorial-figure">
+        <div class="tutorial-screenshot">
+          <img src="./tutorial/radar.webp" width="1160" height="680" alt="F-15A 用雷达硬锁目标并选中 AIM-7M 时的实战画面" loading="lazy">
+          <span class="tutorial-mark" style="--x:79.6%;--y:31.5%;--w:18.1%;--h:25.7%" aria-hidden="true"><b>1</b></span>
+          <span class="tutorial-mark" style="--x:31.8%;--y:80.3%;--w:36.4%;--h:17.1%" aria-hidden="true"><b>2</b></span>
+          <span class="tutorial-mark" style="--x:47%;--y:18.5%;--w:6%;--h:4%" aria-hidden="true"><b>3</b></span>
+        </div>
+        <figcaption class="tutorial-notes">
+          <p><strong><span>1</span> 雷达</strong>横轴是目标相对机头的角度，纵轴是距离。用 <kbd>G</kbd> 换模式、<kbd>Y</kbd> 选目标、<kbd>T</kbd> 硬锁或脱锁。</p>
+          <p><strong><span>2</span> 挂载</strong>亮框标出当前选中的武器，数字是剩余弹药。用 <kbd>Q</kbd> 切到 AIM‑7M 等雷达弹。</p>
+          <p><strong><span>3</span> 发射提示</strong>提示「空格发射」时，按 <kbd>空格</kbd>。使用半主动雷达弹时保持雷达硬锁，直到导弹命中。</p>
+        </figcaption>
+      </figure>
+    </section>
+    <section id="tutorial-rwr" aria-labelledby="tutorial-rwr-tab" hidden>
+      <figure class="tutorial-figure">
+        <div class="tutorial-screenshot">
+          <img src="./tutorial/rwr.webp" width="1160" height="680" alt="F-15A 收到雷达锁定警告时的 RWR 和反制弹余量" loading="lazy">
+          <span class="tutorial-mark" style="--x:2.3%;--y:31.5%;--w:18.1%;--h:22%" aria-hidden="true"><b>1</b></span>
+          <span class="tutorial-mark" style="--x:3.2%;--y:89.4%;--w:16.4%;--h:6.3%" aria-hidden="true"><b>2</b></span>
+        </div>
+        <figcaption class="tutorial-notes">
+          <p><strong><span>1</span> RWR</strong>圆盘上方对应机头，符号方向表示威胁来向。状态提示被搜索、被锁定或雷达弹来袭。雷达弹告警时底部显示最近一枚的距离。</p>
+          <p><strong><span>2</span> 反制余量</strong><kbd>X</kbd> 释放热诱弹应对红外弹，<kbd>C</kbd> 释放干扰箔应对雷达威胁。数字随释放而减少。</p>
+        </figcaption>
+      </figure>
+    </section>
+  </dialog>
   <div class="battle-screen" id="battle-screen" hidden></div>
 </body>
 </html>

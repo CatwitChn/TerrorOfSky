@@ -37,8 +37,12 @@ const routes = new Map([
   ['/lobby/lobby.js', ['lobby/lobby.js', 'text/javascript; charset=utf-8']],
   ['/lobby/missile-art.js', ['lobby/missile-art.js', 'text/javascript; charset=utf-8']],
   ['/lobby/flight-model.mjs', ['server/flight-model.mjs', 'text/javascript; charset=utf-8']],
+  ['/lobby/battle-audio.mjs', ['lobby/battle-audio.mjs', 'text/javascript; charset=utf-8']],
   ['/lobby/lobby.css', ['lobby/lobby.css', 'text/css; charset=utf-8']],
   ['/lobby/dover.webp', ['lobby/dover.webp', 'image/webp']],
+  ['/lobby/tutorial/flight.webp', ['lobby/tutorial/flight.webp', 'image/webp']],
+  ['/lobby/tutorial/radar.webp', ['lobby/tutorial/radar.webp', 'image/webp']],
+  ['/lobby/tutorial/rwr.webp', ['lobby/tutorial/rwr.webp', 'image/webp']],
 ]);
 
 async function servePage(request, response) {

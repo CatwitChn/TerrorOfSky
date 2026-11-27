@@ -1,5 +1,5 @@
 import { freshDamage } from './combat.mjs';
-import { stepFuel } from './flight-model.mjs';
+import { fuelStalled, stepFuel } from './flight-model.mjs';
 
 export { fuelRate, stepFuel } from './flight-model.mjs';
 
@@ -107,7 +107,7 @@ export function stepRunway(aircraft, controls, dt, scale, stepFlight) {
   const { flight, runway } = aircraft;
   switch (flight.phase) {
     case 'approach': {
-      stepFlight(flight, controls?.throttle ?? -1, 0, dt, true);
+      stepFlight(flight, controls?.throttle ?? -1, 0, dt);
       runway.along = Math.min(RUNWAY.touchdownM, runway.along + flight.speed / 3.6 * dt);
       const progress = clamp01((runway.along - runway.entryAlong) / (RUNWAY.touchdownM - runway.entryAlong));
       const align = 1 - smooth(clamp01(progress * 1.8));
@@ -120,7 +120,7 @@ export function stepRunway(aircraft, controls, dt, scale, stepFlight) {
         flight.turnAcceleration = flight.liftUse = 0;
         flight.loadFactor = 1;
         flight.afterburner = false;
-      }
+      } else if (fuelStalled(flight)) return 'fuel-exhausted';
       break;
     }
     case 'rollout': {
@@ -150,6 +150,11 @@ export function stepRunway(aircraft, controls, dt, scale, stepFlight) {
       break;
     case 'takeoff': {
       stepFuel(flight, dt);
+      if (flight.fuel === 0) {
+        flight.phase = 'rollout';
+        flight.throttle = flight.enginePower = 0;
+        break;
+      }
       const speed = flight.speed / 3.6;
       const nextSpeed = Math.min(RUNWAY.takeoffKph / 3.6, speed + TAKEOFF_ACCELERATION * dt);
       runway.along += (speed + nextSpeed) * 0.5 * (nextSpeed - speed) / TAKEOFF_ACCELERATION;
