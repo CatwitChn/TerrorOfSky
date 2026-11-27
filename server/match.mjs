@@ -1,4 +1,5 @@
 import { advanceBattle, airframeIndex, applyFlightAction, BATTLE_DISPLAY, initialBattle, isAlive, PILOT_ACTIONS, STEP, twsLaunchTarget } from './simulation.mjs';
+import { tutorialActive, tutorialReadout } from './tutorial.mjs';
 
 const LOAD_TIMEOUT_MS = 8000;
 const INPUT_TIMEOUT_MS = 700;
@@ -66,7 +67,9 @@ export function tickMatch(match, now) {
   while (match.accumulator + 1e-9 >= STEP && !match.battle.result) {
     for (const pilot of match.pilots.values()) {
       if (now - pilot.receivedAt > INPUT_TIMEOUT_MS || !isAlive(pilot.aircraft)) neutralizePilot(pilot);
-      for (const command of pilot.commands) applyFlightAction(pilot.aircraft.flight, command);
+      if (!tutorialActive(match.battle)) {
+        for (const command of pilot.commands) applyFlightAction(pilot.aircraft.flight, command);
+      }
     }
     advanceBattle(match.battle, match.controlsFor, STEP);
     for (const pilot of match.pilots.values()) {
@@ -84,8 +87,10 @@ const ref = aircraft => aircraft?.id ?? null;
 
 function snapshotAircraft(aircraft, battle, pilot) {
   const { id, team, slot, role, name, flight, destroyedAt, weapon, stores, rack, radarRack, activeRack, radar, flareRack, chaffRack, missileOutcome } = aircraft;
+  const { combatStats } = aircraft;
   return {
     id, team, slot, role, name, flight, destroyedAt, weapon, stores, damageReport: aircraft.damageReport,
+    combatStats: { ...combatStats, points: 100 * combatStats.kills + 50 * combatStats.assists },
     ...(pilot && { input: pilot.appliedInput }),
     rack: { ...rack, target: ref(rack.target) }, radarRack: { ...radarRack, target: ref(radarRack.target) },
     activeRack,
@@ -119,6 +124,7 @@ export function encodeMatchFrame(id, match) {
   const { time, result, resultReason, aircraft, missiles, cannonRounds, flares, chaff, explosions, endedMissiles, raid } = match.battle;
   const frame = {
     type: 'battle', id, state: match.state, time, result, resultReason,
+    tutorial: tutorialReadout(match.battle),
     aircraft: aircraft.map(plane => snapshotAircraft(plane, match.battle, match.seats.get(plane.id))),
     ...(raid && { strike: raid.bomb }),
     missiles: missiles.map(snapshotMissile),

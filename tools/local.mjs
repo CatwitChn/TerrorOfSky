@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { isIP } from 'node:net';
 import { parseArgs } from 'node:util';
+import { cockpitVoiceFiles } from '../lobby/battle-audio.mjs';
 import { parseBrowserOrigin, startServer } from '../server/server.mjs';
 import { readLocalBuild } from './local-build.mjs';
 
@@ -38,6 +39,7 @@ const routes = new Map([
   ['/lobby/missile-art.js', ['lobby/missile-art.js', 'text/javascript; charset=utf-8']],
   ['/lobby/flight-model.mjs', ['server/flight-model.mjs', 'text/javascript; charset=utf-8']],
   ['/lobby/battle-audio.mjs', ['lobby/battle-audio.mjs', 'text/javascript; charset=utf-8']],
+  ...cockpitVoiceFiles.map(file => ['/lobby/audio/' + file, ['lobby/audio/' + file, 'audio/wav']]),
   ['/lobby/lobby.css', ['lobby/lobby.css', 'text/css; charset=utf-8']],
   ['/lobby/dover.webp', ['lobby/dover.webp', 'image/webp']],
   ['/lobby/tutorial/flight.webp', ['lobby/tutorial/flight.webp', 'image/webp']],

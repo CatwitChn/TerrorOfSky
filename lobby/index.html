@@ -19,46 +19,43 @@
         <span class="game-version" id="game-version" title="游戏版本" hidden></span>
       </div>
       <div class="topbar-status">
-        <details class="presence" id="presence" hidden>
-          <summary id="online-count"></summary>
-          <div class="presence-panel">
-            <ul id="online-callsigns" aria-label="在线呼号"></ul>
-            <p class="hint" id="unnamed-pilots" hidden></p>
-          </div>
-        </details>
         <p class="connection" id="connection" role="status" data-state="connecting">连接中</p>
+        <output class="connection-latency" id="connection-latency" title="到联机服务器的往返延迟">延迟 —</output>
       </div>
+      <button class="button secondary tutorial-button" id="show-tutorial" type="button" aria-haspopup="dialog">入门教程</button>
     </div>
   </header>
 
   <main class="layout">
     <section class="intro" aria-labelledby="title">
       <h1 id="title">联机大厅</h1>
-      <p>创建房间，或输入房间代码加入好友的编队。</p>
-      <button class="button secondary tutorial-button" id="show-tutorial" type="button">入门教程</button>
       <p class="notice" id="maintenance-notice" role="status" hidden>服务器即将更新。进行中的对局可以继续，更新完成后可开新局。</p>
     </section>
 
     <div class="workspace">
       <section class="panel room-panel" aria-label="房间">
         <div id="entry">
-          <h2>进入房间</h2>
-          <label for="callsign">飞行员呼号</label>
-          <input id="callsign" form="join-form" name="callsign" placeholder="输入你的呼号" maxlength="32" required autocomplete="nickname">
-          <label for="mission-select">开房任务</label>
-          <select id="mission-select" aria-describedby="mission-preview" disabled>
-            <option value="">选择任务</option>
-          </select>
-          <p id="mission-preview" class="hint" hidden></p>
-          <button id="create" type="button" class="button primary wide" disabled>创建房间 <span aria-hidden="true">→</span></button>
-          <div class="division"></div>
-          <form id="join-form">
-            <label for="room-code">房间代码</label>
-            <div class="join-row">
-              <input id="room-code" name="code" placeholder="六位房间代码" maxlength="6" required pattern="[A-HJ-NP-Za-hj-np-z2-9]{6}" autocomplete="off" spellcheck="false" autocapitalize="characters">
-              <button id="join" class="button secondary" type="submit" disabled>加入房间</button>
+          <div class="entry-controls">
+            <div>
+              <label for="callsign">飞行员呼号</label>
+              <input id="callsign" form="join-form" name="callsign" placeholder="输入你的呼号" maxlength="32" required autocomplete="nickname">
             </div>
-          </form>
+            <div>
+              <label for="mission-select">开房任务</label>
+              <select id="mission-select" aria-describedby="mission-preview" disabled>
+                <option value="">选择任务</option>
+              </select>
+            </div>
+            <button id="create" type="button" class="button primary" disabled>创建房间</button>
+            <form id="join-form">
+              <label for="room-code">房间代码</label>
+              <div class="join-row">
+                <input id="room-code" name="code" placeholder="六位房间代码" maxlength="6" required pattern="[A-HJ-NP-Za-hj-np-z2-9]{6}" autocomplete="off" spellcheck="false" autocapitalize="characters">
+                <button id="join" class="button secondary" type="submit" disabled>加入房间</button>
+              </div>
+            </form>
+          </div>
+          <p id="mission-preview" class="hint" hidden></p>
         </div>
 
         <div id="room" hidden>
@@ -142,6 +139,46 @@
         <p class="notice" id="notice" role="status" hidden></p>
       </section>
 
+      <div class="lobby-directory" id="lobby-directory">
+        <section class="panel directory-panel" aria-labelledby="directory-rooms-title">
+          <header class="directory-header">
+            <h2 id="directory-rooms-title">公开房间</h2><output id="directory-room-count">—</output>
+          </header>
+          <div class="directory-scroll" role="region" aria-labelledby="directory-rooms-title" tabindex="0">
+            <table class="directory-table room-table">
+              <thead>
+                <tr>
+                  <th scope="col">任务</th>
+                  <th scope="col">房主</th>
+                  <th scope="col">房间代码</th>
+                  <th scope="col">人数</th>
+                  <th scope="col">状态</th>
+                  <th scope="col" class="directory-action">操作</th>
+                </tr>
+              </thead>
+              <tbody id="directory-rooms"></tbody>
+              <tbody id="rooms-placeholder">
+                <tr><td colspan="6" class="directory-empty" id="empty-rooms">正在连接服务器</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="panel directory-panel" aria-labelledby="online-title">
+          <header class="directory-header">
+            <h2 id="online-title">在线玩家</h2><output id="online-count">—</output>
+          </header>
+          <div class="directory-scroll" role="region" aria-labelledby="online-title" tabindex="0">
+            <table class="directory-table pilot-table">
+              <thead><tr><th scope="col">飞行员呼号</th></tr></thead>
+              <tbody id="online-callsigns"></tbody>
+              <tbody id="pilots-placeholder">
+                <tr><td class="directory-empty" id="empty-pilots">正在连接服务器</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
       <aside class="panel map-panel" aria-labelledby="map-title">
         <div class="map-header">
           <div>
@@ -171,7 +208,7 @@
       <h2 id="tutorial-title">入门教程</h2>
       <div class="tutorial-actions">
         <form method="dialog"><button class="button secondary">关闭</button></form>
-        <button class="button primary" id="start-practice" type="button" disabled>进入单人练习</button>
+        <button class="button primary" id="start-practice" type="button" disabled>开始实操教程</button>
       </div>
     </header>
     <nav class="tutorial-tabs" aria-label="教程章节">

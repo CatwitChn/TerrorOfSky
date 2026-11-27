@@ -9,6 +9,7 @@ import {
   AIRFRAME_LOADOUTS, defaultCountermeasures, defaultLoadout, MISSIONS, PROTOCOL_VERSION, validateCountermeasures, validateLoadout
 } from './missions.mjs';
 import { BATTLE_DISPLAY } from './simulation.mjs';
+import { acceptTutorialAction } from './tutorial.mjs';
 
 const HELP = `Terror of Sky server
 
@@ -132,7 +133,12 @@ function queuePresence() {
     presenceTimer = undefined;
     const online = [...sessions.values()].filter(player => player.socket?.readyState === WebSocket.OPEN);
     const callsigns = online.flatMap(player => player.name ? [player.name] : []).sort((a, b) => a.localeCompare(b, 'zh-CN'));
-    const message = JSON.stringify({ type: 'presence', count: online.length, callsigns, maintenance });
+    const directory = [...rooms.values()].filter(room => !room.practice && room.players.length).map(room => ({
+      code: room.code, mission: room.mission.id, count: room.players.length,
+      capacity: room.mission.playerLimit, state: room.match?.state ?? 'waiting',
+      host: room.players.find(player => player.id === room.hostId)?.name ?? '',
+    }));
+    const message = JSON.stringify({ type: 'presence', count: online.length, callsigns, rooms: directory, maintenance });
     for (const player of online) send(player.socket, message);
   }, 100).unref();
 }
@@ -159,6 +165,7 @@ function publishRoom(room) {
   const state = { code: room.code, hostId: room.hostId, teamSize: TEAM_SIZE, mission: room.mission,
     canStart: canStart(room), players, match: room.match };
   for (const player of room.players) send(player.socket, { type: 'room', room: state });
+  queuePresence();
 }
 
 function newRoom(host, mission) {
@@ -197,6 +204,7 @@ function leaveRoom(player) {
     }
   }
   send(player.socket, { type: 'room', room: null });
+  queuePresence();
 }
 
 function startMatch(room) {
@@ -223,6 +231,10 @@ function publishMatch(room, recipient) {
 
 function perform(player, action) {
   const { room } = player;
+  if (action.type === 'latency') {
+    if (Number.isSafeInteger(action.id)) send(player.socket, { type: 'latency', id: action.id });
+    return;
+  }
   if (action.type === 'callsign') {
     const name = validCallsign(action.name);
     if (!room && name !== player.name) {
@@ -263,14 +275,15 @@ function perform(player, action) {
     leaveRoom(player);
     return;
   }
-  if (action.type === 'battle-ready' || action.type === 'battle-input') {
+  if (action.type === 'battle-ready' || action.type === 'battle-input' || action.type === 'lesson-action') {
     const pilot = room.arena?.pilots.get(player.id);
     if (!pilot || action.id !== room.match.id) return;
     if (action.type === 'battle-ready') {
       pilot.ready = true;
       publishMatch(room, player);
     } else if (pilot.ready && room.arena.state === 'playing') {
-      acceptInput(pilot, action, performance.now());
+      if (action.type === 'lesson-action') acceptTutorialAction(room.arena.battle, action.operation, pilot.aircraft);
+      else acceptInput(pilot, action, performance.now());
     }
     return;
   }

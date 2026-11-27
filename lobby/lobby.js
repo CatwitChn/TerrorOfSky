@@ -2,14 +2,15 @@ import * as settings from './config.js';
 import { getMissileArt, paintMissileArt } from './missile-art.js';
 
 const { serverUrl, battleUrl = '../index.html' } = settings;
-const PROTOCOL_VERSION = 11;
+const PROTOCOL_VERSION = 12;
 
 const find = id => document.getElementById(id);
 const entry = find('entry');
 const roomPanel = find('room');
 const connection = find('connection');
 const notice = find('notice');
-const presence = find('presence');
+const latency = find('connection-latency');
+const directory = find('lobby-directory');
 const tutorial = find('tutorial');
 const tutorialTabs = tutorial.querySelectorAll('[aria-controls]');
 const startPractice = find('start-practice');
@@ -59,6 +60,7 @@ let countermeasureDraft = {};
 let savedCountermeasures = {};
 let savingLoadout = false;
 let stationControls = [];
+let presence = null;
 
 function showNotice(message = '', error = false) {
   notice.textContent = message;
@@ -263,8 +265,75 @@ function renderTeam(team, me) {
   teamButtons[team].disabled = !online || current || full || Boolean(room.match);
 }
 
+function renderDirectory() {
+  directory.hidden = Boolean(room);
+  if (room) return;
+  const { rooms = [], callsigns = [], count = 0 } = presence ?? {};
+  const statusText = online ? '正在加载列表' : connection.dataset.state === 'connecting' ? '正在连接服务器' : '服务器未连接';
+  find('directory-room-count').value = presence ? `${rooms.length} 间` : '—';
+  find('online-count').value = presence ? `${count} 人` : '—';
+  find('rooms-placeholder').hidden = rooms.length > 0;
+  find('empty-rooms').textContent = presence ? '当前没有公开房间' : statusText;
+  find('pilots-placeholder').hidden = count > 0;
+  find('empty-pilots').textContent = presence ? '当前没有玩家在线' : statusText;
+
+  const roomRows = find('directory-rooms');
+  const focusedCode = roomRows.contains(document.activeElement) ? document.activeElement.dataset.room : null;
+  let focusedButton;
+  const states = { waiting: '准备中', full: '已满', loading: '加载中', playing: '对局中', finished: '已结束' };
+  roomRows.replaceChildren(...rooms.map(item => {
+    const row = document.createElement('tr');
+    const missionName = missions.get(item.mission)?.name ?? item.mission;
+    const mission = row.insertCell();
+    mission.className = 'directory-mission';
+    mission.textContent = mission.title = missionName;
+    const host = row.insertCell();
+    host.textContent = host.title = item.host || '—';
+    const roomCode = row.insertCell();
+    roomCode.className = 'directory-code';
+    roomCode.textContent = item.code;
+    const size = row.insertCell();
+    size.className = 'directory-size';
+    size.textContent = `${item.count}/${item.capacity}`;
+    const state = item.state === 'waiting' && item.count >= item.capacity ? 'full' : item.state;
+    const status = row.insertCell();
+    status.className = 'directory-state';
+    status.dataset.state = state;
+    status.textContent = states[state] ?? '—';
+    const action = row.insertCell();
+    action.className = 'directory-action';
+    const button = document.createElement('button');
+    button.className = 'button secondary';
+    button.type = 'button';
+    button.textContent = '加入';
+    button.setAttribute('aria-label', `加入房间 ${item.code}`);
+    button.dataset.room = item.code;
+    button.disabled = !online || state !== 'waiting';
+    button.addEventListener('click', () => enterRoom('join', item.code));
+    action.append(button);
+    if (focusedCode === item.code && !button.disabled) focusedButton = button;
+    return row;
+  }));
+  focusedButton?.focus({ preventScroll: true });
+
+  const pilots = find('online-callsigns');
+  pilots.replaceChildren(...callsigns.map(name => {
+    const row = document.createElement('tr');
+    const cell = row.insertCell();
+    cell.textContent = cell.title = name;
+    return row;
+  }));
+  const unnamed = count - callsigns.length;
+  if (unnamed > 0) {
+    const cell = pilots.insertRow().insertCell();
+    cell.className = 'directory-unnamed';
+    cell.textContent = `未设置呼号 · ${unnamed} 人`;
+  }
+}
+
 function render() {
   renderMission();
+  renderDirectory();
   missionSelect.disabled = !online;
   find('create').disabled = !online || !missions.has(missionSelect.value);
   find('join').disabled = !online;
@@ -370,7 +439,7 @@ function notifyReady() {
 
 window.addEventListener('message', event => {
   if (!battleView || event.origin !== location.origin || event.source !== battleView.frame.contentWindow) return;
-  const { channel, id, type, sequence, throttle, turn, action, fireCannon } = event.data ?? {};
+  const { channel, id, type, sequence, throttle, turn, action, fireCannon, operation } = event.data ?? {};
   if (channel !== 'tos-flight' || id !== battleView.id) return;
   if (type === 'configure') {
     sendBattleView({ type: 'configuration', display: battleView.display });
@@ -385,6 +454,8 @@ window.addEventListener('message', event => {
       send('leave');
       find('show-tutorial').focus();
     } else enterBattle.focus();
+  } else if (type === 'lesson-action' && online && !battleScreen.hidden && battleView.display.practice) {
+    send('lesson-action', { id, operation });
   } else if (type === 'input' && online && socket.readyState === WebSocket.OPEN && socket.bufferedAmount < 64_000) {
     if (battleScreen.hidden && (action || throttle || turn || fireCannon)) return;
     socket.send(JSON.stringify({ type: 'battle-input', id, sequence, throttle, turn, action, fireCannon }));
@@ -394,8 +465,9 @@ window.addEventListener('message', event => {
 function setConnection(state, text) {
   online = state === 'online';
   if (!online) {
-    presence.hidden = true;
-    presence.open = false;
+    presence = null;
+    latency.value = '延迟 —';
+    delete latency.dataset.quality;
     maintenance = false;
   }
   connection.dataset.state = state;
@@ -406,7 +478,19 @@ function setConnection(state, text) {
 function connect(endpoint) {
   const tokenKey = `tos-session:${endpoint.href}`;
   let incompatible = false;
+  let latencyTimer, probe, probeId = 0;
   socket = new WebSocket(endpoint);
+  const connectionSocket = socket;
+  const measureLatency = () => {
+    const now = performance.now();
+    if (connectionSocket.readyState !== WebSocket.OPEN || (probe && now - probe.at < 7500)) return;
+    if (probe) {
+      latency.value = '延迟 —';
+      delete latency.dataset.quality;
+    }
+    probe = { id: ++probeId, at: now };
+    connectionSocket.send(JSON.stringify({ type: 'latency', id: probe.id }));
+  };
   socket.addEventListener('open', () => {
     socket.send(JSON.stringify({ type: 'hello', token: sessionStorage.getItem(tokenKey), name: callsign.value.trim() }));
   });
@@ -437,23 +521,23 @@ function connect(endpoint) {
         sessionStorage.setItem(tokenKey, message.token);
         reconnectDelay = 750;
         setConnection('online', '服务在线');
+        measureLatency();
+        latencyTimer = setInterval(measureLatency, 2500);
         break;
+      case 'latency': {
+        if (!probe || message.id !== probe.id) break;
+        const ms = Math.round(performance.now() - probe.at);
+        probe = null;
+        latency.value = `延迟 ${ms} ms`;
+        latency.dataset.quality = ms < 90 ? 'good' : ms < 200 ? 'fair' : 'poor';
+        break;
+      }
       case 'presence': {
-        const { count, callsigns } = message;
-        find('online-count').textContent = `在线 ${count} 人`;
-        find('online-callsigns').replaceChildren(...callsigns.map(name => {
-          const item = document.createElement('li');
-          item.textContent = name;
-          return item;
-        }));
-        const unnamed = find('unnamed-pilots');
-        unnamed.textContent = `未设置呼号 ${count - callsigns.length} 人`;
-        unnamed.hidden = count === callsigns.length;
-        presence.hidden = false;
+        presence = message;
         if (maintenance !== message.maintenance) {
           maintenance = message.maintenance;
           render();
-        }
+        } else renderDirectory();
         break;
       }
       case 'room':
@@ -476,6 +560,7 @@ function connect(endpoint) {
     }
   });
   socket.addEventListener('close', event => {
+    clearInterval(latencyTimer);
     if (incompatible) return;
     if (event.code === 4001) {
       sessionStorage.removeItem(tokenKey);
@@ -497,12 +582,12 @@ function send(type, fields = {}) {
   socket.send(JSON.stringify({ type, ...fields }));
 }
 
-function enterRoom(type) {
+function enterRoom(type, roomCode = code.value) {
   const name = callsign.value.trim();
   callsign.setCustomValidity(name && [...name].length <= 16 ? '' : '请输入 1 至 16 个字符的呼号。');
   if (!callsign.reportValidity()) return;
   sessionStorage.setItem('tos-callsign', name);
-  send(type, type === 'create' ? { name, mission: missionSelect.value } : { name, code: code.value.toUpperCase() });
+  send(type, type === 'create' ? { name, mission: missionSelect.value } : { name, code: roomCode.toUpperCase() });
 }
 
 callsign.addEventListener('input', () => callsign.setCustomValidity(''));

@@ -68,11 +68,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\deploy-windows.ps1 -
 
 ### 使用 Windows x64 服务端 ZIP
 
-Windows x64 发布包自带 Node.js 和 WebSocket 依赖。将 `terror-of-sky-server-0.7.0-windows-x64.zip` 上传到服务器，在 PowerShell 中解压并启动。Node.js 24 的官方 Windows x64 支持范围从 Windows Server 2016 起。 [Node.js 平台支持表](https://github.com/nodejs/node/blob/v24.x/BUILDING.md#platform-list)
+Windows x64 发布包自带 Node.js 和 WebSocket 依赖。将 `terror-of-sky-server-0.8.0-windows-x64.zip` 上传到服务器，在 PowerShell 中解压并启动。Node.js 24 的官方 Windows x64 支持范围从 Windows Server 2016 起。 [Node.js 平台支持表](https://github.com/nodejs/node/blob/v24.x/BUILDING.md#platform-list)
 
 ```powershell
-Expand-Archive -LiteralPath .\terror-of-sky-server-0.7.0-windows-x64.zip -DestinationPath .
-Set-Location .\terror-of-sky-server-0.7.0-windows-x64
+Expand-Archive -LiteralPath .\terror-of-sky-server-0.8.0-windows-x64.zip -DestinationPath .
+Set-Location .\terror-of-sky-server-0.8.0-windows-x64
 .\start-server.cmd --host 127.0.0.1 --port 3000 --origin https://play.example.com
 ```
 
@@ -90,7 +90,7 @@ Set-Location .\terror-of-sky-server-0.7.0-windows-x64
 node -e "require('node:fs').writeFileSync('lobby/version.json', JSON.stringify({ version: require('./server/package.json').version }))"
 ```
 
-当前服务端使用第 11 版协议。更新服务端时一并发布新版大厅和战场页面。
+当前服务端使用第 12 版协议。更新服务端时一并发布新版大厅和战场页面。
 
 ```js
 export const serverUrl = 'wss://game.example.com/ws';

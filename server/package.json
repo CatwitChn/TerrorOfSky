@@ -1,9 +1,9 @@
 {
   "name": "terror-of-sky-server",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "type": "module",
-  "files": ["server.mjs", "match.mjs", "simulation.mjs", "flight-model.mjs", "missions.mjs", "airfields.mjs", "combat.mjs", "README.md"],
+  "files": ["server.mjs", "match.mjs", "simulation.mjs", "flight-model.mjs", "missions.mjs", "airfields.mjs", "combat.mjs", "tutorial.mjs", "README.md"],
   "bundleDependencies": ["ws"],
   "scripts": {
     "start": "node server.mjs"

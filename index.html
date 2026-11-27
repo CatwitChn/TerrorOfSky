@@ -51,15 +51,14 @@
     }
     .missile-view[data-impact]::before { display: none; }
     .missile-instruments {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: min(188px, 42vw);
-      transform: translate(calc(var(--tail-x, 0px) - 50%), calc(var(--tail-y, 0px) - 50%));
+      grid-area: stores;
+      justify-self: center;
+      width: min(100%, 290px);
+      min-width: 0;
       padding: 7px 9px;
       border: 1px solid rgb(146 206 197 / 42%);
       border-radius: 6px;
-      background: rgb(7 26 32 / 58%);
+      background: rgb(7 26 32 / 94%);
       backdrop-filter: blur(2px);
       text-shadow: 0 1px 3px #08191d;
     }
@@ -70,13 +69,15 @@
     }
     .missile-readouts {
       display: grid;
-      gap: 3px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 3px 12px;
       margin: 5px 0 0;
     }
     .missile-readouts > div { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
     .missile-readouts dt { color: var(--muted); font-size: .625rem; white-space: nowrap; }
     .missile-readouts dd { margin: 0; color: #d4f5e6; font: 650 .75rem var(--hud-numerals); text-align: right; }
     .missile-mode {
+      grid-column: 1 / -1;
       padding-top: 4px;
       border-top: 1px solid var(--border);
     }
@@ -133,7 +134,8 @@
       font-weight: 650;
     }
 
-    .compass { position: relative; display: grid; justify-items: center; gap: 4px; min-width: 0; }
+    .compass { position: relative; display: grid; justify-items: center; gap: 4px; min-width: 0;
+      max-width: min(390px, 48vw); text-align: center; overflow-wrap: anywhere; }
     .compass-scale {
       position: relative;
       width: clamp(154px, 23vw, 305px);
@@ -200,14 +202,12 @@
     .factory-status[data-danger] { color: #ff9f7c; }
     .spectator-status { color: #d1f2ff; font-size: .75rem; font-weight: 650; text-align: center; text-shadow: 0 1px 4px #072628; }
     .missile-feedback {
-      position: absolute;
-      top: calc(100% + 7px);
       color: var(--accent);
-      font-size: .875rem;
+      font-size: clamp(.68rem, 1.45vw, .825rem);
       font-weight: 700;
-      white-space: nowrap;
       text-shadow: 0 1px 5px #0b2228;
     }
+    .missile-feedback:empty { display: none; }
     .missile-feedback[data-danger] { color: #ff9c86; }
 
     .actions { position: relative; display: flex; justify-self: end; gap: 6px; pointer-events: auto; }
@@ -456,9 +456,10 @@
       max-height: calc(100dvh - 100px);
       padding: 12px;
       overflow: auto;
-      white-space: nowrap;
+      white-space: normal;
     }
-    .control-group { display: flex; align-items: center; gap: 3px; }
+    .control-group { display: flex; flex-wrap: wrap; align-items: center; min-width: 0; gap: 3px; }
+    .control-note { grid-column: 1 / -1; }
     .control-group span { margin-left: 3px; color: var(--muted); font-size: .75rem; }
     kbd {
       display: inline-grid;
@@ -604,6 +605,76 @@
     .message-panel .button { margin-top: 18px; padding-inline: 16px; color: #1a2322; background: var(--accent); }
     .message-panel .button[hidden] { display: none; }
 
+    .scoreboard {
+      position: absolute;
+      z-index: 4;
+      inset: 0;
+      display: flex;
+      overflow: auto;
+      padding: clamp(10px, 4vw, 42px);
+      background: rgb(5 14 22 / 75%);
+    }
+    .scoreboard[hidden] { display: none; }
+    .scoreboard-panel {
+      width: min(100%, 1060px);
+      margin: auto;
+      padding: clamp(12px, 2.2vw, 24px);
+      border: 1px solid #526b72;
+      border-radius: 12px;
+      background: #101f28;
+    }
+    .scoreboard-heading, .score-team-heading, .scoreboard-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 9px 14px;
+    }
+    .scoreboard-heading { flex-wrap: wrap; margin-bottom: 15px; }
+    .scoreboard-heading h2 { margin: 0; font-size: clamp(1.12rem, 4vw, 1.5rem); }
+    .scoreboard-mission, .scoreboard-footer, .score-team-summary { color: #b4c8cc; font-size: .75rem; }
+    .scoreboard-heading output { color: #dfebe8; font: 650 .875rem var(--hud-numerals); }
+    .scoreboard-teams { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+    .score-team {
+      --side: #9adcdf;
+      min-width: 0;
+      overflow: hidden;
+      border: 1px solid #344953;
+      border-top: 2px solid var(--side);
+      border-radius: 6px;
+      background: #152630;
+    }
+    .score-team[data-opponent] { --side: #f5a78c; }
+    .score-team-heading { min-height: 43px; padding: 5px 10px; }
+    .score-team-heading h3 { margin: 0; color: var(--side); font-size: .88rem; }
+    .score-team table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: .78rem; }
+    .score-team th, .score-team td { padding: 7px 5px; text-align: right; }
+    .score-team thead { color: #c1d0d2; background: #1c303a; }
+    .score-team thead th { font-size: .69rem; font-weight: 650; white-space: nowrap; }
+    .score-team th:first-child { width: auto; padding-left: 10px; text-align: left; }
+    .score-team th:nth-child(2), .score-team td:nth-child(2) { width: 66px; text-align: left; }
+    .score-team th:nth-child(n+3) { width: 39px; }
+    .score-team th:last-child { width: 53px; }
+    .score-team :is(td, th):last-child { padding-right: 10px; }
+    .score-team tbody tr { border-top: 1px solid #2b404a; }
+    .score-team tbody tr:nth-child(even) { background: #172b35; }
+    .score-team tbody tr[data-lost] { color: #aec0c4; }
+    .score-team tbody tr[aria-current] { background: #283e41; box-shadow: inset 3px 0 #d6ca8e; }
+    .score-pilot { display: flex; align-items: center; gap: 6px; }
+    .score-callsign { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .score-pilot-note { flex: none; color: #b4c8cc; font-size: .65rem; font-weight: 500; white-space: nowrap; }
+    .score-team td:nth-child(n+3) { font-variant-numeric: tabular-nums; }
+    .score-team td:last-child { color: #ebdca7; font-weight: 700; }
+    .scoreboard-footer { flex-wrap: wrap; margin-top: 13px; }
+
+    @media (max-width: 760px) {
+      .scoreboard-teams { grid-template-columns: minmax(0, 1fr); }
+    }
+    @media (max-width: 410px) {
+      .score-team th:nth-child(2), .score-team td:nth-child(2) { width: 53px; }
+      .score-team th:nth-child(n+3) { width: 31px; }
+      .score-team th:last-child { width: 44px; }
+    }
+
     @media (max-height: 560px) {
       :root { --hud-top: clamp(88px, 28vh, 152px); }
       .telemetry { padding-block: 6px; }
@@ -624,13 +695,12 @@
     @media (max-width: 700px) {
       .missile-instruments { padding: 5px 7px; }
       .missile-readouts dd { font-size: .6875rem; }
-      .game:has(.missile-view:not([hidden])) .compass { visibility: hidden; }
       .topbar { grid-template-columns: 1fr auto; gap: 12px; }
       .identity { grid-area: 1 / 1; }
       .identity h1 { font-size: clamp(13px, 3.6vw, 18px); letter-spacing: .08em; }
       .actions { grid-area: 1 / 2; }
       .actions .button { padding-inline: 8px; }
-      .compass { grid-area: 2 / 1 / 3 / -1; justify-self: center; }
+      .compass { grid-area: 2 / 1 / 3 / -1; justify-self: center; max-width: min(390px, 100%); }
       .compass-scale { width: 168px; }
       .cockpit {
         grid-template-rows: minmax(0, 1fr) auto auto;
@@ -647,7 +717,7 @@
     @media (min-width: 481px) and (max-width: 700px) and (max-height: 505px) {
       :root { --hud-top: 91px; --hud-panel-width: clamp(96px, 18vw, 136px); }
       .topbar { grid-template-columns: 1fr auto 1fr; }
-      .compass { grid-area: 1 / 2; }
+      .compass { grid-area: 1 / 2; max-width: 35vw; }
       .compass-scale { width: min(168px, 26vw); }
       .weapon-racks { gap: 4px; }
       .weapon-racks:has([data-weapon="arh"]:not([hidden])):has(#cannon-rack:not([hidden])) {
@@ -701,10 +771,27 @@
       .minimap { width: min(100%, 18vh); }
       .minimap-header, .minimap-footer { padding: 3px 4px; font-size: .625rem; }
     }
-    .practice-guide { position: absolute; top: var(--hud-top); left: 50%; z-index: 6; transform: translateX(-50%);
-      width: min(350px, calc(100% - 28px)); padding: 9px 11px; font-size: .775rem; line-height: 1.45; }
-    .practice-guide p { margin: 3px 0 6px; }
-    .practice-guide button { min-height: 24px; padding: 2px 8px; }
+    .practice-guide { width: min(315px, 100%); padding: 6px 9px; font-size: clamp(.67rem, 1.5vw, .775rem);
+      line-height: 1.35; text-align: left; pointer-events: auto; }
+    .practice-guide header { display: flex; align-items: baseline; gap: 6px; justify-content: space-between; }
+    .practice-guide p { margin: 3px 0 4px; }
+    .practice-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+    .practice-guide button { min-height: 22px; padding: 1px 6px; font-size: inherit; }
+    .practice-guide button[hidden] { display: none; }
+    .practice-state { color: var(--muted); font-size: .64rem; }
+    .practice-guide[data-feedback="hit"] .practice-state { color: #ade9b8; }
+    .practice-guide[data-feedback="retry"] .practice-state { color: #ffcc86; }
+    .game[data-tutorial] .missile-feedback { display: none; }
+    .missile-instruments[hidden], .loadout[hidden] { display: none; }
+    @media (max-width: 480px) {
+      .game { --hud-panel-width: clamp(92px, 27vw, 112px); }
+      .compass > :is(.airport-status, .factory-status, .spectator-status, .missile-feedback, .practice-guide) {
+        max-width: calc(100vw - 2 * var(--hud-panel-width) - 2 * var(--gutter) - 12px);
+      }
+      .game[data-tutorial] .compass > :is(.team-counts, .mission-progress, .airport-status) { display: none; }
+      .practice-guide { padding: 5px 7px; }
+      .practice-guide header { display: grid; gap: 1px; }
+    }
     .sound-settings { display: grid; gap: 8px; width: 156px; }
     .sound-settings input { width: 100%; margin: 0; }
   </style>
@@ -714,30 +801,19 @@
     <canvas class="scene" id="scene" role="img" aria-label="正俯视的多佛白崖与多佛海峡"></canvas>
     <div class="vignette" aria-hidden="true"></div>
     <canvas class="effects" id="effects" aria-hidden="true"></canvas>
-    <div class="missile-view" id="missile-view" hidden>
-      <section id="missile-instruments" class="missile-instruments" aria-label="导弹遥测">
-        <div class="missile-view-title" id="missile-view-label" role="status"></div>
-        <dl class="missile-readouts">
-          <div><dt>速度</dt><dd id="missile-kph"></dd></div>
-          <div><dt>马赫</dt><dd id="missile-mach"></dd></div>
-          <div><dt>转向过载</dt><dd id="missile-load"></dd></div>
-          <div><dt>已飞行</dt><dd id="missile-distance"></dd></div>
-          <div class="missile-mode"><dt>工作模式</dt><dd id="missile-mode"></dd></div>
-        </dl>
-      </section>
-    </div>
+    <div class="missile-view" id="missile-view" hidden></div>
 
     <header class="topbar">
       <div class="identity">
         <h1>TERROR OF SKY</h1>
         <div class="identity-actions">
           <output class="aircraft-name" id="aircraft-name" aria-label="????">?</output>
-          <details class="control-help">
+          <details class="control-help" name="flight-options">
             <summary class="button">按键</summary>
             <div class="instrument controls" aria-label="飞行、武器与视角按键">
               <div class="control-group"><kbd data-key="KeyW">W</kbd><kbd data-key="KeyS">S</kbd><span>油门</span></div>
               <div class="control-group"><kbd data-key="KeyB">B</kbd><span>开关减速板</span></div>
-              <div class="control-group"><span>对准己方跑道自动进近，停稳补给后按 W 起飞</span></div>
+              <div class="control-group control-note"><span>对准己方跑道自动进近，停稳补给后按 W 起飞</span></div>
               <div class="control-group"><kbd data-key="KeyA">A</kbd><kbd data-key="KeyD">D</kbd><span>转向</span></div>
               <div class="control-group"><kbd data-key="Space">空格</kbd><span>引导 / 发射</span></div>
               <div class="control-group"><kbd data-key="KeyF">F</kbd><span>按住发射航炮</span></div>
@@ -748,13 +824,14 @@
               <div class="control-group"><kbd data-key="KeyX">X</kbd><span>热诱弹</span></div>
               <div class="control-group"><kbd data-key="KeyC">C</kbd><span>干扰箔</span></div>
               <div class="control-group"><kbd data-key="KeyU">U</kbd><span>按住跟弹</span></div>
+              <div class="control-group"><kbd>Tab</kbd><span>按住查看计分板</span></div>
               <div class="control-group"><kbd class="mouse-key">右键</kbd><span>看向鼠标</span></div>
             </div>
           </details>
-          <details class="control-help">
+          <details class="control-help" name="flight-options">
             <summary class="button">声音</summary>
             <div class="instrument controls sound-settings">
-              <button class="button" id="sound-toggle" type="button">开启声音</button>
+              <button class="button" id="sound-toggle" type="button">静音</button>
               <label for="sound-volume">音量</label>
               <input id="sound-volume" type="range" min="0" max="100" value="55">
             </div>
@@ -772,6 +849,14 @@
         <output class="factory-status" id="factory-status" aria-live="off" hidden></output>
         <output class="spectator-status" id="spectator-status" aria-live="off" hidden></output>
         <output class="airport-status" id="airport-status" aria-live="off" hidden></output>
+        <section class="instrument practice-guide" id="practice-guide" aria-label="实操教程" hidden>
+          <header><strong id="practice-heading"></strong><span class="practice-state" id="practice-state"></span></header>
+          <p id="practice-detail" aria-live="polite"></p>
+          <div class="practice-actions">
+            <button class="button" id="continue-practice" type="button" aria-keyshortcuts="Enter" hidden>继续</button>
+            <button class="button" id="skip-practice" type="button">结束引导</button>
+          </div>
+        </section>
         <span class="missile-feedback" id="missile-feedback" role="status"></span>
       </div>
       <div class="actions">
@@ -845,6 +930,17 @@
         </div>
       </section>
 
+      <section id="missile-instruments" class="missile-instruments" aria-label="导弹遥测" hidden>
+        <div class="missile-view-title" id="missile-view-label" role="status"></div>
+        <dl class="missile-readouts">
+          <div><dt>速度</dt><dd id="missile-kph"></dd></div>
+          <div><dt>马赫</dt><dd id="missile-mach"></dd></div>
+          <div><dt>过载</dt><dd id="missile-load"></dd></div>
+          <div><dt>已飞行</dt><dd id="missile-distance"></dd></div>
+          <div class="missile-mode"><dt>工作模式</dt><dd id="missile-mode"></dd></div>
+        </dl>
+      </section>
+
       <div class="instrument hud-panel minimap" role="group" aria-label="多佛海峡北向小地图，黄色箭头为本机，青色为队友，橙色为对手">
         <div class="minimap-header">
           <span id="minimap-name">多佛白崖</span>
@@ -875,11 +971,27 @@
       </div>
     </div>
 
-    <section class="instrument practice-guide" id="practice-guide" aria-label="飞行练习" hidden>
-      <strong id="practice-heading"></strong>
-      <p id="practice-detail"></p>
-      <button class="button" id="skip-practice" type="button">收起提示</button>
+    <section class="scoreboard" id="scoreboard" aria-labelledby="scoreboard-title" aria-keyshortcuts="Tab" hidden>
+      <div class="scoreboard-panel">
+        <header class="scoreboard-heading">
+          <h2 id="scoreboard-title">对局计分板</h2>
+          <div><span class="scoreboard-mission" id="scoreboard-mission"></span> <output id="scoreboard-time" aria-live="off"></output></div>
+        </header>
+        <div class="scoreboard-teams" id="scoreboard-teams"></div>
+        <footer class="scoreboard-footer">
+          <span id="scoreboard-rules"></span><span>松开 <kbd>Tab</kbd> 关闭</span>
+        </footer>
+      </div>
     </section>
+    <template id="score-team-template">
+      <section class="score-team">
+        <header class="score-team-heading"><h3></h3><span class="score-team-summary"></span></header>
+        <table>
+          <thead><tr><th scope="col">飞行员</th><th scope="col">座机</th><th scope="col">击毁</th><th scope="col">助攻</th><th scope="col">损失</th><th scope="col">得分</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </section>
+    </template>
 
     <div class="message-overlay" id="message" hidden>
       <section class="instrument message-panel" role="dialog" aria-labelledby="message-title" aria-describedby="message-detail">
@@ -5326,12 +5438,18 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         if (!aircraft.boomArmed || previous.speed >= machOneKph || flight.speed < machOneKph) continue;
         aircraft.boomArmed = false;
         const fraction = (machOneKph - previous.speed) / (flight.speed - previous.speed);
-        sonicBooms.push({
+        const boom = {
           x: lerp(previous.x, flight.x, fraction),
           z: lerp(previous.z, flight.z, fraction),
           heading: previous.heading + angleDelta(previous.heading, flight.heading) * fraction,
           time: lerp(previousTime, time, fraction)
-        });
+        };
+        sonicBooms.push(boom);
+        const listener = viewedAircraft();
+        if (battleAudio && aircraft !== listener) {
+          const { strength, pan } = spatialSound(listener.flight, boom, 5);
+          battleAudio.play('sonic', strength, pan);
+        }
       }
     }
 
@@ -6060,6 +6178,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     const effectsCanvas = document.getElementById('effects');
     const missileView = document.getElementById('missile-view');
     const missileInstruments = document.getElementById('missile-instruments');
+    const loadoutPanel = document.querySelector('.loadout');
     const missileViewLabel = document.getElementById('missile-view-label');
     const missileReadouts = ['kph', 'mach', 'load', 'distance', 'mode'].map(field => document.getElementById(`missile-${field}`));
     const aircraftName = document.getElementById('aircraft-name');
@@ -6075,6 +6194,14 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     const message = document.getElementById('message');
     const messageTitle = document.getElementById('message-title');
     const messageDetail = document.getElementById('message-detail');
+    const scoreboard = document.getElementById('scoreboard');
+    const scoreTeams = document.getElementById('scoreboard-teams');
+    const scoreMission = document.getElementById('scoreboard-mission');
+    const scoreTime = document.getElementById('scoreboard-time');
+    const scoreRules = document.getElementById('scoreboard-rules');
+    const scoreTeamTemplate = document.getElementById('score-team-template');
+    const teamPanels = Array.from({ length: 2 }, () => scoreTeamTemplate.content.firstElementChild.cloneNode(true));
+    let lastScoreboardRows = '';
     const headingOutput = document.getElementById('heading');
     const compassScale = document.getElementById('compass-scale');
     const compassMarks = Array.from({ length: 13 }, () => {
@@ -6128,13 +6255,13 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     const keycaps = document.querySelectorAll('[data-key]');
     const keys = new Set();
     const practiceGuide = document.getElementById('practice-guide');
-    const practiceSteps = [
-      ['飞行 · 1 / 3', '按住 W 或 S 调整油门，再按住 A 或 D 转向。'],
-      ['锁定与发射 · 2 / 3', '飞向右侧雷达上的目标。用 Q 切到半主动雷达弹，按 T 锁定，显示已锁定后按空格发射。'],
-      ['警告与反制 · 3 / 3', '左侧 RWR 会显示被搜索、锁定及雷达弹告警。按 C 释放箔条，按 X 释放热诱弹。'],
-      ['练习完成', '你可以继续练习，或按 Esc 返回大厅。'],
-    ];
-    const practice = { step: 0, turned: false, throttled: false, beganAt: 0, skipped: false };
+    const practiceHeading = document.getElementById('practice-heading');
+    const practiceDetail = document.getElementById('practice-detail');
+    const practiceStatus = document.getElementById('practice-state');
+    const continuePractice = document.getElementById('continue-practice');
+    const skipPractice = document.getElementById('skip-practice');
+    let lesson;
+    let requestedLessonAction;
     const battle = {
       aircraft: [], player: null, missiles: [], cannonTracers: [], flares: [], chaff: [], explosions: [], time: 0,
       result: null, resultReason: null, nextWakeSampleAt: 0, sonicBooms: [],
@@ -6147,9 +6274,10 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     let missileArt;
     let battleAudio;
     let battleVisible = true;
-    let soundEnabled = false;
+    let soundEnabled = localStorage.getItem('tos-sound-muted') !== 'true';
     const soundToggle = document.getElementById('sound-toggle');
     const soundVolume = document.getElementById('sound-volume');
+    soundToggle.textContent = soundEnabled ? '静音' : '开启声音';
     soundVolume.value = localStorage.getItem('tos-sound-volume') ?? soundVolume.value;
     let renderer;
     let followedMissile = null;
@@ -6233,7 +6361,8 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         online.oneWayMs = lerp(online.oneWayMs ?? sample, sample, 0.2);
       }
       online.pendingInputs = online.pendingInputs.filter(input => input.sequence > acknowledged && input.at >= now - 2500);
-      if (snapshot.state !== 'playing' || !isAlive(plane) || plane.flight.phase !== 'airborne'
+      if ((snapshot.tutorial && snapshot.tutorial.id !== 'complete') || snapshot.state !== 'playing'
+          || !isAlive(plane) || plane.flight.phase !== 'airborne'
           || !battleDisplay.aircraft[plane.flight.airframe]?.flight) {
         online.prediction = null;
         return;
@@ -6265,6 +6394,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       }
       clearKeys();
       endMouseLook();
+      scoreboard.hidden = true;
       postOnline('return');
     }
 
@@ -6288,65 +6418,157 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         if (frames.length > SNAPSHOT_BUFFER.frameLimit) frames.shift();
       }
       online.at = receivedAt;
+      if (!scoreboard.hidden) updateScoreboard(snapshot);
+    }
+
+    function formatBattleClock(seconds) {
+      return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+    }
+
+    function updateScoreboard(snapshot) {
+      const { mission } = battleDisplay;
+      const practicing = snapshot.tutorial && snapshot.tutorial.id !== 'complete';
+      const remaining = Math.max(0, Math.ceil(mission.timeLimit - snapshot.time));
+      const time = snapshot.result ? '对局结束' : practicing ? '训练中' : formatBattleClock(remaining);
+      if (scoreTime.textContent !== time) scoreTime.textContent = time;
+      scoreMission.textContent = mission.name;
+      const rule = practicing ? '引导阶段不计分' : snapshot.aircraft[0].combatStats ? '击毁 +100 · 助攻 +50' : '等待服务端战绩';
+      if (scoreRules.textContent !== rule) scoreRules.textContent = rule;
+
+      const { aircraft } = snapshot;
+      const player = aircraft[online.seat];
+      const rowsKey = JSON.stringify(aircraft.map(plane => [plane.name, plane.destroyedAt, plane.combatStats]));
+      if (rowsKey === lastScoreboardRows) return;
+      lastScoreboardRows = rowsKey;
+      const labels = mission.mode === 'pve' ? [mission.factory ? '防御编队' : '合作编队', '敌方编队'] : ['英国侧', '法国侧'];
+      const rosterNames = { fighter: '战斗机', escort: '护航机', bomber: '轰炸机' };
+      for (const [team, panel] of teamPanels.entries()) {
+        const roster = aircraft.filter(plane => plane.team === team);
+        roster.sort((a, b) => (b.combatStats?.points ?? 0) - (a.combatStats?.points ?? 0) ||
+          (b.combatStats?.kills ?? 0) - (a.combatStats?.kills ?? 0) || a.id - b.id);
+        panel.toggleAttribute('data-opponent', team !== player.team);
+        panel.querySelector('h3').textContent = labels[team];
+        panel.querySelector('table').setAttribute('aria-label', labels[team] + ' 战绩');
+        panel.querySelector('.score-team-summary').textContent =
+          `存活 ${roster.filter(isAlive).length}/${roster.length}`;
+        panel.querySelector('tbody').replaceChildren(...roster.map(plane => {
+          const row = document.createElement('tr');
+          const stats = plane.combatStats;
+          const callsign = stats?.callsign ?? plane.name;
+          const pilot = document.createElement('th');
+          pilot.scope = 'row';
+          const identity = document.createElement('span');
+          identity.className = 'score-pilot';
+          const name = document.createElement('span');
+          name.className = 'score-callsign';
+          name.textContent = callsign ?? `AI ${rosterNames[plane.role]} ${plane.slot + 1}`;
+          name.title = name.textContent;
+          identity.append(name);
+          const note = plane === player ? '本机' : callsign && !plane.name ? 'AI 接管' : '';
+          if (note) {
+            const tag = document.createElement('span');
+            tag.className = 'score-pilot-note';
+            tag.textContent = note;
+            identity.append(tag);
+          }
+          pilot.append(identity);
+          row.append(pilot);
+          row.toggleAttribute('data-lost', !isAlive(plane));
+          if (plane === player) row.setAttribute('aria-current', 'true');
+          const model = battleDisplay.aircraft[plane.flight.airframe].name;
+          for (const value of [model, stats?.kills, stats?.assists, stats?.losses, stats?.points]) {
+            row.insertCell().textContent = value ?? '—';
+          }
+          return row;
+        }));
+      }
+      scoreTeams.append(teamPanels[player.team], teamPanels[1 - player.team]);
     }
 
     function updatePractice(snapshot) {
-      if (!battleDisplay.practice || practice.skipped || snapshot.state !== 'playing' || snapshot.result) {
-        practiceGuide.hidden = true;
-        return;
+      const next = snapshot.tutorial;
+      if (lesson?.id !== next?.id && lesson?.feedback?.confirm) followedMissile = null;
+      if (lesson?.id !== next?.id || lesson?.feedback?.kind !== next?.feedback?.kind) requestedLessonAction = null;
+      lesson = next;
+      const visible = lesson && !lesson.skipped && snapshot.state === 'playing' && !snapshot.result;
+      const active = visible && lesson.id !== 'complete';
+      practiceGuide.hidden = !visible;
+      document.querySelector('.game').toggleAttribute('data-tutorial', Boolean(active));
+      if (!visible) return;
+      if (practiceGuide.dataset.step !== lesson.id) {
+        practiceGuide.dataset.step = lesson.id;
+        practiceHeading.textContent = active ? `${lesson.index}/${lesson.total} · ${lesson.title}` : '实操完成';
+        skipPractice.textContent = active ? '结束引导' : '收起提示';
       }
-      const plane = snapshot.aircraft[online.seat];
-      if (!isAlive(plane)) {
-        practiceGuide.hidden = true;
-        return;
-      }
-      if (practice.step === 0) {
-        practice.turned ||= Boolean(plane.input?.[2]);
-        practice.throttled ||= Boolean(plane.input?.[1]);
-        if (practice.turned && practice.throttled) {
-          practice.step = 1;
-          practice.beganAt = snapshot.time;
-        }
-      } else if (practice.step === 1 && (plane.radarRack.lastLaunch ?? -Infinity) > practice.beganAt) {
-        practice.step = 2;
-        practice.flares = plane.flareRack.ammo;
-        practice.chaff = plane.chaffRack.ammo;
-      } else if (practice.step === 2 && plane.flareRack.ammo < practice.flares && plane.chaffRack.ammo < practice.chaff) {
-        practice.step = 3;
-      }
-      const [heading, detail] = practiceSteps[practice.step];
-      if (practiceGuide.dataset.step !== String(practice.step)) {
-        practiceGuide.dataset.step = practice.step;
-        document.getElementById('practice-heading').textContent = heading;
-        document.getElementById('practice-detail').textContent = detail;
-      }
-      practiceGuide.hidden = false;
+      const feedback = lesson.feedback;
+      const detail = active ? feedback?.text ?? lesson.detail : '可以继续自由练习，或按 Esc 返回大厅。';
+      const feedbackLabels = { ok: '操作完成', hit: '已命中', retry: '请重试' };
+      const projectileLabels = { cannon: '等待炮弹命中', missile: '导弹飞行中' };
+      const status = !active ? '' : feedback ? feedbackLabels[feedback.kind] :
+        lesson.waiting ? '已暂停 · 等待操作' : projectileLabels[lesson.projectile] ?? '练习中';
+      if (practiceDetail.textContent !== detail) practiceDetail.textContent = detail;
+      if (practiceStatus.textContent !== status) practiceStatus.textContent = status;
+      practiceGuide.dataset.feedback = feedback?.kind ?? '';
+      continuePractice.hidden = !feedback?.confirm;
+      continuePractice.textContent = feedback?.kind === 'retry' ? '重试' : '继续';
+    }
+
+    function sendLessonAction(operation) {
+      if (!online.connected || !lesson || requestedLessonAction === operation) return;
+      if (operation === 'continue' ? !lesson.feedback?.confirm :
+          operation !== 'skip' && (lesson.id !== operation || !lesson.waiting)) return;
+      requestedLessonAction = operation;
+      postOnline('lesson-action', { operation });
     }
 
     function updateSoundActivity() {
       battleAudio?.setActive(soundEnabled && online.connected && battleVisible && !document.hidden && !resultShown);
     }
 
+    function unlockBattleAudio() {
+      if (soundEnabled && battleVisible && !document.hidden) {
+        battleAudio?.start().catch(error => console.warn('Could not start battle audio:', error));
+      }
+    }
+
+    function spatialSound(listener, { x, z }, radiusKm) {
+      const dx = x - listener.x;
+      const dz = z - listener.z;
+      const distance = Math.hypot(dx, dz);
+      const radius = battleDisplay.worldUnitsPerKilometer * radiusKm;
+      const strength = Math.max(0, 1 - distance / radius) ** 2;
+      const right = dx * Math.cos(listener.heading) + dz * Math.sin(listener.heading);
+      const pan = .83 * right / Math.max(1, distance, battleDisplay.worldUnitsPerKilometer * .12);
+      return { strength, pan };
+    }
+
     function playSnapshotSounds(snapshot, previousTime, planes) {
-      if (!soundEnabled || !battleVisible || document.hidden || snapshot.time <= previousTime) return;
-      const listener = snapshot.aircraft[online.seat].flight;
-      const radius = battleDisplay.worldUnitsPerKilometer * 7;
-      const volumeAt = ({ x, z }) => Math.max(0, 1 - Math.hypot(listener.x - x, listener.z - z) / radius);
+      if (!battleAudio || !soundEnabled || !battleVisible || document.hidden || snapshot.time <= previousTime) return;
+      const listener = snapshot.aircraft[viewedAircraft().id].flight;
       const cutoff = Math.max(previousTime, snapshot.time - .35);
-      let shots = 0, launch = 0, blast = 0;
-      for (const plane of snapshot.aircraft) {
-        const volume = volumeAt(plane.flight);
-        if (plane.cannonAmmo < planes[plane.id].cannonAmmo && snapshot.time - previousTime <= .35) shots = Math.max(shots, volume);
-        if ([plane.rack, plane.radarRack, plane.activeRack].some(rack => (rack?.lastLaunch ?? -Infinity) > cutoff)) {
-          launch = Math.max(launch, volume);
+      const events = {};
+      const add = (type, position, radius) => {
+        const sound = spatialSound(listener, position, radius);
+        if (sound.strength > (events[type]?.strength ?? 0)) events[type] = sound;
+      };
+      if (snapshot.time - previousTime <= .35) {
+        for (const plane of snapshot.aircraft) {
+          const previous = planes[plane.id];
+          if (plane.cannonAmmo < previous.cannonAmmo) add('cannon', plane.flight, 4);
+          if (plane.flareRack.ammo < previous.flareRack.ammo || plane.chaffRack.ammo < previous.chaffRack.ammo) {
+            add('countermeasure', plane.flight, 2);
+          }
         }
       }
-      for (const explosion of snapshot.explosions) {
-        if (explosion.time > cutoff) blast = Math.max(blast, volumeAt(explosion));
+      for (const missile of snapshot.missiles) {
+        if (missile.bornAt > cutoff) add('launch', missile.trail[0] ?? missile, 6);
       }
-      battleAudio.play('cannon', shots);
-      battleAudio.play('launch', launch);
-      battleAudio.play('explosion', blast);
+      for (const explosion of snapshot.explosions) {
+        if (explosion.time > cutoff) add('explosion', explosion, 8);
+      }
+      for (const [type, { strength, pan }] of Object.entries(events)) {
+        battleAudio.play(type, strength, pan);
+      }
     }
 
     function useOnlineSnapshot(snapshot) {
@@ -6504,6 +6726,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
           online.connected = connected;
           updateSoundActivity();
           if (!connected) {
+            requestedLessonAction = null;
             online.at = 0;
             online.bufferSeconds = SNAPSHOT_BUFFER.minSeconds;
             online.pendingInputs.length = 0;
@@ -6517,6 +6740,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
           updateSoundActivity();
         } else if (type === 'suspend') {
           battleVisible = false;
+          scoreboard.hidden = true;
           battleAudio?.setActive(false);
           clearKeys();
           endMouseLook();
@@ -6748,11 +6972,13 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       const danger = warnings.reduce((level, warning) => Math.max(level, warning.level), 0);
       rwrStatus.value = ['静默', '被搜索', '被锁定', '雷达弹告警'][danger];
       rwrStatus.toggleAttribute('data-alert', danger >= 2);
-      const nearestMissile = warnings.reduce((range, warning) => Math.min(range, warning.range ?? Infinity), Infinity);
-      rwrRange.hidden = !Number.isFinite(nearestMissile);
-      rwrRange.textContent = rwrRange.hidden ? '' : `最近 · ${nearestMissile.toFixed(nearestMissile < 1 ? 2 : 1)} km`;
+      const nearestMissile = warnings.reduce((nearest, warning) =>
+        warning.level === 3 && warning.range < (nearest?.range ?? Infinity) ? warning : nearest, null);
+      const range = nearestMissile?.range;
+      rwrRange.hidden = !nearestMissile;
+      rwrRange.textContent = nearestMissile ? `最近 · ${range.toFixed(range < 1 ? 2 : 1)} km` : '';
       drawRwrScope(rwrScope, warnings);
-      return danger;
+      return { danger, nearestMissile };
     }
 
     function updateCompass(heading) {
@@ -6978,9 +7204,10 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       const locked = isAlive(player) && Boolean(rack?.type)
         && (radarWeapon ? Boolean(radar.target) : rack.lock >= battleDisplay.missiles[rack.type].lockSeconds);
       const twsTarget = player.weapon === 'arh' ? radar.twsTarget : null;
-      const radarDanger = updateSensorDisplays(player, radarWarnings(battle, player, online.fraction));
-      battleAudio?.engine(isAlive(player) && flight.fuel > 0 ? flight : null);
-      battleAudio?.warning(radarDanger);
+      const { danger: radarDanger, nearestMissile } = updateSensorDisplays(player, radarWarnings(battle, player, online.fraction));
+      const cabinFlight = isAlive(player) ? flight : null;
+      battleAudio?.engine(cabinFlight?.fuel > 0 ? cabinFlight : null);
+      battleAudio?.warning(player.id, modelName, cabinFlight, radarDanger, nearestMissile, !lesson?.waiting && !lesson?.feedback);
       const seeker = locked ? '已锁定' : twsTarget ? 'TWS 跟踪'
         : radarWeapon && radar.pending ? '锁定中' : rack.armed ? (rack.lock ? '锁定中' : '搜索') : '待机';
       updateLoadout(player, seeker, locked || Boolean(twsTarget));
@@ -7043,7 +7270,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       if (franceRemaining.value !== france) franceRemaining.value = france;
       const { name, timeLimit } = battleDisplay.mission;
       const remaining = Math.max(0, Math.ceil(timeLimit - battle.time));
-      const missionStatus = `${name} · ${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}`;
+      const missionStatus = `${name} · ${formatBattleClock(remaining)}`;
       if (missionProgress.value !== missionStatus) missionProgress.value = missionStatus;
       updateMinimap();
     }
@@ -7094,6 +7321,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       const scale = MAX_VIEW_OFFSET / Math.max(MAX_VIEW_OFFSET, Math.hypot(x, y));
       viewOffset.x = x * scale;
       viewOffset.y = y * scale;
+      if (Math.hypot(viewOffset.x, viewOffset.y) >= .10) sendLessonAction('look');
     }
 
     function endMouseLook() {
@@ -7156,18 +7384,6 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       return followedMissile;
     }
 
-    function positionMissileInstruments(heading) {
-      const tailX = -Math.sin(heading), tailY = Math.cos(heading);
-      const axisX = Math.max(Math.abs(tailX), 1e-6), axisY = Math.max(Math.abs(tailY), 1e-6);
-      const halfWidth = missileInstruments.offsetWidth / 2, halfHeight = missileInstruments.offsetHeight / 2;
-      // Place the near edge behind the reticle and keep the panel on screen.
-      const nearEdge = Math.min(halfWidth / axisX, halfHeight / axisY);
-      const screenEdge = Math.min((innerWidth / 2 - halfWidth - 8) / axisX, (innerHeight / 2 - halfHeight - 8) / axisY);
-      const offset = Math.max(0, Math.min(nearEdge + 30, screenEdge));
-      missileInstruments.style.setProperty('--tail-x', `${tailX * offset}px`);
-      missileInstruments.style.setProperty('--tail-y', `${tailY * offset}px`);
-    }
-
     function updateMissileView(missile, time, fraction) {
       const label = missile.explosion ? `${missile.type} · ${missile.endStatus}` : `${missile.type} 导弹视角`;
       if (missileViewLabel.textContent !== label) missileViewLabel.textContent = label;
@@ -7187,7 +7403,6 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       for (const [index, output] of missileReadouts.entries()) {
         if (output.textContent !== values[index]) output.textContent = values[index];
       }
-      positionMissileInstruments(missile.explosion?.direction ?? missile.heading);
     }
 
     function drawInterpolatedFrame(now = performance.now()) {
@@ -7221,13 +7436,16 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         const growth = aircraft.burnerProgress;
         visual.burnerGlow = growth * growth * (3 - 2 * growth);
       }
-      const missile = missileForView(time);
+      const factoryHit = battle.resultReason === 'factory-hit' && !awaitingWreckView();
+      const missile = factoryHit ? null : missileForView(time);
       missileView.hidden = !missile;
+      missileInstruments.hidden = !missile;
+      loadoutPanel.hidden = Boolean(missile);
       missileView.toggleAttribute('data-impact', Boolean(missile?.explosion));
-      if (battle.resultReason === 'factory-hit' && !awaitingWreckView()) {
-        missileView.hidden = true;
+      if (factoryHit) {
         renderer.draw(battleDisplay.mission.factory, null, battle, fraction, time);
       } else if (missile) {
+        if (!missile.explosion && missile.source === battle.player && keys.has('KeyU')) sendLessonAction('follow');
         updateMissileView(missile, time, fraction);
         const focus = missile.explosion ?? missileDrawPosition(missile, fraction);
         renderer.draw(focus, null, battle, fraction, time);
@@ -7314,6 +7532,8 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         ]);
         battleAudio = audioModule.createBattleAudio();
         battleAudio.setVolume(Number(soundVolume.value) / 100);
+        updateSoundActivity();
+        unlockBattleAudio();
         startRenderer();
       } catch (error) {
         console.error(error);
@@ -7322,27 +7542,25 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     }
 
     canvas.addEventListener('contextmenu', event => event.preventDefault());
-    soundToggle.addEventListener('click', async () => {
-      if (!battleAudio) return;
-      soundToggle.disabled = true;
-      try {
-        if (!soundEnabled) await battleAudio.start();
-        soundEnabled = !soundEnabled;
-        soundToggle.textContent = soundEnabled ? '静音' : '开启声音';
-        updateSoundActivity();
-      } catch (error) {
-        soundToggle.textContent = '重试开启声音';
-      } finally {
-        soundToggle.disabled = false;
-      }
+    window.addEventListener('pointerdown', unlockBattleAudio, true);
+    window.addEventListener('keydown', unlockBattleAudio, true);
+    soundToggle.addEventListener('click', () => {
+      soundEnabled = !soundEnabled;
+      localStorage.setItem('tos-sound-muted', String(!soundEnabled));
+      soundToggle.textContent = soundEnabled ? '静音' : '开启声音';
+      updateSoundActivity();
+      unlockBattleAudio();
     });
     soundVolume.addEventListener('input', () => {
       localStorage.setItem('tos-sound-volume', soundVolume.value);
       battleAudio?.setVolume(Number(soundVolume.value) / 100);
     });
-    document.getElementById('skip-practice').addEventListener('click', () => {
-      practice.skipped = true;
-      practiceGuide.hidden = true;
+    skipPractice.addEventListener('click', () => {
+      sendLessonAction('skip');
+      canvas.focus();
+    });
+    continuePractice.addEventListener('click', () => {
+      sendLessonAction('continue');
       canvas.focus();
     });
     canvas.addEventListener('click', (event) => {
@@ -7386,6 +7604,24 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
 
     window.addEventListener('keydown', (event) => {
       if (event.ctrlKey || event.metaKey || event.altKey) return;
+      if (event.code === 'Tab' && !event.shiftKey && renderer && battleVisible && online.frames.length) {
+        event.preventDefault();
+        if (!event.repeat) {
+          updateScoreboard(online.frames.at(-1));
+          scoreboard.hidden = false;
+        }
+        return;
+      }
+      if (event.code === 'Escape' && !scoreboard.hidden) {
+        event.preventDefault();
+        scoreboard.hidden = true;
+        return;
+      }
+      if (event.code === 'Enter' && lesson?.feedback?.confirm && !event.target.closest?.('button, summary')) {
+        event.preventDefault();
+        if (!event.repeat) sendLessonAction('continue');
+        return;
+      }
       if (onlineMatchId && event.code === 'Escape' && !event.repeat) {
         event.preventDefault();
         returnToLobby();
@@ -7410,6 +7646,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
         event.preventDefault();
         if (!renderer || !battle.player || battle.result || (event.code !== 'KeyU' && !isAlive(battle.player))) return;
         if (event.repeat || keys.has(event.code) || !online.connected || online.frames.at(-1)?.state !== 'playing') return;
+        for (const panel of document.querySelectorAll('.control-help[open]')) panel.open = false;
         const action = ACTION_KEYS.has(event.code) && !(event.code === 'KeyW' && keys.has('KeyS'))
           ? event.code : null;
         keys.add(event.code);
@@ -7419,6 +7656,11 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     });
 
     window.addEventListener('keyup', (event) => {
+      if (event.code === 'Tab' && !scoreboard.hidden) {
+        event.preventDefault();
+        scoreboard.hidden = true;
+        return;
+      }
       if (!FLIGHT_KEYS.has(event.code)) return;
       keys.delete(event.code);
       if (AXIS_KEYS.has(event.code) || event.code === 'KeyF') sendOnlineInput();
@@ -7428,12 +7670,16 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
     });
 
     window.addEventListener('blur', () => {
+      scoreboard.hidden = true;
       clearKeys();
       endMouseLook();
     });
     document.addEventListener('visibilitychange', () => {
       updateSoundActivity();
-      if (document.hidden) clearKeys();
+      if (document.hidden) {
+        scoreboard.hidden = true;
+        clearKeys();
+      }
     });
     window.addEventListener('resize', () => {
       if (!renderer) return;
@@ -7445,6 +7691,7 @@ NLnnKHl0YlB71E/RPWC5vM/+pe4LwLb6wTfmk+u2/xt2Klsq
       event.preventDefault();
       cancelAnimationFrame(request);
       renderer = null;
+      scoreboard.hidden = true;
       resultShown = false;
       clearKeys();
       centerView();
