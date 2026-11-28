@@ -55,6 +55,14 @@ F-14D 的机翼随空速自动改变后掠角，雷达默认使用 TWS。`G` 切
 
 修改画面或 HUD 后刷新本地网页。飞行积分由浏览器和服务端共用 `server/flight-model.mjs`，机场和毁伤规则分别位于 `server/airfields.mjs` 和 `server/combat.mjs`。修改服务端规则后重启本地服务。
 
+## 多佛地面景物
+
+战场从本地资源 `lobby/dover-map.json.gz` 加载建筑轮廓、道路、铁路、码头、林地、灯塔和风车。屋顶材质与林地内的树木由游戏绘制，任务工厂和机场使用游戏布置。
+
+地图数据来自 © OpenStreetMap contributors，经 VersaTiles 的第 14 级 Shortbread 矢量瓦片提取，数据按 ODbL 1.0 分发。[OpenStreetMap 版权](https://www.openstreetmap.org/copyright) · [ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/) · [VersaTiles 瓦片说明](https://docs.versatiles.org/basics/tilesets.html)
+
+`tools/build-dover-map.mjs` 负责把矢量瓦片投影到游戏坐标并生成压缩资源。运行脚本需要预先准备瓦片及对应的 `tiles.json` 坐标列表，并在运行脚本的工具目录安装 `@mapbox/vector-tile`、`pbf` 和 `earcut`。开发和部署直接使用仓库中的压缩资源。
+
 ## 开发计划
 
 - [x] 在大厅显示在线人数和在线玩家的呼号列表。

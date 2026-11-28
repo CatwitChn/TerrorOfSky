@@ -1,6 +1,6 @@
 import { AIRFRAME_LOADOUTS, defaultCountermeasures, defaultLoadout, MISSIONS } from './missions.mjs';
 import { AIRFIELDS, RUNWAY, captureApproach, stepRunway } from './airfields.mjs';
-import { blastDamage, freshDamage, missilePass } from './combat.mjs';
+import { blastDamage, bomberExhausts, cannonDamage, freshDamage, missilePass } from './combat.mjs';
 import { createTutorial, stepTutorial, tutorialActive } from './tutorial.mjs';
 
 import {
@@ -120,17 +120,24 @@ const BOMBER = { airframe: AIRCRAFT.length, name: 'B-52', speedKph: 820, counter
 const FACTORY_DROP_RADIUS = 150 * WORLD_UNITS_PER_METER;
 const BOMB_FALL_SECONDS = 4;
 const DOVER_HALF_SPAN = 30 * WORLD_UNITS_PER_KILOMETER;
-// Copernicus GLO-30, N50E001 and N51E001. Local metric grid centered at 51.13°N, 1.45°E.
+// Copernicus GLO-30, N50E001 and N51E001. Keep world positions tied to 51.13°N, 1.45°E.
+const DOVER_MAP_CENTER = { x: 5 * WORLD_UNITS_PER_KILOMETER, z: 10.65 * WORLD_UNITS_PER_KILOMETER };
 const COAST_MAP = {
   name: '多佛白崖',
-  bounds: { minX: -DOVER_HALF_SPAN, maxX: DOVER_HALF_SPAN, minZ: -DOVER_HALF_SPAN, maxZ: DOVER_HALF_SPAN },
-  departures: [{ x: -1564.45, z: -51.26 }, { x: 4395, z: 5025 }]
+  bounds: {
+    minX: DOVER_MAP_CENTER.x - DOVER_HALF_SPAN, maxX: DOVER_MAP_CENTER.x + DOVER_HALF_SPAN,
+    minZ: DOVER_MAP_CENTER.z - DOVER_HALF_SPAN, maxZ: DOVER_MAP_CENTER.z + DOVER_HALF_SPAN,
+  },
 };
 const FORMATION = [
   { forward: 0, right: 0 },
   { forward: -26, right: -38 },
   { forward: -26, right: 38 },
   { forward: -57, right: 0 }
+];
+const ESCORT_FORMATION_KM = [
+  [2.6, -.36], [2.6, .36],
+  [1.9, -1.05], [1.9, 1.05],
 ];
 const AI_OPENINGS = [
   { angle: 0, throttle: 0.93, joinKm: 9 },
@@ -161,7 +168,8 @@ export const BATTLE_DISPLAY = {
     name, topSpeedKph: flight.topSpeedKph, flight, radarName, radar, launchWarning,
     cannon: { muzzleSpeedMps: cannon.muzzleSpeedMps, roundsPerSecond: cannon.roundsPerSecond, capacity: cannon.capacity },
     stations: Object.fromEntries(AIRFRAME_LOADOUTS[id].stations.map(({ id, x, y, z }) => [id, [x, y, z]])),
-  })), { name: BOMBER.name, topSpeedKph: BOMBER.speedKph, radarName: null, launchWarning: false, stations: {} }],
+  })), { name: BOMBER.name, topSpeedKph: BOMBER.speedKph, radarName: null, launchWarning: false, stations: {},
+    engineExhausts: bomberExhausts }],
   missiles: Object.fromEntries(Object.entries(MISSILES).map(([type, { guidance, launchRangeKm, lockSeconds, blastPower }]) =>
     [type, { guidance, launchRangeKm, lockSeconds, blastPower }])),
 };
@@ -229,10 +237,10 @@ function initialAircraft(id, team, slot, role, spawn, pilot, teamAirframe = team
 }
 
 function initialBattle(roster, mission = MISSIONS['dover-pvp'], practice = false) {
-  const [friendly, hostile] = COAST_MAP.departures;
+  const [friendly, hostile] = AIRFIELDS;
   const departures = practice
     ? [friendly, formationPosition(friendly, bearing(friendly, hostile), 12 * WORLD_UNITS_PER_KILOMETER, 0)]
-    : COAST_MAP.departures;
+    : AIRFIELDS;
   const raid = mission.raid ? { bomb: null } : null;
   const formation = mission.mode === 'pve' && !raid ? FORMATION.slice(0, roster.length) : FORMATION;
   const aircraft = departures.flatMap((departure, team) => {
@@ -285,6 +293,16 @@ function destroyAircraft(battle, aircraft, source) {
 function recordDamage(battle, aircraft, source) {
   if (aircraft.flight.damage.structure <= 0) destroyAircraft(battle, aircraft, source);
   else if (!tutorialActive(battle)) aircraft.damageSources.add(source);
+}
+
+function applyReportedDamage(battle, aircraft, source, result, cause) {
+  const { flight } = aircraft;
+  if (flight.damage.power > .01 && result.damage.power <= .01 && !tutorialActive(battle)) {
+    aircraft.engineFailureSource = source;
+  }
+  flight.damage = result.damage;
+  aircraft.damageReport = { part: result.part, time: battle.time, cause };
+  recordDamage(battle, aircraft, source);
 }
 
 function canBeTracked(aircraft) {
@@ -620,9 +638,13 @@ function heatDecoy(battle, missile, target, profile) {
 
 function findProjectileImpact(battle, projectile, fuse) {
   let first = null;
+  const padding = 36 + fuse;
   for (const aircraft of battle.aircraft) {
     if (aircraft.team === projectile.team || !canBeTracked(aircraft)) continue;
-    if (Math.abs(projectile.x - aircraft.flight.x) > 36 + fuse || Math.abs(projectile.z - aircraft.flight.z) > 36 + fuse) continue;
+    const dx0 = projectile.previousX - aircraft.previous.x, dx1 = projectile.x - aircraft.flight.x;
+    const dz0 = projectile.previousZ - aircraft.previous.z, dz1 = projectile.z - aircraft.flight.z;
+    if (Math.min(dx0, dx1) > padding || Math.max(dx0, dx1) < -padding ||
+        Math.min(dz0, dz1) > padding || Math.max(dz0, dz1) < -padding) continue;
     const contact = missilePass(projectile, aircraft.flight, aircraft.previous, fuse);
     if (contact && (!first || contact.along < first.along)) first = { ...contact, aircraft };
   }
@@ -662,10 +684,9 @@ function stepCannonRounds(battle, dt) {
     const hit = remaining > 0 && findProjectileImpact(battle, round, 0);
     if (hit && hit.along * step <= remaining) {
       const { aircraft, along } = hit;
-      const { damage } = aircraft.flight;
-      damage.structure = Math.max(0, damage.structure - CANNON_DAMAGE);
-      aircraft.damageReport = { part: '机体', time: battle.time, cause: 'cannon' };
-      recordDamage(battle, aircraft, round.source);
+      const result = cannonDamage(aircraft.flight, hit, CANNON_DAMAGE);
+      if (!result) return false;
+      applyReportedDamage(battle, aircraft, round.source, result, 'cannon');
       if (!isAlive(aircraft)) {
         battle.explosions.push({ x: lerp(round.previousX, round.x, along), z: lerp(round.previousZ, round.z, along),
           time: battle.time, size: 9, direction: round.heading });
@@ -689,25 +710,26 @@ function detonateMissile(battle, index, status, contact) {
     if (aircraft.team === missile.team || !canBeTracked(aircraft)) continue;
     const { flight } = aircraft;
     const direct = aircraft === contact?.aircraft && contact.direct;
-    if (direct) {
+    const directEngine = direct && contact.zone === 'engine' ? contact.engineIndex : undefined;
+    if (direct && directEngine === undefined) {
       flight.damage = { ...flight.damage, structure: 0 };
       destroyAircraft(battle, aircraft, missile.source);
       if (aircraft === missile.target) missile.targetEffect = { direct: true, destroyed: true };
       damageMessage = '直接命中 · 击毁';
       continue;
     }
-    if (Math.hypot(flight.x - center.x, flight.z - center.z) > profile.blastRadius + 26) continue;
-    const result = blastDamage(flight, center, profile);
-    if (!result) continue;
-    if (flight.damage.power > .01 && result.damage.power <= .01 && !tutorialActive(battle)) {
-      aircraft.engineFailureSource = missile.source;
+    if (Math.hypot(flight.x - center.x, flight.z - center.z) > profile.blastRadius + 31) continue;
+    const result = blastDamage(flight, center, profile, directEngine);
+    if (!result) {
+      if (direct) damageMessage = '直接命中 · 发动机已失效';
+      continue;
     }
-    flight.damage = result.damage;
-    aircraft.damageReport = { part: result.part, time: battle.time };
-    recordDamage(battle, aircraft, missile.source);
-    if (aircraft === missile.target) missile.targetEffect = { part: result.part, destroyed: !isAlive(aircraft) };
+    applyReportedDamage(battle, aircraft, missile.source, result, direct ? 'direct' : 'blast');
+    if (aircraft === missile.target) missile.targetEffect = { direct, part: result.part, destroyed: !isAlive(aircraft) };
     if (!damageMessage || aircraft === contact?.aircraft) {
-      damageMessage = aircraft.destroyedAt !== null ? '近炸 · 击毁' : `近炸 · ${result.part}受损`;
+      const impact = direct ? '直接命中' : '近炸';
+      const outcome = !isAlive(aircraft) ? '击毁' : `${result.part}${direct ? '失效' : '受损'}`;
+      damageMessage = `${impact} · ${outcome}`;
     }
   }
   missile.endedAt = battle.time;
@@ -828,7 +850,8 @@ function assignedOpponent(battle, aircraft) {
 }
 
 function escortPosition(center, heading, slot) {
-  return formationPosition(center, heading, 250 + Math.floor(slot / 2) * 105, (slot - 1.5) * 140);
+  const [forward, right] = ESCORT_FORMATION_KM[slot];
+  return formationPosition(center, heading, forward * WORLD_UNITS_PER_KILOMETER, right * WORLD_UNITS_PER_KILOMETER);
 }
 
 function stepEscort(aircraft, bomber, dt) {
@@ -837,7 +860,7 @@ function stepEscort(aircraft, bomber, dt) {
   const station = escortPosition(bomber.previous, heading, slot);
   const aim = formationPosition(station, heading, 330, 0);
   const ahead = (station.x - flight.x) * Math.sin(heading) - (station.z - flight.z) * Math.cos(heading);
-  const speed = clamp(BOMBER.speedKph + ahead * 2.4, 640, 1120);
+  const speed = clamp(bomber.previous.speed + ahead * 2.4, 520, 1120);
   const { flight: profile } = AIRCRAFT[flight.airframe];
   const balance = levelDragKn(profile, speed) / engineThrustKn(profile, speed, 1, false);
   const throttle = sampleCurve(profile.dryThrottle.map(([input, thrust]) => [thrust, input]), balance);
@@ -907,8 +930,7 @@ function stepAiFlight(battle, aircraft, dt) {
   if (!supporting && aircraft.role === 'escort') {
     const closeThreat = battle.aircraft.some(other => other.team !== aircraft.team && canBeTracked(other)
       && Math.hypot(other.previous.x - flight.x, other.previous.z - flight.z) < 8 * WORLD_UNITS_PER_KILOMETER);
-    const bombers = battle.aircraft.filter(other => other.role === 'bomber' && isAlive(other));
-    const bomber = bombers.find(other => other.slot === slot) ?? bombers[0];
+    const bomber = battle.aircraft.find(other => other.team === aircraft.team && other.role === 'bomber' && isAlive(other));
     if (bomber && !closeThreat) {
       stepEscort(aircraft, bomber, dt);
       return;

@@ -88,11 +88,11 @@ function renderMission() {
   const briefing = mission ? `${mission.objective} 限时 ${mission.timeLimit / 60} 分钟。` : '';
   find('map-mode').textContent = mission ? mode : '多佛';
   find('map-capacity').textContent = mission ? `${mission.playerLimit} 人` : '—';
-  find('map-friendly').textContent = raid ? '防御编队' : cooperative ? '合作编队' : '英国侧';
-  find('map-enemy').textContent = raid ? '轰炸编队' : cooperative ? 'AI 敌机' : '法国侧';
-  find('mission-map').setAttribute('aria-label', raid ? '多佛海峡地图，守军在英国侧，轰炸编队从法国出发'
-    : cooperative ? '多佛海峡地图，合作编队和 AI 敌机从海峡两侧出发'
-    : '多佛海峡地图，英国和法国编队从海峡两侧出发');
+  find('map-friendly').textContent = raid ? '防御编队' : cooperative ? '合作编队' : '肯特机场';
+  find('map-enemy').textContent = raid ? '轰炸编队' : cooperative ? 'AI 敌机' : '加来机场';
+  find('mission-map').setAttribute('aria-label', raid ? '多佛海峡地图，守军从肯特机场上空出发，轰炸编队从加来机场上空出发'
+    : cooperative ? '多佛海峡地图，合作编队和 AI 敌机分别从肯特和加来机场上空出发'
+    : '多佛海峡地图，双方编队从肯特和加来机场上空出发');
   find('mission-preview').hidden = !mission;
   find('mission-preview').textContent = briefing;
   if (room) {

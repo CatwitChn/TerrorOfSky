@@ -11,7 +11,7 @@ export const MISSIONS = {
   },
   'dover-factory-defense': {
     id: 'dover-factory-defense', name: '工厂防御', mode: 'pve', map: 'dover', playerLimit: 4, timeLimit: 300,
-    objective: '保卫肯特工厂。拦截 4 架 B-52，敌方另有 4 架战斗机护航。任一炸弹命中工厂即告失败。',
+    objective: '保卫肯特工厂。4 架护航战斗机在 4 架 B-52 前方开路。任一炸弹命中工厂即告失败。',
     factory: { name: '肯特工厂', x: -2540, z: -910 },
     raid: { bombers: 4, escorts: 4 },
   },
