@@ -63,6 +63,10 @@ F-14D 的机翼随空速自动改变后掠角，雷达默认使用 TWS。`G` 切
 
 `tools/build-dover-map.mjs` 负责把矢量瓦片投影到游戏坐标并生成压缩资源。运行脚本需要预先准备瓦片及对应的 `tiles.json` 坐标列表，并在运行脚本的工具目录安装 `@mapbox/vector-tile`、`pbf` 和 `earcut`。开发和部署直接使用仓库中的压缩资源。
 
+地表材质使用 `lobby/dover-landcover.bin.gz`，由 `tools/build-dover-landcover.mjs` 将 ESA WorldCover 2021 v200 重投影为约 20 米的游戏网格。脚本在生成时通过 HTTPS 读取两张原始瓦片，运行脚本的工具目录需安装 `geotiff`。
+
+© ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium. [ESA WorldCover 2021 v200 (Zanaga et al., 2022)](https://doi.org/10.5281/zenodo.7254221) · [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
+
 ## 开发计划
 
 - [x] 在大厅显示在线人数和在线玩家的呼号列表。

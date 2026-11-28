@@ -964,6 +964,7 @@
             <summary>© OpenStreetMap</summary>
             <div class="instrument map-credit-note">
               <p><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a> · <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">ODbL 1.0</a> · <a href="https://versatiles.org/" target="_blank" rel="noopener">VersaTiles</a> · <a href="./lobby/dover-map.json.gz" download>地图数据</a></p>
+              <p lang="en">© ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium. <a href="https://doi.org/10.5281/zenodo.7254221" target="_blank" rel="noopener">ESA WorldCover 2021 v200</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a></p>
               <p lang="en">Produced using Copernicus WorldDEM-30 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved.</p>
               <p>依法或受委托负责哥白尼计划的机构，对任何使用 Copernicus WorldDEM-30 的行为不承担责任。</p>
               <a href="https://registry.opendata.aws/copernicus-dem/" target="_blank" rel="noopener">Copernicus DEM 数据来源</a>
@@ -4211,6 +4212,7 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
     uniform vec4 uView;
     uniform float uTime;
     uniform highp sampler2D uTerrainData;
+    uniform highp sampler2D uLandCover;
     uniform vec4 uMapBounds;
     uniform float uUnitsPerMeter;
     uniform float uRayStart;
@@ -4257,6 +4259,10 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
       return vec2(encoding.x * 2.0, (encoding.y - 127.5) * 4.0);
     }
 
+    vec4 coverAt(vec2 world) {
+      return texture(uLandCover, (world - uMapBounds.xy) / uMapBounds.zw);
+    }
+
     float marchGround(float ground, float water) {
       float h = uRayStart;
       float surface = max(ground, water);
@@ -4272,32 +4278,22 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
       float time = uTime;
       if (shore >= 0.0) {
         float sun = clamp(dot(normal, SUN), 0.0, 1.0);
+        vec4 cover = coverAt(p);
+        float trees = smoothstep(0.50, 0.98, cover.a);
+        float crops = 1.0 - smoothstep(0.02, 0.50, cover.a);
         float grain = noise(p * 1.36 + 1.3);
-        float country = noise(p * 0.006 + 31.0);
-        float vegetation = fractalNoise(p * 0.034 + 23.8);
-        vec2 landscape = rotation(0.28) * p;
-        vec2 fieldWarp = vec2(country, noise(p * 0.008 - 48.0)) - 0.5;
-        vec2 fields = landscape * vec2(0.025, 0.039) + fieldWarp * vec2(1.47, 1.36) + 0.28 * vegetation;
-        float crop = hash(floor(fields));
-        float rows = step(0.65, crop) * sin(landscape.y * 4.4 + crop * 31.0);
-        rows *= 1.0 - smoothstep(0.9, 2.3, fwidth(landscape.y * 4.4));
-        vec2 edge = min(fract(fields), 1.0 - fract(fields));
-        float hedgeWidth = 0.042 + crop * 0.026;
-        float hedgerow = (1.0 - smoothstep(0.010, hedgeWidth, min(edge.x, edge.y))) * smoothstep(0.78, 0.98, normal.y);
-        vec3 grass = mix(vec3(0.255, 0.365, 0.195), vec3(0.59, 0.60, 0.36), crop);
-        grass = mix(grass, vec3(0.55, 0.46, 0.31), smoothstep(0.76, 0.99, crop) * 0.73);
-        vec3 woodland = mix(vec3(0.095, 0.20, 0.135), vec3(0.29, 0.42, 0.22), grain);
-        vec3 land = mix(grass + rows * 0.012, woodland, smoothstep(0.51, 0.69, vegetation + 0.08 * country));
-        land *= (0.91 + 0.18 * grain) * (1.0 - 0.29 * hedgerow);
-        float beach = (1.0 - smoothstep(5.0, 48.0, shore)) * (1.0 - smoothstep(2.0, 14.0, elevation));
-        land = mix(land, vec3(0.72, 0.68, 0.53) + (grain - 0.5) * 0.075, beach);
-        land *= 0.58 + sun * 0.50;
+        float variation = noise(p * 0.025 + 31.0) - 0.5;
+        float canopy = noise(p * 0.62 + 23.8) * 0.60 + noise(p * 0.18 - 11.0) * 0.40;
+        vec3 land = cover.rgb * (0.94 + grain * 0.12 + variation * 0.12);
+        land += (canopy - 0.42) * trees * vec3(0.15, 0.21, 0.12);
+        land += variation * crops * vec3(0.12, 0.09, 0.025);
+        land *= 0.66 + sun * 0.44;
 
         float nearCoast = 1.0 - smoothstep(12.0, 79.0, shore);
         float cliff = nearCoast * smoothstep(6.0, 27.0, elevation) * smoothstep(0.06, 0.27, 1.0 - normal.y);
         float strata = 0.5 + 0.5 * sin(elevation * 0.52 + noise(p * 0.22) * 2.6);
         vec3 chalk = mix(vec3(0.67, 0.68, 0.60), vec3(0.99, 0.96, 0.86), 0.52 + 0.34 * strata + 0.14 * grain);
-        return mix(land + vec3(0.02, 0.03, 0.024), chalk * (0.80 + 0.20 * sun), cliff);
+        return mix(land, chalk * (0.80 + 0.20 * sun), cliff);
       }
 
       vec2 drift = vec2(time * 0.37, -time * 0.18);
@@ -4442,8 +4438,7 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
 
     #ifdef DRAW_MINIMAP
       vec3 water = mix(vec3(0.055, 0.17, 0.21), vec3(0.17, 0.34, 0.35), smoothstep(-480.0, 0.0, shore));
-      vec3 land = mix(vec3(0.34, 0.45, 0.29), vec3(0.62, 0.65, 0.40), smoothstep(1.0, 180.0, elevation));
-      land = mix(vec3(0.69, 0.69, 0.50), land, smoothstep(0.0, 180.0, shore));
+      vec3 land = coverAt(world).rgb * (0.92 + 0.22 * smoothstep(1.0, 180.0, elevation));
       pixel = vec4(mix(water, land, smoothstep(-65.0, 65.0, shore)), 1.0);
     #elif defined(DRAW_CLOUDS)
       pixel = cloudCover(world);
@@ -4498,6 +4493,7 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
     const WING_VORTEX = { interval: 0.04, lifetime: 0.62 };
     const SONIC_BOOM = { lifetime: 0.52, rearmRatio: 0.98 };
     const DOVER_GRID_SIZE = 1536;
+    const DOVER_COVER_GRID_SIZE = 3072;
     const VIEW_EDGE_MARGIN = 19;
     const MAX_VIEW_OFFSET = 0.5;
     const VIEW_RETURN_SECONDS = 0.22;
@@ -5638,7 +5634,48 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
       return new Response(stream).json();
     }
 
-    function createRenderer(canvas, effectsCanvas, mapCanvas, mapBounds, terrainData) {
+    async function loadDoverLandCover() {
+      const response = await fetch('./lobby/dover-landcover.bin.gz');
+      if (!response.ok) throw new Error('Unable to load the Dover land cover.');
+      const stream = response.body.pipeThrough(new DecompressionStream('gzip'));
+      const classes = new Uint8Array(await new Response(stream).arrayBuffer());
+      if (classes.length !== DOVER_COVER_GRID_SIZE ** 2) throw new Error('Incomplete Dover land cover.');
+      return classes;
+    }
+
+    function uploadLandCover(gl, classes) {
+      // RGB is the material color. Alpha blends the cropland and canopy texture strength.
+      const palette = new Uint32Array(256);
+      const colors = new Uint8Array(palette.buffer);
+      colors.set([110, 132, 84, 128], 0);
+      palette.fill(palette[0]);
+      for (const [kind, tint] of [
+        [10, [47, 80, 52, 255]], // Tree cover
+        [20, [103, 127, 79, 128]], // Shrubland
+        [30, [116, 146, 81, 128]], // Grassland
+        [40, [155, 151, 93, 0]], // Cropland
+        [50, [123, 126, 115, 128]], // Built-up
+        [60, [181, 166, 133, 128]], // Bare ground
+        [80, [63, 104, 112, 128]], // Permanent water
+        [90, [100, 129, 101, 128]], // Herbaceous wetland
+      ]) colors.set(tint, kind * 4);
+      const pixels = Uint32Array.from(classes, kind => palette[kind]);
+
+      const texture = gl.createTexture();
+      gl.activeTexture(gl.TEXTURE3);
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, DOVER_COVER_GRID_SIZE, DOVER_COVER_GRID_SIZE, 0,
+        gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(pixels.buffer));
+      gl.generateMipmap(gl.TEXTURE_2D);
+      gl.activeTexture(gl.TEXTURE0);
+      if (gl.getError() !== gl.NO_ERROR) throw new Error('Could not upload the Dover land cover.');
+    }
+
+    function createRenderer(canvas, effectsCanvas, mapCanvas, mapBounds, terrainData, landCover) {
       const gl = canvas.getContext('webgl2', { alpha: false, antialias: false, depth: true, stencil: false });
       const effects = effectsCanvas.getContext('2d');
       if (!gl) throw new Error('WebGL2 is unavailable.');
@@ -5655,6 +5692,15 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG8, DOVER_GRID_SIZE, DOVER_GRID_SIZE, 0, gl.RG, gl.UNSIGNED_BYTE, terrainData);
       if (gl.getError() !== gl.NO_ERROR) throw new Error('Could not upload the Dover terrain.');
+      uploadLandCover(gl, landCover);
+
+      function isWoodland(x, z) {
+        const { minX, maxX, minZ, maxZ } = mapBounds;
+        const col = Math.floor((x - minX) / (maxX - minX) * DOVER_COVER_GRID_SIZE);
+        const row = Math.floor((z - minZ) / (maxZ - minZ) * DOVER_COVER_GRID_SIZE);
+        return col >= 0 && col < DOVER_COVER_GRID_SIZE && row >= 0 && row < DOVER_COVER_GRID_SIZE &&
+          landCover[row * DOVER_COVER_GRID_SIZE + col] === 10;
+      }
 
       function compile(type, source) {
         const shader = gl.createShader(type);
@@ -5687,6 +5733,7 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
         const { minX, maxX, minZ, maxZ } = mapBounds;
         gl.useProgram(program);
         gl.uniform1i(gl.getUniformLocation(program, 'uTerrainData'), 0);
+        gl.uniform1i(gl.getUniformLocation(program, 'uLandCover'), 3);
         gl.uniform4f(gl.getUniformLocation(program, 'uMapBounds'), minX, minZ, maxX - minX, maxZ - minZ);
         gl.uniform1f(gl.getUniformLocation(program, 'uUnitsPerMeter'), unitsPerMeter);
         gl.uniform1f(gl.getUniformLocation(program, 'uRayStart'), battleDisplay.flightAltitudeM * unitsPerMeter);
@@ -5718,7 +5765,8 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
       gl.uniform1i(gl.getUniformLocation(cloudComposite, 'uLayer'), 2);
       const cloudResolution = gl.getUniformLocation(cloudComposite, 'uResolution');
       const drawScenery = sceneryModule.createDoverScenery(gl, linkProgram, compile, terrainData, DOVER_GRID_SIZE,
-        mapBounds, unitsPerMeter, battleDisplay.airfields, battleDisplay.runway, battleDisplay.mission.factory, doverMap);
+        mapBounds, unitsPerMeter, battleDisplay.airfields, battleDisplay.runway, battleDisplay.mission.factory, doverMap,
+        isWoodland);
       const terrainVertexArray = gl.createVertexArray();
       const jetVertex = compile(gl.VERTEX_SHADER, JET_VERTEX_SOURCE);
       const jetProgram = linkProgram(jetVertex, JET_FRAGMENT_SOURCE);
@@ -6045,6 +6093,7 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
     let viewPointerId = null;
     let viewReturnTime = 0;
     let terrainData;
+    let landCover;
     let doverMap;
     let sceneryModule;
     let missileArt;
@@ -7289,7 +7338,7 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
 
     function startRenderer() {
       try {
-        renderer = createRenderer(canvas, effectsCanvas, minimapCanvas, battleDisplay.map.bounds, terrainData);
+        renderer = createRenderer(canvas, effectsCanvas, minimapCanvas, battleDisplay.map.bounds, terrainData, landCover);
         effectsCanvas.hidden = false;
         lastFrame = null;
         online.waiting = null;
@@ -7304,9 +7353,9 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
     async function startGame() {
       try {
         let audioModule;
-        [terrainData, missileArt, flightModel, audioModule, sceneryModule, doverMap] = await Promise.all([
+        [terrainData, missileArt, flightModel, audioModule, sceneryModule, doverMap, landCover] = await Promise.all([
           loadDoverTerrain(), import('./lobby/missile-art.js'), import('./lobby/flight-model.mjs'), import('./lobby/battle-audio.mjs'),
-          import('./lobby/dover-scenery.mjs'), loadDoverMap(),
+          import('./lobby/dover-scenery.mjs'), loadDoverMap(), loadDoverLandCover(),
         ]);
         battleAudio = audioModule.createBattleAudio();
         battleAudio.setVolume(Number(soundVolume.value) / 100);

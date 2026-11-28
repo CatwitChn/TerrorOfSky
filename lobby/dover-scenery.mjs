@@ -249,7 +249,7 @@ function createAtlas(regions) {
   return canvas;
 }
 
-function makeScenery(data, sampleShore, meters, airfields, runway, factory) {
+function makeScenery(data, sampleShore, meters, airfields, runway, factory, isWoodland) {
   const cellSize = meters * 500;
   const cells = new Map();
   const fields = airfields.map(({ x, z, heading }) => ({ x, z, sin: Math.sin(heading), cos: Math.cos(heading),
@@ -365,7 +365,7 @@ function makeScenery(data, sampleShore, meters, airfields, runway, factory) {
     if (protectedGround(px, pz, 16 * meters)) continue;
     if (style !== 0) {
       place(2, style === 1 ? 'lighthouse' : 'windmill', px, pz, 22, 22);
-    } else if (sampleShore(px, pz) > 10) {
+    } else if (sampleShore(px, pz) > 10 && isWoodland(px, pz)) {
       const rng = randomFrom(Math.imul(x, 73856093) ^ Math.imul(z, 19349663));
       const size = 27 + rng() * 16;
       place(0, 'grove', px, pz, size, size * 0.85, rng() * TAU);
@@ -459,7 +459,8 @@ void main() {
   pixel = texture(uAtlas, uv);
 }`;
 
-export function createDoverScenery(gl, linkProgram, compile, terrainData, gridSize, bounds, unitsPerMeter, airfields, runway, factory, mapData) {
+export function createDoverScenery(gl, linkProgram, compile, terrainData, gridSize, bounds, unitsPerMeter,
+  airfields, runway, factory, mapData, isWoodland) {
   const regions = new Map();
   const canvas = createAtlas(regions);
   const atlas = gl.createTexture();
@@ -495,7 +496,7 @@ export function createDoverScenery(gl, linkProgram, compile, terrainData, gridSi
     const col = clamp(Math.floor((x - minX) / (maxX - minX) * gridSize), 0, gridSize - 1);
     return (terrainData[(row * gridSize + col) * 2 + 1] - 127.5) * 4;
   }
-  const scenery = makeScenery(mapData, sampleShore, unitsPerMeter, airfields, runway, factory);
+  const scenery = makeScenery(mapData, sampleShore, unitsPerMeter, airfields, runway, factory, isWoodland);
   const surfaceRegions = new Map();
   for (const kind of ['cottage', 'terrace', 'warehouse', 'pier']) {
     const [u0, v0, u1, v1] = regions.get(kind);

@@ -44,6 +44,7 @@ const routes = new Map([
   ['/lobby/dover.webp', ['lobby/dover.webp', 'image/webp']],
   ['/lobby/dover-scenery.mjs', ['lobby/dover-scenery.mjs', 'text/javascript; charset=utf-8']],
   ['/lobby/dover-map.json.gz', ['lobby/dover-map.json.gz', 'application/gzip']],
+  ['/lobby/dover-landcover.bin.gz', ['lobby/dover-landcover.bin.gz', 'application/gzip']],
   ['/lobby/tutorial/flight.webp', ['lobby/tutorial/flight.webp', 'image/webp']],
   ['/lobby/tutorial/radar.webp', ['lobby/tutorial/radar.webp', 'image/webp']],
   ['/lobby/tutorial/rwr.webp', ['lobby/tutorial/rwr.webp', 'image/webp']],
