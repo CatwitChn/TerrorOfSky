@@ -2,7 +2,7 @@ import * as settings from './config.js';
 import { getMissileArt, paintMissileArt } from './missile-art.js';
 
 const { serverUrl, battleUrl = '../index.html' } = settings;
-const PROTOCOL_VERSION = 12;
+const PROTOCOL_VERSION = 14;
 
 const find = id => document.getElementById(id);
 const entry = find('entry');
@@ -53,6 +53,7 @@ let reconnectDelay = 750;
 let battleView = null;
 let missions = new Map();
 let loadouts = {};
+let groundWeapons = {};
 let loadoutKey = '';
 let loadoutDraft = {};
 let savedLoadout = {};
@@ -153,7 +154,9 @@ function buildStations(airframe) {
     const number = String(index + 1);
     const field = document.createElement('select');
     field.id = `station-${station.id}`;
-    field.append(new Option('空挂', ''), ...station.weapons.map(weapon => new Option(weapon, weapon)));
+    const choices = station.weapons.filter(weapon => room.mission.groundTargets || !Object.hasOwn(groundWeapons, weapon));
+    field.append(new Option('空挂', ''), ...choices.map(weapon =>
+      new Option(groundWeapons[weapon] ? `${weapon} · ${groundWeapons[weapon].label}` : weapon, weapon)));
     field.addEventListener('change', () => {
       if (field.value) loadoutDraft[station.id] = field.value;
       else delete loadoutDraft[station.id];
@@ -198,7 +201,8 @@ function updateLoadoutControls(editingField = null) {
   }
   for (const button of presetButtons) {
     button.disabled = locked;
-    button.hidden = button.dataset.preset === 'arh' && !loadouts[airframe].arh;
+    button.hidden = (button.dataset.preset === 'arh' && !loadouts[airframe].arh)
+      || (button.dataset.preset === 'strike' && !room.mission.groundTargets);
   }
   find('countermeasure-capacity').value = `${countermeasureCapacity} 发`;
   for (const [kind, field] of Object.entries(countermeasureFields)) {
@@ -369,7 +373,8 @@ function render() {
   reopen.disabled = !online;
   leave.disabled = !online;
   find('start-rule').hidden = matchStarted;
-  find('start-rule').textContent = room.mission.mode === 'pve' ? '全员准备后，房主可以开局。' : room.players.length === 1
+  find('start-rule').textContent = room.mission.groundTargets ? '全员准备，且至少挂载一枚制导炸弹或空地导弹后可开局。'
+    : room.mission.mode === 'pve' ? '全员准备后，房主可以开局。' : room.players.length === 1
     ? '一人准备后即可开局，空位由 AI 补齐。'
     : '两队均有人且全员准备后，房主可以开局。';
   find('match').hidden = !matchStarted;
@@ -514,6 +519,7 @@ function connect(endpoint) {
         const selectedMission = missionSelect.value;
         missions = new Map(message.missions.map(mission => [mission.id, mission]));
         loadouts = message.airframes;
+        groundWeapons = message.groundWeapons;
         aircraft.replaceChildren(...Object.entries(loadouts).map(([id, airframe]) => new Option(airframe.name, id)));
         missionSelect.replaceChildren(new Option('选择任务', ''), ...[...missions.values()].map(mission =>
           new Option(`${mission.mode === 'pve' ? 'PvE' : 'PvP'} · ${mission.name}`, mission.id)));
@@ -627,7 +633,7 @@ for (const button of presetButtons) {
     const { stations, balanced } = airframe;
     const mode = button.dataset.preset;
     const weapon = airframe[mode];
-    loadoutDraft = Object.fromEntries(stations.map(station =>
+    loadoutDraft = mode === 'strike' ? { ...airframe.strike } : Object.fromEntries(stations.map(station =>
       [station.id, station.weapons.includes(weapon) ? weapon : balanced[station.id]]));
     editedLoadout();
   });

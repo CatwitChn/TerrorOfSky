@@ -101,9 +101,10 @@
     }
     .topbar { z-index: 1; top: clamp(14px, 3vh, 28px); }
     .cockpit {
+      --map-width: calc(var(--hud-panel-width) * 1.2);
       top: var(--hud-top);
       bottom: var(--hud-bottom);
-      grid-template-columns: var(--hud-panel-width) minmax(0, 1fr) var(--hud-panel-width);
+      grid-template-columns: var(--hud-panel-width) minmax(0, 1fr) max(var(--hud-panel-width), var(--map-width));
       grid-template-rows: minmax(0, 1fr) auto;
       grid-template-areas: "rwr . radar" "flight stores map";
       gap: 12px;
@@ -200,6 +201,11 @@
     .airport-status[data-danger] { color: #ffbf99; }
     .factory-status { color: #ffe4a1; font-size: .75rem; font-weight: 650; text-align: center; text-shadow: 0 1px 4px #072628; }
     .factory-status[data-danger] { color: #ff9f7c; }
+    .ground-readout { margin: 6px 0 2px; color: var(--muted); font-size: .75rem; text-align: center; }
+    .ground-readout > output { display: block; padding: 2px 0; }
+    .ground-readout > output[hidden] { display: none; }
+    .ground-readout .ground-release { color: #ffe0ae; font-weight: 650; }
+    .ground-readout .ground-release[data-ready] { color: #b8f5c6; }
     .spectator-status { color: #d1f2ff; font-size: .75rem; font-weight: 650; text-align: center; text-shadow: 0 1px 4px #072628; }
     .missile-feedback {
       color: var(--accent);
@@ -400,7 +406,8 @@
     .loadout .hud-heading output { color: var(--muted); }
     .loadout .hud-heading output[data-locked] { color: var(--accent); }
     .weapon-racks { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 7px; margin-top: 6px; }
-    .weapon-racks:has([data-weapon="arh"]:not([hidden]), #cannon-rack:not([hidden])) :is(.weapon-name, .weapon-class) {
+    .weapon-racks:has([data-weapon="arh"]:not([hidden]), #cannon-rack:not([hidden])) :is(.weapon-name, .weapon-class),
+    .loadout[data-ground] .weapon-rack :is(.weapon-name, .weapon-class) {
       grid-column: 1 / -1;
       justify-self: start;
     }
@@ -477,13 +484,13 @@
 
     .sensor-panel { align-self: start; min-width: 0; padding: 7px 8px; }
     .rwr-panel { grid-area: rwr; }
-    .radar-panel { grid-area: radar; }
+    .radar-panel { grid-area: radar; width: var(--hud-panel-width); justify-self: end; }
     .sensor-panel .hud-heading output { color: #b0e9cc; font-size: .6875rem; }
     .sensor-panel .hud-heading output[data-alert] { color: #ff9e7f; }
     .sensor-panel canvas { display: block; width: 100%; height: auto; margin-top: 5px; object-fit: contain; }
     .sensor-panel footer { color: var(--muted); text-align: right; white-space: nowrap; font: .65rem var(--hud-numerals); }
     .rwr-panel footer { color: #ff9e7f; }
-    .minimap { grid-area: map; width: 100%; justify-self: end; }
+    .minimap { grid-area: map; width: var(--map-width); justify-self: end; }
     .minimap-header {
       display: flex;
       justify-content: space-between;
@@ -493,10 +500,14 @@
       font-size: .75rem;
       white-space: nowrap;
     }
-    .minimap-north { color: var(--muted); }
-    .minimap-status { color: var(--accent); }
+    #minimap-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    .minimap-north { flex-shrink: 0; color: var(--muted); }
+    .minimap-status { flex-shrink: 0; color: var(--accent); }
+    .minimap-view, .ground-scope { aspect-ratio: 1; overflow: hidden; }
     .minimap-view { position: relative; border-top: 1px solid var(--border); background: #163639; }
-    .minimap-terrain { display: block; width: 100%; height: auto; }
+    .minimap-view[hidden], .ground-scope[hidden], .minimap-scale[hidden] { display: none; }
+    .ground-scope { border-top: 1px solid var(--border); background: #061a1f; }
+    .ground-scope canvas, .minimap-terrain { display: block; width: 100%; height: 100%; }
     .minimap-grid {
       position: absolute;
       inset: 0;
@@ -529,6 +540,26 @@
       transform: translate(-50%, -50%);
     }
     .minimap-factory[data-danger] { background: #ce552c; }
+    .minimap-ground-target { border-color: #ffd795; background: #352b20; }
+    .minimap-ground-target[data-emitting] { background: #e5a260; }
+    .minimap-ground-target[data-friendly] { border-color: #a4e2e9; background: #2a5664; }
+    .minimap-ground-target[data-cannon] { width: 6px; height: 6px; border-radius: 50%; }
+    .minimap-ground-target[data-selected] { outline: 1px solid #f3fff4; outline-offset: 2px; }
+    .minimap-defense-range {
+      position: absolute;
+      left: var(--map-x);
+      top: var(--map-z);
+      width: var(--range-x);
+      height: var(--range-z);
+      transform: translate(-50%, -50%);
+      border: 1px dashed #ffc18ab0;
+      border-radius: 50%;
+      background: #d67c2714;
+      pointer-events: none;
+    }
+    .minimap-defense-range[data-friendly] { border-color: #93d8e574; background: #7fb5c615; }
+    .minimap-defense-range[data-cannon] { border-style: solid; }
+    .minimap-defense-range[data-offline] { opacity: .35; }
     .minimap-airfield {
       width: 4px;
       height: 13px;
@@ -574,6 +605,7 @@
       font-size: .75rem;
       white-space: nowrap;
     }
+    .minimap-scale { min-width: 5.2em; }
     .map-credit { position: relative; pointer-events: auto; }
     .map-credit summary { cursor: pointer; white-space: normal; overflow-wrap: anywhere; }
     .map-credit-note {
@@ -681,7 +713,7 @@
       .telemetry { padding-block: 6px; }
       .speed-gauge { width: min(100%, 107px); justify-self: center; }
       .sensor-panel canvas { max-height: 20vh; }
-      .minimap { width: min(100%, 27vh); }
+      .cockpit { --map-width: min(calc(var(--hud-panel-width) * 1.2), 32.4vh); }
       .flight-meta, .countermeasures { padding-top: 4px; margin-top: 4px; }
     }
     @media (max-height: 445px) {
@@ -705,7 +737,7 @@
       .compass-scale { width: 168px; }
       .cockpit {
         grid-template-rows: minmax(0, 1fr) auto auto;
-        grid-template-areas: "rwr . radar" "flight . map" "stores stores stores";
+        grid-template-areas: "rwr . radar" "flight . map" "stores stores map";
         column-gap: 6px;
         row-gap: 8px;
       }
@@ -737,6 +769,10 @@
       .flight-gauges { gap: 4px; }
       .flight-meta { gap: 4px; }
       .flight-stat output { font-size: .6875rem; }
+      .weapon-racks:has([data-weapon="arh"]:not([hidden])):has(#cannon-rack:not([hidden])) {
+        grid-auto-flow: row;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
     }
     @media (max-width: 480px) and (max-height: 620px) {
       :root { --hud-top: 166px; }
@@ -769,7 +805,7 @@
       .compass-scale { width: min(168px, calc(100vw - 2 * (var(--hud-panel-width) + var(--gutter) + 4px))); }
       .cockpit { row-gap: 5px; }
       .rwr-panel:has(#rwr-range:not([hidden])) canvas { max-height: 7.5vh; }
-      .minimap { width: min(100%, 18vh); }
+      .cockpit { --map-width: min(calc(var(--hud-panel-width) * 1.2), 21.6vh); }
       .minimap-header, .minimap-footer { padding: 3px 4px; font-size: .625rem; }
     }
     .practice-guide { width: min(315px, 100%); padding: 6px 9px; font-size: clamp(.67rem, 1.5vw, .775rem);
@@ -816,11 +852,12 @@
               <div class="control-group"><kbd data-key="KeyB">B</kbd><span>开关减速板</span></div>
               <div class="control-group control-note"><span>对准己方跑道自动进近，停稳补给后按 W 起飞</span></div>
               <div class="control-group"><kbd data-key="KeyA">A</kbd><kbd data-key="KeyD">D</kbd><span>转向</span></div>
-              <div class="control-group"><kbd data-key="Space">空格</kbd><span>引导 / 发射</span></div>
+              <div class="control-group"><kbd data-key="Space">空格</kbd><span>引导 / 发射 / 投放</span></div>
               <div class="control-group"><kbd data-key="KeyF">F</kbd><span>按住发射航炮</span></div>
               <div class="control-group"><kbd data-key="KeyQ">Q</kbd><span>切弹</span></div>
-              <div class="control-group"><kbd data-key="KeyY">Y</kbd><span>切换雷达目标</span></div>
-              <div class="control-group"><kbd data-key="KeyT">T</kbd><span>硬锁 / 脱锁</span></div>
+              <div class="control-group"><kbd data-key="KeyY">Y</kbd><span>切换目标</span></div>
+              <div class="control-group"><kbd data-key="KeyH">H</kbd><span>切换对地模式</span></div>
+              <div class="control-group"><kbd data-key="KeyT">T</kbd><span>硬锁 / 指定地面目标</span></div>
               <div class="control-group"><kbd data-key="KeyG">G</kbd><span>雷达模式</span></div>
               <div class="control-group"><kbd data-key="KeyX">X</kbd><span>热诱弹</span></div>
               <div class="control-group"><kbd data-key="KeyC">C</kbd><span>干扰箔</span></div>
@@ -923,11 +960,28 @@
             <span id="arh-weapon-name" class="weapon-name">AIM-54C</span><span class="weapon-class">主动雷达</span>
             <div class="weapon-slots" aria-hidden="true"></div><output class="weapon-ammo" aria-labelledby="arh-weapon-name" aria-live="off">00</output>
           </div>
+          <div class="weapon-rack" data-weapon="ARM-S" hidden>
+            <span id="arm-weapon-name" class="weapon-name">ARM-S</span><span class="weapon-class">反辐射</span>
+            <div class="weapon-slots" aria-hidden="true"></div><output class="weapon-ammo" aria-labelledby="arm-weapon-name" aria-live="off">00</output>
+          </div>
+          <div class="weapon-rack" data-weapon="GB-P" hidden>
+            <span id="bomb-weapon-name" class="weapon-name">GB-P</span><span class="weapon-class">制导炸弹</span>
+            <div class="weapon-slots" aria-hidden="true"></div><output class="weapon-ammo" aria-labelledby="bomb-weapon-name" aria-live="off">00</output>
+          </div>
+          <div class="weapon-rack" data-weapon="AGM-T" hidden>
+            <span id="agm-weapon-name" class="weapon-name">AGM-T</span><span class="weapon-class">空地</span>
+            <div class="weapon-slots" aria-hidden="true"></div><output class="weapon-ammo" aria-labelledby="agm-weapon-name" aria-live="off">00</output>
+          </div>
           <div id="cannon-rack" class="weapon-rack" hidden>
             <span id="cannon-weapon-name" class="weapon-name">航炮</span><span class="weapon-class">按住 F</span>
             <span id="cannon-ammo-meter" class="cannon-ammo-meter" aria-hidden="true"></span>
             <output id="cannon-ammo" class="weapon-ammo" aria-labelledby="cannon-weapon-name" aria-live="off">0</output>
           </div>
+        </div>
+        <div id="ground-readout" class="ground-readout" hidden>
+          <output id="ground-target"></output>
+          <output id="ground-release" class="ground-release"></output>
+          <output id="ground-report" hidden></output>
         </div>
       </section>
 
@@ -946,20 +1000,26 @@
         <div class="minimap-header">
           <span id="minimap-name">多佛白崖</span>
           <span class="minimap-status" id="minimap-status" role="status"></span>
-          <span class="minimap-north" aria-hidden="true">↑ N</span>
+          <span class="minimap-north" id="minimap-orientation" aria-hidden="true">↑ N</span>
         </div>
-        <div class="minimap-view" aria-hidden="true">
-          <canvas class="minimap-terrain" id="minimap-terrain" width="384" height="384"></canvas>
+        <div class="minimap-view" id="minimap-view" aria-hidden="true">
+          <canvas class="minimap-terrain" id="minimap-terrain" width="768" height="768"></canvas>
           <div class="minimap-grid"></div>
           <span class="minimap-region kent">英国</span>
           <span class="minimap-region france">法国</span>
           <div id="minimap-airfields"></div>
           <span class="minimap-factory" id="minimap-factory" hidden></span>
+          <div id="minimap-defense"></div>
+          <div id="minimap-ground"></div>
           <div id="minimap-traffic"></div>
           <span class="minimap-marker" id="minimap-marker"></span>
         </div>
+        <div class="ground-scope" id="ground-scope" hidden>
+          <canvas id="ground-scope-map" width="384" height="384" role="img" aria-label="机头朝上，前方 10 千米内的地形和敌方地面目标"></canvas>
+        </div>
         <div class="minimap-footer">
-          <span title="全图 60 × 60 km">10 km / 格</span>
+          <span id="minimap-scale" class="minimap-scale" title="全图 60 × 60 km">10 km / 格</span>
+          <span id="ground-scope-scale" class="minimap-scale" hidden>2 km / 格</span>
           <details class="map-credit">
             <summary>© OpenStreetMap</summary>
             <div class="instrument map-credit-note">
@@ -4498,7 +4558,7 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
     const MAX_VIEW_OFFSET = 0.5;
     const VIEW_RETURN_SECONDS = 0.22;
     const AXIS_KEYS = new Set(['KeyW', 'KeyS', 'KeyA', 'KeyD']);
-    const ACTION_KEYS = new Set(['KeyB', 'KeyW', 'KeyS', 'Space', 'KeyF', 'KeyQ', 'KeyT', 'KeyY', 'KeyG', 'KeyX', 'KeyC']);
+    const ACTION_KEYS = new Set(['KeyB', 'KeyW', 'KeyS', 'Space', 'KeyF', 'KeyQ', 'KeyT', 'KeyY', 'KeyG', 'KeyH', 'KeyX', 'KeyC']);
     const FLIGHT_KEYS = new Set([...AXIS_KEYS, ...ACTION_KEYS, 'KeyU']);
     const VERTEX_SOURCE = `#version 300 es
       void main() {
@@ -4849,12 +4909,13 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
         const radius = Math.max(.002, width);
         return [z, 0, radius, radius];
       });
+      const finColor = Number.parseInt(art.finColor.slice(1), 16);
       loft(toSections(art.nosePoints), Number.parseInt(art.noseColor.slice(1), 16), 1, 0, 12);
-      loft(toSections(art.bodyPoints), 0xd8d7c9, 1, 0, 12);
+      loft(toSections(art.bodyPoints), Number.parseInt(art.meshBodyColor.slice(1), 16), 1, 0, 12);
       for (const fin of art.finPoints) {
         for (const side of [-1, 1]) {
-          face(fin.map(([x, z]) => [side * x, 0, z]), 0xa0adb0, 0, fin.map(() => [0, 1, 0]));
-          face(fin.map(([y, z]) => [0, side * y, z]), 0xa0adb0, 0, fin.map(() => [-1, 0, 0]));
+          face(fin.map(([x, z]) => [side * x, 0, z]), finColor, 0, fin.map(() => [0, 1, 0]));
+          face(fin.map(([y, z]) => [0, side * y, z]), finColor, 0, fin.map(() => [-1, 0, 0]));
         }
       }
       return new Float32Array(vertices);
@@ -5517,6 +5578,118 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
       context.restore();
     }
 
+    function drawGroundStrike(context, battle, camera, width, height, time, pixelSize) {
+      const observer = viewedAircraft();
+      const ground = observer.ground;
+      for (const target of battle.groundTargets) {
+        const { x, z } = target;
+        if (Math.abs(x - camera.x) > width / 2 + 48 || Math.abs(z - camera.z) > height / 2 + 48) continue;
+        context.save();
+        context.translate(x, z);
+        const aircraft = battle.aircraft[target.aimedAt];
+        const heading = aircraft ? Math.atan2(aircraft.display.x - x, z - aircraft.display.z) : 0;
+        const [siteWidth, siteLength] = sceneryModule.paintGroundTarget(context, target, heading);
+        if (target.health) {
+          const selected = ground?.active && ground.selected === target.id;
+          const designated = selected && ground.designated === target.id;
+          context.strokeStyle = designated ? '#fff4bf' : selected ? '#ffc081'
+            : target.team === observer.team ? '#92d5df' : '#d4ad76ac';
+          context.lineWidth = (selected ? 2 : 1) * pixelSize;
+          context.strokeRect(-siteWidth / 2, -siteLength / 2, siteWidth, siteLength);
+          if (target.emitting) {
+            const pulse = (time % 1.6) / 1.6;
+            context.globalAlpha = 1 - pulse;
+            context.beginPath();
+            context.arc(0, 0, 10 + pulse * 19, 0, TAU);
+            context.stroke();
+            context.globalAlpha = 1;
+          }
+          context.font = `600 ${Math.max(2.3, 11 * pixelSize)}px "Segoe UI", "Microsoft YaHei", sans-serif`;
+          context.textAlign = 'center';
+          context.fillStyle = '#fff0cb';
+          context.fillText(target.name, 0, -siteLength / 2 - 3);
+        }
+        context.restore();
+      }
+      for (const weapon of battle.groundOrdnance) {
+        if (time < weapon.bornAt) continue;
+        const { x, z, progress } = groundWeaponPosition(weapon, time);
+        const bomb = battleDisplay.groundWeapons[weapon.type].mode === 'bomb';
+        const art = missileArt.getMissileArt(weapon.type);
+        context.save();
+        context.translate(x, z);
+        context.rotate(weapon.heading);
+        if (!bomb) {
+          context.strokeStyle = weapon.lostAt === null ? '#fff3d3b0' : '#e9a68298';
+          context.lineWidth = Math.max(.55, pixelSize);
+          context.beginPath();
+          context.moveTo(0, art.length * .5);
+          context.lineTo(0, Math.min(progress * 54, 10));
+          context.stroke();
+        }
+        const scale = bomb ? lerp(1, .45, progress) : 1;
+        context.scale(scale, scale);
+        missileArt.paintMissileArt(context, art);
+        context.restore();
+      }
+    }
+
+    function groundWeaponPosition(weapon, time) {
+      const duration = weapon.impactAt - weapon.bornAt;
+      const elapsed = clamp(time - weapon.bornAt, 0, duration);
+      const dx = weapon.toX - weapon.x, dz = weapon.toZ - weapon.z;
+      let progress = elapsed / duration;
+      const boostSeconds = Math.min(battleDisplay.groundWeapons[weapon.type].boostSeconds ?? 0, duration);
+      const distance = Math.hypot(dx, dz);
+      const powered = boostSeconds > 0 && weapon.launchSpeed !== undefined && distance > 0;
+      if (powered) {
+        const launchRate = Math.min(weapon.launchSpeed / distance, 1 / duration);
+        // Solve for the speed gain that covers the route in the server's flight time.
+        const cruiseGain = (1 - launchRate * duration) / (duration - boostSeconds / 2);
+        const boostElapsed = Math.min(elapsed, boostSeconds);
+        const gain = cruiseGain * boostElapsed / boostSeconds;
+        progress = clamp(launchRate * elapsed + gain * (elapsed - boostElapsed / 2), 0, 1);
+      }
+      const drift = weapon.lostAt === null || time < weapon.lostAt ? 0 : time >= weapon.impactAt ? 1
+        : clamp((time - weapon.lostAt) / Math.max(.001, weapon.impactAt - weapon.lostAt), 0, 1);
+      return {
+        x: weapon.x + dx * progress + drift * 30, z: weapon.z + dz * progress + drift * 24, progress,
+        boosting: powered && elapsed < boostSeconds,
+      };
+    }
+
+    function defenseShotPosition(shot, fraction) {
+      const next = shot.next ?? shot;
+      return { x: lerp(shot.x, next.x, fraction), z: lerp(shot.z, next.z, fraction) };
+    }
+
+    function drawDefenseShots(context, shots, time, fraction, pixelSize) {
+      for (const shot of shots) {
+        const { x, z } = defenseShotPosition(shot, fraction);
+        context.save();
+        context.translate(x, z);
+        context.rotate(shot.heading);
+        const missile = shot.kind === 'missile';
+        context.lineWidth = Math.max(pixelSize * (missile ? 1.8 : 1.25), .35);
+        context.strokeStyle = missile ? (shot.lostAt === null ? '#f8cca2c0' : '#e2ad8d8c') : '#ffe5a399';
+        if (missile) {
+          context.beginPath();
+          context.moveTo(0, 1.2);
+          context.lineTo(0, Math.min(13, (time - shot.bornAt) * 26));
+          context.stroke();
+          missileArt.paintMissileArt(context, missileArt.getMissileArt('SAM'));
+        } else {
+          context.beginPath();
+          for (const offset of [-1.35, 0, 1.35]) {
+            context.moveTo(offset, Math.abs(offset));
+            context.lineTo(offset, 4 + Math.abs(offset) * 2);
+          }
+          context.stroke();
+        }
+        context.restore();
+      }
+    }
+
     function drawBattle(context, width, height, viewWidth, viewHeight, camera, battle, fraction, renderTime) {
       const scaleX = width / viewWidth;
       const scaleY = height / viewHeight;
@@ -5541,6 +5714,10 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
         }
       }
       drawCannonTracers(context, battle.cannonTracers, renderTime, camera, viewWidth, viewHeight);
+      if (battle.groundTargets?.length) {
+        drawGroundStrike(context, battle, camera, viewWidth, viewHeight, renderTime, 1 / scaleY);
+        drawDefenseShots(context, battle.defenseShots, renderTime, fraction, 1 / scaleY);
+      }
       for (const missile of battle.missiles) drawMissile(context, missile, renderTime, fraction);
       for (const flare of battle.flares) drawFlare(context, flare, renderTime, fraction, scaleY);
       for (const cloud of battle.chaff) drawChaff(context, cloud, renderTime, scaleY);
@@ -5797,7 +5974,7 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
         return { ...uploadModel(vertices), bodyVertexCount, wingVertexStart, hingeZ, hingeY };
       });
       const storeMeshes = new Map();
-      for (const type of Object.keys(battleDisplay.missiles)) {
+      for (const type of [...Object.keys(battleDisplay.missiles), ...Object.keys(battleDisplay.groundWeapons)]) {
         const art = missileArt.getMissileArt(type);
         if (art) storeMeshes.set(type, uploadModel(buildStoreMesh(art)));
       }
@@ -6005,10 +6182,21 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
     const missileReadouts = ['kph', 'mach', 'load', 'distance', 'mode'].map(field => document.getElementById(`missile-${field}`));
     const aircraftName = document.getElementById('aircraft-name');
     const minimapCanvas = document.getElementById('minimap-terrain');
+    const minimapView = document.getElementById('minimap-view');
+    const minimapName = document.getElementById('minimap-name');
+    const minimapOrientation = document.getElementById('minimap-orientation');
+    const minimapScale = document.getElementById('minimap-scale');
+    const groundScope = document.getElementById('ground-scope');
+    const groundScopeMap = document.getElementById('ground-scope-map').getContext('2d');
+    const groundScopeScale = document.getElementById('ground-scope-scale');
+    const GROUND_SCOPE_KM = 10;
     const minimapMarker = document.getElementById('minimap-marker');
     const minimapTraffic = document.getElementById('minimap-traffic');
     const minimapAirfields = document.getElementById('minimap-airfields');
     const minimapFactory = document.getElementById('minimap-factory');
+    const minimapGround = document.getElementById('minimap-ground');
+    const minimapDefense = document.getElementById('minimap-defense');
+    const defenseRanges = new Map();
     const minimapTargets = [];
     const minimapStatus = document.getElementById('minimap-status');
     const returnLobbyButton = document.getElementById('return-lobby');
@@ -6049,6 +6237,10 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
     const damageStatus = document.getElementById('damage-status');
     const airportStatus = document.getElementById('airport-status');
     const factoryStatus = document.getElementById('factory-status');
+    const groundReadout = document.getElementById('ground-readout');
+    const groundTarget = document.getElementById('ground-target');
+    const groundRelease = document.getElementById('ground-release');
+    const groundReport = document.getElementById('ground-report');
     const spectatorStatus = document.getElementById('spectator-status');
     const seekerOutput = document.getElementById('seeker-status');
     const weaponRacks = Array.from(document.querySelectorAll('.weapon-rack[data-weapon]'), panel => ({
@@ -6086,7 +6278,7 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
     let requestedLessonAction;
     const battle = {
       aircraft: [], player: null, missiles: [], cannonTracers: [], flares: [], chaff: [], explosions: [], time: 0,
-      result: null, resultReason: null, nextWakeSampleAt: 0, sonicBooms: [],
+      groundOrdnance: [], result: null, resultReason: null, nextWakeSampleAt: 0, sonicBooms: [],
     };
     let battleDisplay;
     const viewOffset = { x: 0, y: 0 };
@@ -6388,6 +6580,12 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
       for (const missile of snapshot.missiles) {
         if (missile.bornAt > cutoff) add('launch', missile.trail[0] ?? missile, 6);
       }
+      for (const weapon of snapshot.groundOrdnance ?? []) {
+        if (weapon.bornAt > cutoff && battleDisplay.groundWeapons[weapon.type].mode !== 'bomb') add('launch', weapon, 6);
+      }
+      for (const shot of snapshot.defenseShots ?? []) {
+        if (shot.bornAt > cutoff) add(shot.kind === 'missile' ? 'launch' : 'cannon', shot, shot.kind === 'missile' ? 6 : 4);
+      }
       for (const explosion of snapshot.explosions) {
         if (explosion.time > cutoff) add('explosion', explosion, 8);
       }
@@ -6421,6 +6619,9 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
       battle.result = snapshot.result;
       battle.resultReason = snapshot.resultReason;
       battle.strike = snapshot.strike;
+      battle.groundTargets = snapshot.groundTargets;
+      battle.groundOrdnance = (snapshot.groundOrdnance ?? []).map(weapon => ({ ...weapon, source: toPlane(weapon.source) }));
+      battle.defenseShots = (snapshot.defenseShots ?? []).map(shot => ({ ...shot }));
       for (const state of snapshot.aircraft) {
         const plane = planes[state.id];
         Object.assign(plane.previous, plane.flight);
@@ -6429,6 +6630,7 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
         plane.role = state.role;
         plane.destroyedAt = state.destroyedAt;
         plane.weapon = state.weapon;
+        plane.ground = state.ground;
         plane.stores = state.stores;
         plane.damageReport = state.damageReport;
         plane.missileOutcome = state.missileOutcome;
@@ -6511,6 +6713,7 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
         flare.x = future.x;
         flare.z = future.z;
       }
+      for (const shot of battle.defenseShots) shot.next = next?.defenseShots?.find(item => item.id === shot.id);
       if (battle.result) resultElapsed += dt;
       if (online.connected && latest.state === 'playing' && keys.size && now - online.inputAt >= 160) sendOnlineInput();
       return true;
@@ -6522,7 +6725,7 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
         const { type, snapshot, seat, display, online: connected } = event.data;
         if (type === 'configuration' && !battleDisplay) {
           battleDisplay = display;
-          document.getElementById('minimap-name').textContent = display.map.name;
+          minimapName.textContent = display.map.name;
           for (const field of display.airfields ?? []) {
             const marker = document.createElement('span');
             marker.className = 'minimap-airfield';
@@ -6543,6 +6746,24 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
             placeOnMinimap(minimapFactory, x, z);
             factoryStatus.hidden = false;
             document.getElementById('friendly-label').textContent = '防御编队';
+          }
+          for (const target of display.mission.groundTargets ?? []) {
+            const marker = document.createElement('span');
+            marker.className = 'minimap-factory minimap-ground-target';
+            marker.hidden = true;
+            marker.title = target.name;
+            minimapGround.append(marker);
+            if (target.defense) {
+              const range = document.createElement('span');
+              range.className = 'minimap-defense-range';
+              range.hidden = true;
+              range.setAttribute('aria-hidden', 'true');
+              range.toggleAttribute('data-cannon', target.defense === 'cannon');
+              placeMinimapRange(range, target, display.airDefense[target.defense].rangeKm);
+              defenseRanges.set(target.id, range);
+              minimapDefense.append(range);
+            }
+            factoryStatus.hidden = false;
           }
           missionProgress.hidden = false;
           startGame();
@@ -6613,6 +6834,16 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
       const warnings = [];
       if (!isAlive(receiver)) return warnings;
       const perspective = { flight: receiver.display };
+      for (const site of battle.groundTargets ?? []) {
+        if (site.defense === 'missile' && site.health > 0 && site.emitting && site.aimedAt === receiver.id) {
+          warnings.push({ angle: radarPosition(perspective, site).angle, level: 2 });
+        }
+      }
+      for (const shot of battle.defenseShots ?? []) {
+        if (shot.kind === 'missile' && shot.target === receiver.id && shot.lostAt === null) {
+          warnings.push({ ...radarPosition(perspective, defenseShotPosition(shot, fraction)), level: 3 });
+        }
+      }
       for (const emitter of battle.aircraft) {
         if (emitter.team === receiver.team || !isAlive(emitter)) continue;
         const tracked = emitter.radar.target === receiver;
@@ -6862,21 +7093,55 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
       context.stroke();
     }
 
+    function updateGroundReadout(player, ground) {
+      groundReadout.parentElement.toggleAttribute('data-ground', Boolean(ground));
+      groundReadout.hidden = !ground;
+      if (!ground) return false;
+      const { selected, designated, blocked, feedback, type, racks } = ground;
+      const rack = racks.find(candidate => candidate.type === type);
+      const profile = battleDisplay.groundWeapons[type];
+      const target = battle.groundTargets?.find(candidate => candidate.id === selected && candidate.health > 0);
+
+      let targetText = '无可用地面目标';
+      if (target) {
+        const { x, z } = player.flight;
+        const distance = Math.hypot(target.x - x, target.z - z) / battleDisplay.worldUnitsPerKilometer;
+        const angle = Math.round(Math.atan2(target.x - x, z - target.z) * 180 / Math.PI);
+        const bearing = String((angle + 360) % 360).padStart(3, '0');
+        const designation = designated === selected ? '已指定' : 'T 指定';
+        targetText = `${target.name} · ${bearing}° · ${distance.toFixed(1)}/${profile.launchRangeKm} km · ${designation} · Y 换目标`;
+      }
+      if (groundTarget.value !== targetText) groundTarget.value = targetText;
+      const airborne = ['airborne', 'climb'].includes(player.flight.phase);
+      const ready = Boolean(target && designated === selected && rack.ammo && airborne && !blocked);
+      const instruction = !airborne ? '起飞后可用' : ready ? (profile.mode === 'bomb' ? '可投放 · 空格' : '可发射 · 空格')
+        : !rack.ammo ? '弹药用尽' : blocked === 'T 指定目标' ? '等待指定' : blocked || '等待指定';
+      if (groundRelease.value !== instruction) groundRelease.value = instruction;
+      groundRelease.toggleAttribute('data-ready', ready);
+
+      groundReport.hidden = !feedback || battle.time - feedback.time >= 2;
+      if (!groundReport.hidden && groundReport.value !== feedback.text) groundReport.value = feedback.text;
+      return ready;
+    }
+
     function updateLoadout(player, seeker, locked) {
-      const weapons = { ir: player.rack, sarh: player.radarRack, arh: player.activeRack };
       const guidanceLabels = { ir: '红外', sarh: '半主动雷达', arh: '主动雷达' };
-      seekerOutput.value = player.weapon ? `${guidanceLabels[player.weapon]} · ${seeker}` : '无导弹挂载';
-      seekerOutput.toggleAttribute('data-locked', locked);
+      const ground = player.ground?.active && isAlive(player) ? player.ground : null;
+      const weapons = ground ? Object.fromEntries(ground.racks.map(rack => [rack.type, rack]))
+        : { ir: player.rack, sarh: player.radarRack, arh: player.activeRack };
+      const groundReady = updateGroundReadout(player, ground);
+      seekerOutput.value = ground ? '对地 · Q 切弹 · H 切换' : player.weapon ? `${guidanceLabels[player.weapon]} · ${seeker}` : '无空空挂载';
+      seekerOutput.toggleAttribute('data-locked', ground ? groundReady : locked);
       for (const { panel, kind, name, slots, ammo } of weaponRacks) {
         const rack = weapons[kind];
         panel.hidden = !rack?.type;
+        panel.toggleAttribute('data-selected', !panel.hidden && kind === (ground?.type ?? player.weapon));
         if (!rack?.type) continue;
         const { capacity } = rack;
         if (name.textContent !== rack.type) name.textContent = rack.type;
         const yieldIndex = battleDisplay.missiles[rack.type]?.blastPower;
         if (yieldIndex) name.title = `游戏内爆炸当量 ${yieldIndex.toFixed(2)}`;
         ammo.value = String(rack.ammo).padStart(2, '0');
-        panel.toggleAttribute('data-selected', kind === player.weapon);
         panel.toggleAttribute('data-empty', rack.ammo === 0);
         if (slots.children.length !== capacity || slots.dataset.type !== rack.type) {
           slots.dataset.type = rack.type;
@@ -6889,7 +7154,7 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
             if (art) {
               const context = slot.getContext('2d');
               context.translate(slot.width / 2, slot.height / 2);
-              context.scale(22, 22);
+              context.scale(19, 19);
               missileArt.paintMissileArt(context, art, '#d4eae1');
             }
             return slot;
@@ -6898,8 +7163,8 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
         for (let i = 0; i < slots.children.length; i++) slots.children[i].toggleAttribute('data-loaded', i < rack.ammo);
       }
       const { cannon } = battleDisplay.aircraft[player.flight.airframe];
-      cannonPanel.hidden = !cannon;
-      if (!cannon) return;
+      cannonPanel.hidden = Boolean(ground) || !cannon;
+      if (cannonPanel.hidden) return;
       const ammo = player.cannonAmmo;
       cannonName.title = `炮口初速 ${cannon.muzzleSpeedMps} m/s · 叠加载机速度 · 射速 ${cannon.roundsPerSecond} 发/秒 · 备弹 ${cannon.capacity} 发`;
       cannonAmmo.value = String(ammo);
@@ -7044,6 +7309,7 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
       chaffOutput.toggleAttribute('data-empty', chaffRack.ammo === 0);
       const infraredIncoming = battle.missiles.some(missile =>
         missile.target === player && missile.lostAt === null && !missile.flare && battleDisplay.missiles[missile.type].guidance === 'ir');
+      const groundIncoming = battle.defenseShots.some(shot => shot.target === player.id && shot.kind === 'missile' && shot.lostAt === null);
       const lastLaunch = Math.max(player.rack.lastLaunch, player.radarRack.lastLaunch, player.activeRack?.lastLaunch ?? -Infinity);
       let feedback = '';
       if (awaitingWreckView()) {
@@ -7052,25 +7318,33 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
           : flight.crashReason === 'engine-failure' ? '发动机失效 · 本机坠毁' : '本机被击毁';
         if (wreckViewReady()) feedback += battle.result ? ' · 按任意键查看战果' : ' · 按任意键观战';
       } else if (!isAlive(player)) feedback = '本机出局 · 观战';
-      else if (radarDanger === 3) feedback = !spectating && chaffRack.ammo > 0 ? '雷达弹告警 · C 干扰箔' : '雷达弹告警';
+      else if (radarDanger === 3) {
+        const alert = groundIncoming ? '地空导弹来袭' : '雷达弹告警';
+        feedback = !spectating && chaffRack.ammo > 0 ? `${alert} · C 干扰箔` : alert;
+      }
       else if (infraredIncoming) feedback = !spectating && flareRack.ammo > 0 ? '红外弹来袭 · X 热诱弹' : '红外弹来袭';
       else if (battle.time - (player.damageReport?.time ?? -Infinity) < 1.4) {
-        const hit = player.damageReport.cause === 'cannon' ? '航炮命中' : player.damageReport.cause === 'direct' ? '直接命中' : '近炸';
+        const hit = { cannon: '航炮命中', direct: '直接命中', 'ground-cannon': '防空高炮命中',
+          'ground-missile': '地空导弹近炸' }[player.damageReport.cause] ?? '近炸';
         feedback = `${hit} · ${player.damageReport.part}受损`;
       }
       else if (battle.time - flareRack.lastRedirect < 1.1) feedback = '导弹已被诱偏';
-      else if (outcome && outcome.time >= lastLaunch && battle.time - outcome.time < 1.5) feedback = outcome.text;
-      else if (battle.time - lastLaunch < 0.65) feedback = '导弹已发射';
-      else if (!spectating && (locked || twsTarget) && rack.ammo) {
-        const target = radar.target ?? twsTarget;
-        const observation = radar.target?.flight ?? radarEchoPosition(player, target, battle.time);
-        feedback = radarWeapon && observation && radarPosition(player, observation).range > battleDisplay.missiles[rack.type].launchRangeKm
-          ? '目标距离过远' : twsTarget ? '空格发射 AIM-54C · Y 切换目标' : '空格发射';
-      } else if (radarWeapon && radar.pending) feedback = '锁定中';
-      else if (!spectating && radarWeapon && radar.selected) feedback = 'T 锁定目标';
-      else if (rack.armed) feedback = rack.target ? '锁定中' : '机头指向目标';
-      else if (battle.flares.some(flare => flare.owner === player)) feedback = '热诱弹已释放';
-      else if (battle.chaff.some(cloud => cloud.owner === player)) feedback = '干扰箔已释放';
+      else if (!player.ground?.active) {
+        if (outcome && outcome.time >= lastLaunch && battle.time - outcome.time < 1.5) feedback = outcome.text;
+        else if (battle.time - lastLaunch < 0.65) feedback = '导弹已发射';
+        else if (!spectating && (locked || twsTarget) && rack.ammo) {
+          const target = radar.target ?? twsTarget;
+          const observation = radar.target?.flight ?? radarEchoPosition(player, target, battle.time);
+          feedback = radarWeapon && observation && radarPosition(player, observation).range > battleDisplay.missiles[rack.type].launchRangeKm
+            ? '目标距离过远' : twsTarget ? '空格发射 AIM-54C · Y 切换目标' : '空格发射';
+        } else if (radarWeapon && radar.pending) feedback = '锁定中';
+        else if (!spectating && radarWeapon && radar.selected) feedback = 'T 锁定目标';
+        else if (rack.armed) feedback = rack.target ? '锁定中' : '机头指向目标';
+      }
+      if (!feedback) {
+        if (battle.flares.some(flare => flare.owner === player)) feedback = '热诱弹已释放';
+        else if (battle.chaff.some(cloud => cloud.owner === player)) feedback = '干扰箔已释放';
+      }
       if (missileFeedback.textContent !== feedback) missileFeedback.textContent = feedback;
       missileFeedback.toggleAttribute('data-danger', infraredIncoming || radarDanger === 3);
       throttleTrack.style.setProperty('--throttle', flight.throttle);
@@ -7089,6 +7363,14 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
         if (factoryStatus.value !== objective) factoryStatus.value = objective;
         factoryStatus.toggleAttribute('data-danger', Boolean(battle.strike) || nearest < 5);
         minimapFactory.toggleAttribute('data-danger', Boolean(battle.strike) || nearest < 5);
+      } else if (battle.groundTargets?.length) {
+        const objectives = battle.groundTargets.filter(target => target.objective);
+        const remaining = objectives.filter(target => target.health > 0).length;
+        const aimed = battle.groundTargets.find(target => target.defense && target.aimedAt === player.id);
+        const alert = aimed?.defense === 'cannon' ? '高炮警戒' : aimed ? '地面雷达锁定' : '';
+        const text = `地面目标 ${remaining}/${objectives.length} · ${alert || (player.ground ? 'H 切换对地模式' : '空中掩护')}`;
+        if (factoryStatus.value !== text) factoryStatus.value = text;
+        factoryStatus.toggleAttribute('data-danger', Boolean(alert));
       }
       const uk = String(live.filter(aircraft => aircraft.team === 0).length);
       const france = String(live.length - Number(uk));
@@ -7110,15 +7392,198 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
       return x >= 0 && x <= 1 && z >= 0 && z <= 1;
     }
 
+    function placeMinimapRange(marker, target, rangeKm) {
+      const diameter = rangeKm * 2 * battleDisplay.worldUnitsPerKilometer;
+      const { minX, maxX, minZ, maxZ } = battleDisplay.map.bounds;
+      marker.style.setProperty('--range-x', `${100 * diameter / (maxX - minX)}%`);
+      marker.style.setProperty('--range-z', `${100 * diameter / (maxZ - minZ)}%`);
+      placeOnMinimap(marker, target.x, target.z);
+    }
+
+    function drawGroundScope(subject, position) {
+      const context = groundScopeMap;
+      const { width, height } = context.canvas;
+      const x = width / 2;
+      const radius = x - 14;
+      const y = radius + 16;
+      const { worldUnitsPerKilometer: units } = battleDisplay;
+      const reach = GROUND_SCOPE_KM * units;
+      const scale = radius / reach;
+      const sin = Math.sin(position.heading), cos = Math.cos(position.heading);
+      const { minX, maxX, minZ, maxZ } = battleDisplay.map.bounds;
+      const { selected, designated, type } = subject.ground;
+      const contacts = [];
+      let selectedMark;
+
+      context.fillStyle = '#061a1f';
+      context.fillRect(0, 0, width, height);
+      context.beginPath();
+      context.moveTo(x - radius, y);
+      context.arc(x, y, radius, Math.PI, 2 * Math.PI);
+      context.closePath();
+      context.save();
+      context.clip();
+      context.fillStyle = '#103037';
+      context.fillRect(0, 0, width, height);
+      context.save();
+      context.translate(x, y);
+      context.scale(scale, scale);
+      context.rotate(-position.heading);
+      context.drawImage(minimapCanvas, minX - position.x, minZ - position.z, maxX - minX, maxZ - minZ);
+      context.restore();
+      context.fillStyle = '#08221f58';
+      context.fillRect(0, 0, width, height);
+
+      context.lineWidth = 1.25;
+      context.strokeStyle = '#99cbb57a';
+      context.fillStyle = '#c9e2c6';
+      context.font = '15px Consolas, monospace';
+      context.textAlign = 'left';
+      context.beginPath();
+      context.moveTo(x, y);
+      context.lineTo(x, y - radius);
+      context.stroke();
+      for (let km = 2; km <= GROUND_SCOPE_KM; km += 2) {
+        const arcRadius = radius * km / GROUND_SCOPE_KM;
+        context.beginPath();
+        context.arc(x, y, arcRadius, Math.PI, 2 * Math.PI);
+        context.stroke();
+        if (km < GROUND_SCOPE_KM) context.fillText(String(km), x + 6, y - arcRadius + 14);
+      }
+
+      function drawMark(site, sx, sy, active) {
+        context.strokeStyle = context.fillStyle = active ? '#fff1ac' : '#f2b67d';
+        context.lineWidth = active ? 2.5 : 1.75;
+        if (site.kind === 'radar') {
+          context.beginPath();
+          context.moveTo(sx, sy - 5);
+          context.lineTo(sx + 5, sy);
+          context.lineTo(sx, sy + 5);
+          context.lineTo(sx - 5, sy);
+          context.closePath();
+          if (site.emitting) context.fill();
+          else context.stroke();
+        } else if (site.kind === 'cannon') {
+          context.beginPath();
+          context.arc(sx, sy, 4, 0, 2 * Math.PI);
+          context.stroke();
+        } else {
+          context.fillRect(sx - 3.5, sy - 3.5, 7, 7);
+        }
+        if (!active) return;
+        context.strokeRect(sx - 9, sy - 9, 18, 18);
+        if (site.id === designated) {
+          const range = battleDisplay.groundWeapons[type].launchRangeKm * units * scale;
+          context.lineWidth = 1.3;
+          context.strokeStyle = '#cfe6bd90';
+          context.setLineDash([5, 4]);
+          context.beginPath();
+          context.arc(sx, sy, range, 0, 2 * Math.PI);
+          context.stroke();
+          context.setLineDash([]);
+        }
+      }
+
+      for (const site of battle.groundTargets ?? []) {
+        if (site.team === subject.team || site.health <= 0) continue;
+        const dx = site.x - position.x, dz = site.z - position.z;
+        const forward = dx * sin - dz * cos;
+        const distance = Math.hypot(dx, dz);
+        if (forward <= 1e-6 || distance > reach) continue;
+        const sx = x + (dx * cos + dz * sin) * scale, sy = y - forward * scale;
+        if (site.id === selected) selectedMark = { site, sx, sy };
+        else drawMark(site, sx, sy, false);
+        contacts.push({ site, distance });
+      }
+      if (selectedMark) drawMark(selectedMark.site, selectedMark.sx, selectedMark.sy, true);
+      context.restore();
+
+      context.strokeStyle = '#84b0a7';
+      context.lineWidth = 1.2;
+      context.beginPath();
+      context.moveTo(x - radius, y);
+      context.arc(x, y, radius, Math.PI, 2 * Math.PI);
+      context.closePath();
+      context.stroke();
+      context.fillStyle = '#bbf2d9';
+      context.beginPath();
+      context.moveTo(x, y - 9);
+      context.lineTo(x + 6, y + 4);
+      context.lineTo(x, y + 1);
+      context.lineTo(x - 6, y + 4);
+      context.fill();
+
+      contacts.sort((a, b) => a.distance - b.distance);
+      const rowHeight = 33;
+      const rowStart = y + 22;
+      context.font = '19px "Segoe UI", "Microsoft YaHei", sans-serif';
+      context.strokeStyle = '#436863';
+      context.beginPath();
+      context.moveTo(14, y + 15);
+      context.lineTo(width - 14, y + 15);
+      context.stroke();
+      if (!contacts.length) {
+        context.textAlign = 'center';
+        context.fillStyle = '#a9c9bc';
+        context.fillText('前方暂无地面目标', x, rowStart + 23);
+      }
+      for (const [index, { site, distance }] of contacts.slice(0, Math.floor((height - rowStart - 5) / rowHeight)).entries()) {
+        const rowY = rowStart + index * rowHeight;
+        if (site.id === selected) {
+          context.fillStyle = '#284a44';
+          context.fillRect(14, rowY, width - 28, rowHeight - 2);
+        }
+        context.fillStyle = site.id === selected ? '#fff1ac' : '#dae5d1';
+        context.textAlign = 'left';
+        context.fillText(site.name, 25, rowY + 23, width - 136);
+        context.textAlign = 'right';
+        context.fillText(`${(distance / units).toFixed(1)} km`, width - 25, rowY + 23);
+      }
+      return contacts.length;
+    }
+
     function updateMinimap() {
       const subject = viewedAircraft();
       const position = subject.flight;
+      const groundMode = Boolean(subject.ground?.active && isAlive(subject));
+      minimapView.hidden = groundMode;
+      minimapScale.hidden = groundMode;
+      groundScope.hidden = !groundMode;
+      groundScopeScale.hidden = !groundMode;
+      const name = groundMode ? `对地 · 前方 ${GROUND_SCOPE_KM} km` : battleDisplay.map.name;
+      const orientation = groundMode ? '↑ 机头' : '↑ N';
+      if (minimapName.textContent !== name) minimapName.textContent = name;
+      if (minimapOrientation.textContent !== orientation) minimapOrientation.textContent = orientation;
+      if (groundMode) {
+        const flight = (subject === battle.player && online.predictedFlight) || position;
+        const count = drawGroundScope(subject, flight);
+        const status = count ? `目标 ${count}` : '';
+        if (minimapStatus.textContent !== status) minimapStatus.textContent = status;
+        return;
+      }
       const inBounds = placeOnMinimap(minimapMarker, position.x, position.z);
       minimapMarker.hidden = !isAlive(subject);
       minimapMarker.style.setProperty('--map-heading', `${position.heading}rad`);
       const status = inBounds ? '' : '地图外';
       if (minimapStatus.textContent !== status) minimapStatus.textContent = status;
       for (const marker of minimapAirfields.children) marker.classList.toggle('friendly', Number(marker.dataset.team) === battle.player.team);
+      for (const [index, marker] of [...minimapGround.children].entries()) {
+        const target = battle.groundTargets?.[index];
+        marker.hidden = !target?.health;
+        const range = defenseRanges.get(target?.id);
+        if (range) {
+          range.hidden = marker.hidden;
+          range.toggleAttribute('data-friendly', target.team === subject.team);
+          range.toggleAttribute('data-offline', target.defense === 'missile' && !target.emitting);
+        }
+        if (marker.hidden) continue;
+        placeOnMinimap(marker, target.x, target.z);
+        marker.toggleAttribute('data-emitting', target.emitting);
+        marker.toggleAttribute('data-friendly', target.team === subject.team);
+        marker.toggleAttribute('data-cannon', target.defense === 'cannon');
+        marker.toggleAttribute('data-selected', subject.ground?.active && subject.ground.selected === target.id);
+        marker.title = target.kind === 'radar' ? `${target.name} · ${target.emitting ? '发射信号' : '停机'}` : target.name;
+      }
       const { radar } = subject;
       let index = 0;
       for (const aircraft of battle.aircraft) {
@@ -7179,12 +7644,15 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
       resumeButton.textContent = '返回大厅';
       const cooperative = battleDisplay.mission.mode === 'pve';
       const title = battleDisplay.mission.raid ? (battle.result === 'won' ? '工厂防御成功' : '工厂防御失败')
+        : battleDisplay.mission.groundTargets ? (battle.result === 'won' ? '对地打击成功' : '对地打击失败')
         : cooperative ? (battle.result === 'won' ? '拦截任务完成' : '拦截任务失败')
         : { won: '英国侧获胜', lost: '法国侧获胜', draw: '本轮平局' }[battle.result];
       const details = {
         'factory-hit': '炸弹命中肯特工厂。',
         'bombers-stopped': '4 架 B-52 已全部拦截，肯特工厂安全。',
         'factory-held': '防御时间结束，肯特工厂安全。',
+        'ground-targets-destroyed': '主要地面目标已全部摧毁。',
+        'ground-timeout': '任务时间已到，仍有主要地面目标存留。',
         timeout: cooperative ? '任务时间已到，仍有敌机在场。' : '时间已到，按双方存活机数结算。',
         'out-of-ammo': '双方弹药用尽。',
         elimination: cooperative ? (battle.result === 'won' ? '已清除所有敌机。' : '合作编队已出局。') : '',
@@ -7204,10 +7672,37 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
         if (time - followedMissile.endedAt < MISSILE_IMPACT_VIEW_SECONDS) return followedMissile;
         if (keys.has('KeyU')) return null;
       }
-      followedMissile = keys.has('KeyU') && !battle.result
-        ? battle.missiles.findLast(missile => missile.source === subject) ?? null
-        : null;
+      followedMissile = null;
+      if (keys.has('KeyU') && !battle.result) {
+        for (const weapon of [...battle.missiles, ...battle.groundOrdnance]) {
+          if (weapon.source === subject && (!followedMissile || weapon.id > followedMissile.id)) followedMissile = weapon;
+        }
+      }
       return followedMissile;
+    }
+
+    function updateGroundWeaponView(weapon, time) {
+      const profile = battleDisplay.groundWeapons[weapon.type];
+      const label = weapon.explosion ? `${weapon.type} · ${weapon.endStatus}` : `${weapon.type} ${profile.label}视角`;
+      if (missileViewLabel.textContent !== label) missileViewLabel.textContent = label;
+      const sampleTime = clamp(weapon.endedAt ?? time, weapon.bornAt, weapon.impactAt);
+      const position = groundWeaponPosition(weapon, sampleTime);
+      const previousTime = Math.max(weapon.bornAt, sampleTime - .05);
+      const previous = groundWeaponPosition(weapon, previousTime);
+      const { worldUnitsPerKilometer, machOneKph } = battleDisplay;
+      const speed = (sampleTime > previousTime
+        ? Math.hypot(position.x - previous.x, position.z - previous.z) / (sampleTime - previousTime)
+        : weapon.launchSpeed ?? 0) * 3600 / worldUnitsPerKilometer;
+      const turnTime = clamp(weapon.lostAt ?? sampleTime, weapon.bornAt, sampleTime);
+      const turn = groundWeaponPosition({ ...weapon, lostAt: null }, turnTime);
+      const distance = Math.hypot(turn.x - weapon.x, turn.z - weapon.z) + Math.hypot(position.x - turn.x, position.z - turn.z);
+      const mode = weapon.lostAt !== null && weapon.lostAt <= sampleTime ? '脱锁偏航'
+        : profile.mode === 'emitter' ? '雷达信号引导' : profile.mode === 'bomb' ? '制导滑翔' : '对地引导';
+      const values = [`${Math.round(speed)} km/h`, (speed / machOneKph).toFixed(2),
+        '—', `${(distance / worldUnitsPerKilometer).toFixed(2)} km`, position.boosting ? `${mode} · 助推` : mode];
+      for (const [index, output] of missileReadouts.entries()) {
+        if (output.textContent !== values[index]) output.textContent = values[index];
+      }
     }
 
     function updateMissileView(missile, time, fraction) {
@@ -7271,9 +7766,13 @@ sF7n6qmcQmV3ew6HqMpa+lPN/k/ltrPQ/5r+/zCOnhroya3T6F87DWkvIdj4IhXmJNm8Asnja6qn2bF/
       if (factoryHit) {
         renderer.draw(battleDisplay.mission.factory, null, battle, fraction, time);
       } else if (missile) {
-        if (!missile.explosion && missile.source === battle.player && keys.has('KeyU')) sendLessonAction('follow');
-        updateMissileView(missile, time, fraction);
-        const focus = missile.explosion ?? missileDrawPosition(missile, fraction);
+        const groundWeapon = missile.impactAt !== undefined;
+        if (groundWeapon) updateGroundWeaponView(missile, time);
+        else {
+          if (!missile.explosion && missile.source === battle.player && keys.has('KeyU')) sendLessonAction('follow');
+          updateMissileView(missile, time, fraction);
+        }
+        const focus = missile.explosion ?? (groundWeapon ? groundWeaponPosition(missile, time) : missileDrawPosition(missile, fraction));
         renderer.draw(focus, null, battle, fraction, time);
       } else {
         const wreck = awaitingWreckView() ? battle.player : resultWreck();

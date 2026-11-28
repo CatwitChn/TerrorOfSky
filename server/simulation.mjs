@@ -1,4 +1,4 @@
-import { AIRFRAME_LOADOUTS, defaultCountermeasures, defaultLoadout, MISSIONS } from './missions.mjs';
+import { AIR_DEFENSE, AIRFRAME_LOADOUTS, defaultCountermeasures, defaultLoadout, GROUND_WEAPONS, MISSIONS } from './missions.mjs';
 import { AIRFIELDS, RUNWAY, captureApproach, stepRunway } from './airfields.mjs';
 import { blastDamage, bomberExhausts, cannonDamage, freshDamage, missilePass } from './combat.mjs';
 import { createTutorial, stepTutorial, tutorialActive } from './tutorial.mjs';
@@ -145,7 +145,7 @@ const AI_OPENINGS = [
   { angle: 0.25, throttle: 0.85, joinKm: 6 },
   { angle: 0.12, throttle: 0.72, joinKm: 5 }
 ];
-const BATTLE_KEYS = new Set(['Space', 'KeyF', 'KeyQ', 'KeyT', 'KeyY', 'KeyG', 'KeyX', 'KeyC']);
+const BATTLE_KEYS = new Set(['Space', 'KeyF', 'KeyQ', 'KeyT', 'KeyY', 'KeyG', 'KeyH', 'KeyX', 'KeyC']);
 const PILOT_ACTIONS = new Set(['KeyB', 'KeyW', 'KeyS', ...BATTLE_KEYS]);
 
 export const BATTLE_DISPLAY = {
@@ -172,6 +172,8 @@ export const BATTLE_DISPLAY = {
     engineExhausts: bomberExhausts }],
   missiles: Object.fromEntries(Object.entries(MISSILES).map(([type, { guidance, launchRangeKm, lockSeconds, blastPower }]) =>
     [type, { guidance, launchRangeKm, lockSeconds, blastPower }])),
+  groundWeapons: GROUND_WEAPONS,
+  airDefense: AIR_DEFENSE,
 };
 
 function initialFlight(airframe, spawn, speed = START_SPEED) {
@@ -218,6 +220,8 @@ function initialAircraft(id, team, slot, role, spawn, pilot, teamAirframe = team
   const rack = initialMissileRack(ir, installed);
   const radarRack = initialMissileRack(sarh, installed);
   const activeRack = arh ? initialMissileRack(arh, installed) : null;
+  const groundRacks = Object.keys(GROUND_WEAPONS).map(type => initialMissileRack(type, installed))
+    .filter(candidate => candidate.capacity).map(({ type, capacity, ammo }) => ({ type, capacity, ammo }));
   const cannonCapacity = AIRCRAFT[model]?.cannon.capacity;
   const flight = initialFlight(model, spawn, bomber || role === 'escort' ? BOMBER.speedKph : START_SPEED);
   return {
@@ -225,8 +229,10 @@ function initialAircraft(id, team, slot, role, spawn, pilot, teamAirframe = team
     combatStats: { callsign: pilot?.name ?? null, kills: 0, assists: 0, losses: 0 },
     damageSources: new Set(), engineFailureSource: null,
     stores, originalStores: { ...stores }, runway: null, rack, radarRack, activeRack,
+    ground: groundRacks.length ? { active: false, type: groundRacks[0].type, selected: null, designated: null,
+      blocked: '', racks: groundRacks, feedback: null } : null,
     cannonRack: cannonCapacity ? { capacity: cannonCapacity, ammo: cannonCapacity, nextShotAt: 0 } : null,
-    weapon: bomber ? null : rack.capacity ? 'ir' : radarRack.capacity ? 'sarh' : 'arh', destroyedAt: null,
+    weapon: rack.capacity ? 'ir' : radarRack.capacity ? 'sarh' : activeRack?.capacity ? 'arh' : null, destroyedAt: null,
     flareRack: { capacity: flares, ammo: flares, lastRedirect: -Infinity },
     chaffRack: { capacity: chaff, ammo: chaff }, missileOutcome: null,
     ai: { phase: 'opening', target: null, exitHeading: 0, extendUntil: 0 },
@@ -266,6 +272,9 @@ function initialBattle(roster, mission = MISSIONS['dover-pvp'], practice = false
   }
   return {
     mission, practice, tutorial: practice ? createTutorial() : null, raid, aircraft,
+    groundTargets: mission.groundTargets?.map(target => ({ ...target, health: target.durability, emitting: target.kind === 'radar',
+      aimedAt: null, aimSince: 0, nextFireAt: 0 })) ?? [],
+    groundOrdnance: [], defenseShots: [],
     missiles: [], cannonRounds: [], flares: [], chaff: [], explosions: [], time: 0, result: null, resultReason: null,
     nextMissileId: 1, endedMissiles: [],
   };
@@ -292,7 +301,7 @@ function destroyAircraft(battle, aircraft, source) {
 
 function recordDamage(battle, aircraft, source) {
   if (aircraft.flight.damage.structure <= 0) destroyAircraft(battle, aircraft, source);
-  else if (!tutorialActive(battle)) aircraft.damageSources.add(source);
+  else if (source && !tutorialActive(battle)) aircraft.damageSources.add(source);
 }
 
 function applyReportedDamage(battle, aircraft, source, result, cause) {
@@ -405,7 +414,7 @@ function recordRadarEcho(radar, target, time) {
   radar.echoes.set(target, echo);
 }
 
-function stepRadar(battle, aircraft, commands, dt) {
+function stepRadar(battle, aircraft, commands, dt, groundActive = false) {
   const { radar } = aircraft;
   const { modes, memory, scanSeconds, scanAngle, rangeKm, lockSeconds } = AIRCRAFT[aircraft.flight.airframe].radar;
   if (commands?.has('KeyG')) {
@@ -443,12 +452,12 @@ function stepRadar(battle, aircraft, commands, dt) {
   if (radar.mode === 'tws' && !radar.target) {
     candidates = candidates.filter(target => hasTwsTrack(battle, aircraft, target));
   }
-  if (commands?.has('KeyY') && candidates.length) {
+  if (!groundActive && commands?.has('KeyY') && candidates.length) {
     radar.selected = candidates[(candidates.indexOf(radar.selected) + 1) % candidates.length];
   } else if (!candidates.includes(radar.selected) && (!radar.target || radar.selected !== radar.target)) {
     radar.selected = candidates[0] ?? null;
   }
-  if (commands?.has('KeyT')) {
+  if (!groundActive && commands?.has('KeyT')) {
     const next = radar.selected;
     const dropping = next === radar.target || next === radar.pending;
     clearRadarTrack(radar, battle.time);
@@ -508,6 +517,199 @@ function airframePoint(flight, point) {
   const across = point.x * Math.cos(flight.bank) + point.y * Math.sin(flight.bank);
   const cos = Math.cos(flight.heading), sin = Math.sin(flight.heading);
   return { x: flight.x + across * cos - point.z * sin, z: flight.z + across * sin + point.z * cos };
+}
+
+function stepGroundControls(battle, aircraft, commands) {
+  const { ground, flight } = aircraft;
+  if (!ground || !battle.mission.groundTargets || !commands) return false;
+  if (commands.has('KeyH')) {
+    ground.active = !ground.active;
+    ground.designated = null;
+    aircraft.rack.armed = false;
+    aircraft.rack.lock = 0;
+    aircraft.rack.target = null;
+  }
+  if (!ground.active) return false;
+
+  if (commands.has('KeyQ')) {
+    const index = ground.racks.findIndex(rack => rack.type === ground.type);
+    ground.type = ground.racks[(index + 1) % ground.racks.length].type;
+    ground.feedback = null;
+  }
+  const targets = battle.groundTargets.filter(target => target.team !== aircraft.team && target.health > 0);
+  const rack = ground.racks.find(candidate => candidate.type === ground.type);
+  const profile = GROUND_WEAPONS[rack.type];
+  let target = targets.find(candidate => candidate.id === ground.selected);
+  if (commands.has('KeyY') && target) target = targets[(targets.indexOf(target) + 1) % targets.length];
+  if (!target) {
+    const emitters = profile.mode === 'emitter' && targets.filter(candidate => candidate.kind === 'radar');
+    target = (emitters?.length ? emitters : targets).reduce((closest, candidate) => !closest ||
+      Math.hypot(candidate.x - flight.x, candidate.z - flight.z) < Math.hypot(closest.x - flight.x, closest.z - flight.z)
+      ? candidate : closest, null);
+  }
+  const selected = target?.id ?? null;
+  if (ground.selected !== selected) {
+    ground.selected = selected;
+    ground.designated = null;
+    ground.feedback = null;
+  }
+  if (commands.has('KeyT') && target) {
+    ground.designated = ground.designated === selected ? null : selected;
+    ground.feedback = null;
+  }
+
+  const release = profile.mode === 'bomb' ? '投放' : '发射';
+  const range = target ? Math.hypot(target.x - flight.x, target.z - flight.z) / WORLD_UNITS_PER_KILOMETER : 0;
+  if (!target) ground.blocked = '无可用地面目标';
+  else if (!rack.ammo) ground.blocked = '弹药用尽';
+  else if (ground.designated !== selected) ground.blocked = 'T 指定目标';
+  else if (profile.mode === 'emitter' && target.kind !== 'radar') ground.blocked = '反辐射导弹需要雷达目标';
+  else if (profile.mode === 'emitter' && !target.emitting) ground.blocked = '目标未发射雷达信号';
+  else if (range > profile.launchRangeKm) ground.blocked = profile.mode === 'bomb' ? '超出投放范围' : '超出射程';
+  else if (Math.abs(angleDelta(flight.heading, bearing(flight, target))) > .85) ground.blocked = '机头转向目标';
+  else ground.blocked = '';
+  if (!commands.has('Space')) return true;
+  if (ground.blocked) {
+    ground.feedback = { text: `未${release} · ${ground.blocked}`, time: battle.time };
+    return true;
+  }
+
+  const model = AIRCRAFT[flight.airframe].id;
+  const station = AIRFRAME_LOADOUTS[model].stations.find(({ id }) => aircraft.stores[id] === rack.type);
+  if (!station) return true;
+  const { x, z } = airframePoint(flight, station);
+  const nominalFlightSeconds = profile.flightSeconds * (.55 + .45 * range / profile.launchRangeKm);
+  const launchSpeed = profile.boostSeconds ? flight.speed * FLIGHT_SPEED_SCALE : 0;
+  const distance = Math.hypot(target.x - x, target.z - z);
+  // A close shot arrives sooner when the nominal timing would require the missile to slow down.
+  const flightSeconds = launchSpeed > 0
+    ? Math.min(nominalFlightSeconds, Math.max(STEP, distance / (launchSpeed * 1.2))) : nominalFlightSeconds;
+  battle.groundOrdnance.push({
+    id: battle.nextMissileId++, type: rack.type, source: aircraft.id, target: selected, x, z,
+    toX: target.x, toZ: target.z, heading: bearing(flight, target), lostAt: null,
+    bornAt: battle.time, impactAt: battle.time + flightSeconds,
+    ...(profile.boostSeconds && { launchSpeed }),
+  });
+  delete aircraft.stores[station.id];
+  rack.ammo--;
+  ground.feedback = { text: profile.mode === 'bomb' ? '制导炸弹已投放' : `${profile.label}已发射`, time: battle.time };
+  return true;
+}
+
+function stepGroundOrdnance(battle) {
+  const { time, groundTargets } = battle;
+  for (const target of groundTargets) {
+    if (target.kind === 'radar') target.emitting = target.health > 0 && time % 16 < 11;
+  }
+  battle.groundOrdnance = battle.groundOrdnance.filter(weapon => {
+    const target = groundTargets.find(candidate => candidate.id === weapon.target);
+    const profile = GROUND_WEAPONS[weapon.type];
+    if (profile.mode === 'emitter' && !target.emitting) weapon.lostAt ??= time;
+    if (time < weapon.impactAt) return true;
+
+    const lost = weapon.lostAt !== null;
+    const hit = !lost && target.health > 0;
+    if (hit) {
+      target.health = Math.max(0, target.health - profile.damage);
+      if (!target.health) {
+        target.emitting = false;
+        target.aimedAt = null;
+      }
+    }
+    const explosion = {
+      x: weapon.toX + (lost ? 30 : 0), z: weapon.toZ + (lost ? 24 : 0), time,
+      size: profile.mode === 'bomb' ? 22 : 13, direction: weapon.heading,
+    };
+    const source = battle.aircraft[weapon.source];
+    const endStatus = lost ? '反辐射导弹脱锁 · 偏离目标'
+      : hit ? `${target.name}${target.health ? '受损' : '已摧毁'}` : '目标已被摧毁';
+    battle.explosions.push(explosion);
+    battle.endedMissiles.push({ ...weapon, source, endedAt: time, endStatus, explosion });
+    source.ground.feedback = { time, text: endStatus };
+    return false;
+  });
+}
+
+function canTargetWithDefense(aircraft, team) {
+  return aircraft?.team !== team && canBeTracked(aircraft) && aircraft.flight.phase === 'airborne';
+}
+
+function applyDefenseHit(battle, shot, aircraft) {
+  const missile = shot.kind === 'missile';
+  const result = missile
+    ? blastDamage(aircraft.flight, aircraft.flight, { blastRadius: 20, blastPower: .48 })
+    : cannonDamage(aircraft.flight, { zone: 'body' }, .13);
+  if (!result) return;
+  applyReportedDamage(battle, aircraft, null, result, missile ? 'ground-missile' : 'ground-cannon');
+  battle.explosions.push({ x: shot.x, z: shot.z, time: battle.time, size: missile ? 10 : isAlive(aircraft) ? 3 : 9,
+    direction: shot.heading });
+}
+
+function stepDefenseShots(battle, dt) {
+  const { time } = battle;
+  battle.defenseShots = battle.defenseShots.filter(shot => {
+    const profile = AIR_DEFENSE[shot.kind];
+    if (time - shot.bornAt >= profile.lifetime) return false;
+    const site = battle.groundTargets.find(candidate => candidate.id === shot.site);
+    const aircraft = battle.aircraft[shot.target];
+    const valid = canTargetWithDefense(aircraft, shot.team);
+    const range = valid ? Math.hypot(aircraft.flight.x - shot.x, aircraft.flight.z - shot.z) : Infinity;
+    const missile = shot.kind === 'missile';
+    if (shot.lostAt === null) {
+      const disrupted = missile && (!site.emitting || range < 1.8 * WORLD_UNITS_PER_KILOMETER
+        && battle.chaff.some(cloud => cloud.owner === aircraft && cloud.bornAt >= shot.bornAt && time - cloud.bornAt < .55));
+      const outsideCannon = !missile && valid
+        && Math.hypot(aircraft.flight.x - site.x, aircraft.flight.z - site.z) > profile.rangeKm * WORLD_UNITS_PER_KILOMETER;
+      if (!valid || !site.health || disrupted || outsideCannon) shot.lostAt = time;
+    }
+    const step = profile.travelKmPerSecond * WORLD_UNITS_PER_KILOMETER * dt;
+    if (shot.lostAt === null) {
+      shot.heading = bearing(shot, aircraft.flight);
+      if (range <= step) {
+        shot.x = aircraft.flight.x;
+        shot.z = aircraft.flight.z;
+        applyDefenseHit(battle, shot, aircraft);
+        return false;
+      }
+    }
+    shot.x += Math.sin(shot.heading) * step;
+    shot.z -= Math.cos(shot.heading) * step;
+    return true;
+  });
+}
+
+function stepAirDefense(battle) {
+  const { time, groundTargets } = battle;
+  for (const site of groundTargets) {
+    if (!site.defense) continue;
+    const missile = site.defense === 'missile';
+    if (!site.health || (missile && !site.emitting)) {
+      site.aimedAt = null;
+      continue;
+    }
+    const profile = AIR_DEFENSE[site.defense];
+    const inner = missile && groundTargets.find(candidate => candidate.team === site.team && candidate.defense === 'cannon');
+    let selected = null;
+    let closest = profile.rangeKm * WORLD_UNITS_PER_KILOMETER;
+    for (const aircraft of battle.aircraft) {
+      if (!canTargetWithDefense(aircraft, site.team)) continue;
+      const { x, z } = aircraft.flight;
+      if (inner && Math.hypot(x - inner.x, z - inner.z) <= AIR_DEFENSE.cannon.rangeKm * WORLD_UNITS_PER_KILOMETER) continue;
+      const range = Math.hypot(x - site.x, z - site.z);
+      if (range > closest) continue;
+      selected = aircraft;
+      closest = range;
+    }
+    const id = selected?.id ?? null;
+    if (site.aimedAt !== id) {
+      site.aimedAt = id;
+      site.aimSince = time;
+    }
+    if (!selected || time < site.nextFireAt || time - site.aimSince < profile.warningSeconds) continue;
+    site.nextFireAt = time + profile.interval;
+    battle.defenseShots.push({ id: battle.nextMissileId++, kind: site.defense, site: site.id, team: site.team,
+      target: id, x: site.x, z: site.z, heading: bearing(site, selected.flight), bornAt: time, lostAt: null });
+  }
 }
 
 function launchMissile(battle, aircraft, rack = aircraft.rack) {
@@ -983,6 +1185,7 @@ function stepWeapons(battle, aircraft, commands, dt) {
         rack.target = null;
       }
     }
+    if (!aircraft.weapon) return;
     const activate = commands.has('Space');
     if (aircraft.weapon !== 'ir') {
       if (activate) launchMissile(battle, aircraft, aircraft.weapon === 'sarh' ? radarRack : activeRack);
@@ -1058,6 +1261,10 @@ function stepAircraft(battle, aircraft, controls, dt) {
       aircraft.rack.lock = 0;
       aircraft.rack.target = null;
       aircraft.rack.armed = false;
+      if (aircraft.ground) {
+        aircraft.ground.designated = null;
+        aircraft.ground.blocked = '起飞后可发射';
+      }
     }
     if (aircraft.runway) {
       const wasServicing = flight.phase === 'service';
@@ -1134,12 +1341,22 @@ function advanceActiveBattle(battle, getControls, dt) {
     if (commands?.has('KeyC')) releaseChaff(battle, aircraft);
   }
   for (const aircraft of battle.aircraft) {
-    if (canFight(aircraft)) stepRadar(battle, aircraft, getControls(aircraft)?.commands, dt);
+    if (!canFight(aircraft)) continue;
+    const commands = getControls(aircraft)?.commands;
+    const switching = commands?.has('KeyH') && aircraft.ground && battle.mission.groundTargets;
+    const groundActive = switching ? !aircraft.ground.active : aircraft.ground?.active;
+    stepRadar(battle, aircraft, commands, dt, groundActive);
   }
   stepMissiles(battle, dt);
   stepCannonRounds(battle, dt);
+  if (battle.mission.groundTargets) {
+    stepGroundOrdnance(battle);
+    stepDefenseShots(battle, dt);
+    stepAirDefense(battle);
+  }
   if (!guided) {
     if (battle.raid) resolveFactoryDefense(battle);
+    else if (battle.mission.groundTargets) resolveGroundStrike(battle);
     else resolveAirBattle(battle);
   }
   if (battle.result) return;
@@ -1149,7 +1366,18 @@ function advanceActiveBattle(battle, getControls, dt) {
     if (battle.practice && !controls) continue;
     const firing = controls ? controls.fireCannon || controls.commands.has('KeyF') : aiCanFireCannon(aircraft);
     if (firing) fireCannon(battle, aircraft, dt);
-    stepWeapons(battle, aircraft, controls?.commands, dt);
+    if (!stepGroundControls(battle, aircraft, controls?.commands)) stepWeapons(battle, aircraft, controls?.commands, dt);
+  }
+}
+
+function resolveGroundStrike(battle) {
+  const friendly = teamCount(battle, 0);
+  if (battle.groundTargets.every(target => !target.objective || target.health === 0)) {
+    battle.result = 'won';
+    battle.resultReason = 'ground-targets-destroyed';
+  } else if (!friendly || battle.time + 1e-9 >= battle.mission.timeLimit) {
+    battle.result = 'lost';
+    battle.resultReason = !friendly ? 'elimination' : 'ground-timeout';
   }
 }
 

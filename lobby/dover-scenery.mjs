@@ -81,6 +81,175 @@ function paintRoof(ctx, kind) {
   }
 }
 
+const GROUND_SITE_SIZE = 96;
+const groundSiteSprites = new Map();
+const groundSiteDimensions = {
+  pantsir: [33, 29],
+  adats: [30, 29],
+  cannon: [28, 27],
+  relay: [30, 27],
+  depot: [46, 36],
+};
+
+function paintGroundApron(ctx, seed) {
+  polygons(ctx, '#26332a77', [[9, 17], [82, 17], [94, 31], [94, 85], [12, 88], [6, 72]]);
+  polygons(ctx, '#928b72', [[10, 14], [79, 14], [89, 23], [89, 82], [11, 82], [7, 69]]);
+  box(ctx, '#69736b', 15, 20, 68, 56);
+  box(ctx, '#758079', 16, 21, 66, 54);
+  box(ctx, '#8d9588', 17, 22, 65, 2);
+  box(ctx, '#505c57', 17, 72, 65, 2);
+  box(ctx, '#777969', 39, 76, 17, 19);
+  const random = randomFrom(seed);
+  for (let i = 0; i < 130; i++) {
+    box(ctx, i % 3 ? '#39423d2e' : '#c7c1a537', 17 + random() * 63, 23 + random() * 49,
+      1 + Math.floor(random() * 4), 1 + Math.floor(random() * 2));
+  }
+  for (const x of [20, 75]) {
+    box(ctx, '#cbac67', x, 27, 2, 11);
+    box(ctx, '#cbac67', x, 58, 2, 10);
+  }
+}
+
+function paintGroundTruck(ctx) {
+  box(ctx, '#18242088', 35, 29, 30, 47);
+  for (const x of [32, 61]) {
+    for (const z of [28, 39, 59, 69]) {
+      box(ctx, '#222b29', x, z, 5, 7);
+      box(ctx, '#545b50', x + 1, z + 1, 2, 5);
+    }
+  }
+  box(ctx, '#394837', 36, 29, 29, 44);
+  box(ctx, '#687255', 37, 45, 26, 26);
+  box(ctx, '#29362d', 38, 65, 24, 4);
+  box(ctx, '#5f724f', 36, 26, 28, 17);
+  box(ctx, '#829170', 38, 26, 24, 8);
+  box(ctx, '#263d42', 39, 30, 22, 5);
+  box(ctx, '#657f80', 40, 30, 20, 1);
+  box(ctx, '#bdbea1', 37, 26, 4, 2);
+  box(ctx, '#bdbea1', 59, 26, 4, 2);
+  box(ctx, '#a5986a', 44, 27, 9, 2);
+  for (const z of [48, 52, 68]) box(ctx, '#7f8966', 38, z, 23, 1);
+}
+
+function paintTrackedVehicle(ctx, cannon) {
+  box(ctx, '#101d1c83', 34, 29, 33, 48);
+  for (const x of [31, 59]) {
+    box(ctx, '#242b27', x, 26, 8, 47);
+    for (let z = 28; z < 73; z += 4) box(ctx, '#535a4e', x + 1, z, 6, 1);
+  }
+  polygons(ctx, '#42503c', [[44, 24], [55, 24], [61, 31], [61, 69], [36, 69], [36, 31]]);
+  box(ctx, cannon ? '#798260' : '#7b8064', 39, 31, 19, 34);
+  box(ctx, '#989e7a', 39, 32, 19, 3);
+  box(ctx, '#333f35', 39, 62, 19, 5);
+  box(ctx, '#a8ad89', 43, 36, 11, 3);
+  for (let z = 59; z < 66; z += 2) box(ctx, '#66765e', 43, z, 11, 1);
+}
+
+function paintStrikeBuilding(ctx, depot) {
+  if (depot) {
+    const roof = [[21, 23], [73, 23], [79, 31], [79, 59], [21, 59]];
+    box(ctx, '#2c39357a', 23, 29, 61, 36);
+    polygons(ctx, '#859393', roof);
+    box(ctx, '#596d70', 21, 42, 58, 17);
+    box(ctx, '#b9c6b9', 21, 40, 58, 3);
+    for (let x = 24; x < 79; x += 5) {
+      box(ctx, '#344b515e', x, 24, 1, 35);
+    }
+    for (const x of [30, 48, 67]) {
+      box(ctx, '#cfdbcc', x, 33, 7, 3);
+      box(ctx, '#304247', x - 2, 55, 11, 7);
+      box(ctx, '#b2b49b', x - 2, 63, 11, 2);
+    }
+    for (const [x, z, color] of [[20, 68, '#a77c59'], [34, 68, '#946c50'], [68, 67, '#a5a188']]) {
+      box(ctx, '#36413b', x + 1, z + 1, 11, 7);
+      box(ctx, color, x, z, 11, 7);
+      for (let j = 1; j < 10; j += 3) box(ctx, '#dad6b35a', x + j, z + 1, 1, 5);
+    }
+  } else {
+    box(ctx, '#344740', 21, 38, 29, 29);
+    box(ctx, '#a5aca0', 18, 35, 29, 26);
+    box(ctx, '#677b7d', 19, 49, 27, 11);
+    box(ctx, '#c2c3aa', 18, 47, 29, 2);
+    for (const x of [22, 30, 38]) box(ctx, '#374c52', x, 52, 5, 6);
+    box(ctx, '#414d44', 55, 24, 20, 33);
+    box(ctx, '#879186', 57, 25, 16, 29);
+    ctx.strokeStyle = '#cad0bd';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(58, 54); ctx.lineTo(72, 26); ctx.moveTo(72, 54); ctx.lineTo(58, 26);
+    ctx.stroke();
+    ellipse(ctx, '#454f49', 68, 30, 11, 6);
+    ellipse(ctx, '#c3c8ba', 66, 28, 10, 5);
+    ellipse(ctx, '#7c8b81', 64, 28, 3, 2);
+    box(ctx, '#aaa683', 23, 65, 29, 3);
+  }
+}
+
+function strikeSiteSprite(kind, destroyed) {
+  const key = kind + ':' + destroyed;
+  if (groundSiteSprites.has(key)) return groundSiteSprites.get(key);
+  const sprite = document.createElement('canvas');
+  sprite.width = sprite.height = GROUND_SITE_SIZE;
+  const ctx = sprite.getContext('2d');
+  paintGroundApron(ctx, 73931 + kind.length * 97);
+  if (kind === 'depot' || kind === 'relay') paintStrikeBuilding(ctx, kind === 'depot');
+  else if (kind === 'pantsir') paintGroundTruck(ctx);
+  else paintTrackedVehicle(ctx, kind === 'cannon');
+  if (destroyed) {
+    ellipse(ctx, '#272720bd', 49, 49, 27, 21);
+    ellipse(ctx, '#322a25bd', 53, 49, 15, 14);
+    const random = randomFrom(4877 + kind.length * 13);
+    for (let i = 0; i < 36; i++) {
+      box(ctx, ['#302924', '#504137', '#747267'][i % 3], 25 + Math.floor(random() * 51),
+        32 + Math.floor(random() * 36), 2 + Math.floor(random() * 6), 2 + Math.floor(random() * 4));
+    }
+  }
+  groundSiteSprites.set(key, sprite);
+  return sprite;
+}
+
+function paintStrikeTurret(ctx, kind) {
+  const cannon = kind === 'cannon';
+  ellipse(ctx, '#252d277a', 2, 2, 12, 12);
+  ellipse(ctx, cannon ? '#687558' : '#60705a', 0, 0, 10, 10);
+  box(ctx, '#87937a', -6, -4, 13, 9);
+  if (cannon) {
+    for (const x of [-9, 7]) {
+      box(ctx, '#303c32', x - 1, -15, 5, 18);
+      box(ctx, '#b0b5a3', x, -22, 2, 16);
+      box(ctx, '#5c6c60', x + 2, -21, 1, 15);
+    }
+    box(ctx, '#a6af91', -5, 6, 11, 3);
+    return;
+  }
+  const truck = kind === 'pantsir';
+  for (const x of [-16, 8]) {
+    box(ctx, '#35423b', x, -11, 8, 24);
+    box(ctx, '#89967b', x + 1, -10, 6, 21);
+    for (let i = 1; i < 7; i += 2) box(ctx, '#505d4b', x + i, -10, 1, 21);
+    box(ctx, '#3a4b43', x, -11, 8, 3);
+  }
+  box(ctx, '#233539', -4, -7, 8, 5);
+  box(ctx, truck ? '#879a82' : '#a6b6a3', truck ? -7 : -4, 5, truck ? 14 : 8, 3);
+  box(ctx, '#506974', -2, -8, 4, 3);
+}
+
+export function paintGroundTarget(ctx, target, heading) {
+  const kind = target.kind === 'radar' ? (target.team === 0 ? 'adats' : 'pantsir') : target.kind;
+  const [width, length] = groundSiteDimensions[kind];
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(strikeSiteSprite(kind, !target.health), -width / 2, -length / 2, width, length);
+  if (target.health && (target.kind === 'radar' || kind === 'cannon')) {
+    ctx.scale(width / GROUND_SITE_SIZE, length / GROUND_SITE_SIZE);
+    ctx.translate(1, kind === 'pantsir' ? 9 : 2);
+    ctx.rotate(heading);
+    paintStrikeTurret(ctx, kind);
+  }
+  ctx.restore();
+  return [width, length];
+}
+
 function paintRoad(ctx, kind) {
   if (kind === 'rail') {
     box(ctx, '#2d3434b3', 9, 0, 110, TILE);

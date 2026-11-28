@@ -93,7 +93,7 @@ function snapshotAircraft(aircraft, battle, pilot) {
     combatStats: { ...combatStats, points: 100 * combatStats.kills + 50 * combatStats.assists },
     ...(pilot && { input: pilot.appliedInput }),
     rack: { ...rack, target: ref(rack.target) }, radarRack: { ...radarRack, target: ref(radarRack.target) },
-    activeRack,
+    activeRack, ...(aircraft.ground && { ground: aircraft.ground }),
     radar: {
       ...radar, selected: ref(radar.selected), target: ref(radar.target), pending: ref(radar.pending),
       twsTarget: ref(twsLaunchTarget(battle, aircraft)),
@@ -127,6 +127,10 @@ export function encodeMatchFrame(id, match) {
     tutorial: tutorialReadout(match.battle),
     aircraft: aircraft.map(plane => snapshotAircraft(plane, match.battle, match.seats.get(plane.id))),
     ...(raid && { strike: raid.bomb }),
+    ...(match.battle.mission.groundTargets && {
+      groundTargets: match.battle.groundTargets, groundOrdnance: match.battle.groundOrdnance,
+      defenseShots: match.battle.defenseShots,
+    }),
     missiles: missiles.map(snapshotMissile),
     cannonTracers: cannonRounds.filter(round => round.tracer).map(({ originX, originZ, vx, vz, bornAt }) =>
       [originX, originZ, vx, vz, bornAt]),
@@ -134,6 +138,7 @@ export function encodeMatchFrame(id, match) {
     chaff: chaff.map(({ x, z, bornAt, owner }) => ({ x, z, bornAt, owner: ref(owner) })), explosions,
     endedMissiles: endedMissiles.map(missile => {
       const { id, source, type, endedAt, endStatus, explosion } = missile;
+      if (missile.impactAt !== undefined) return { ...missile, source: ref(source) };
       return { id, source: ref(source), type, endedAt, endStatus, explosion, ...snapshotMissileReadout(missile) };
     }),
   };

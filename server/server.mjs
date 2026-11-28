@@ -6,7 +6,8 @@ import { parseArgs } from 'node:util';
 import { WebSocket, WebSocketServer } from 'ws';
 import { acceptInput, createMatch, encodeMatchFrame, neutralizePilot, releasePilot, tickMatch } from './match.mjs';
 import {
-  AIRFRAME_LOADOUTS, defaultCountermeasures, defaultLoadout, MISSIONS, PROTOCOL_VERSION, validateCountermeasures, validateLoadout
+  AIRFRAME_LOADOUTS, defaultCountermeasures, defaultLoadout, GROUND_WEAPONS, MISSIONS, PROTOCOL_VERSION,
+  validateCountermeasures, validateLoadout
 } from './missions.mjs';
 import { BATTLE_DISPLAY } from './simulation.mjs';
 import { acceptTutorialAction } from './tutorial.mjs';
@@ -155,6 +156,8 @@ function teamSize(room, team) {
 function canStart(room) {
   return !room.match && room.players.length > 0
     && (room.mission.mode === 'pve' || room.players.length === 1 || TEAMS.every(team => teamSize(room, team) > 0))
+    && (!room.mission.groundTargets || room.players.some(player => Object.values(player.loadout).some(weapon =>
+      GROUND_WEAPONS[weapon] && GROUND_WEAPONS[weapon].mode !== 'emitter')))
     && room.players.every(player => player.ready && player.socket?.readyState === WebSocket.OPEN);
 }
 
@@ -182,7 +185,7 @@ function newRoom(host, mission) {
 function addPlayer(room, player, name) {
   const team = room.mission.mode === 'pve' || teamSize(room, 'uk') <= teamSize(room, 'fr') ? 'uk' : 'fr';
   const aircraft = team === 'uk' ? 'f15' : 'su27';
-  Object.assign(player, { room, name, team, aircraft, loadout: defaultLoadout(aircraft),
+  Object.assign(player, { room, name, team, aircraft, loadout: defaultLoadout(aircraft, Boolean(room.mission.groundTargets)),
     countermeasures: defaultCountermeasures(aircraft), ready: false });
   room.players.push(player);
   queuePresence();
@@ -301,14 +304,14 @@ function perform(player, action) {
       requireLobby(typeof action.aircraft === 'string' && Object.hasOwn(AIRFRAME_LOADOUTS, action.aircraft), '机型无效。');
       if (action.aircraft === player.aircraft) return;
       player.aircraft = action.aircraft;
-      player.loadout = defaultLoadout(player.aircraft);
+      player.loadout = defaultLoadout(player.aircraft, Boolean(room.mission.groundTargets));
       player.countermeasures = defaultCountermeasures(player.aircraft);
       player.ready = false;
       break;
     case 'loadout': {
       requireLobby(action.aircraft === player.aircraft, '座机已切换，请重新确认挂载。');
-      const loadout = validateLoadout(player.aircraft, action.loadout);
-      requireLobby(loadout, '请在兼容挂点上配置至少一枚导弹。');
+      const loadout = validateLoadout(player.aircraft, action.loadout, Boolean(room.mission.groundTargets));
+      requireLobby(loadout, '请在兼容挂点上配置至少一件本任务可用的武器。');
       const countermeasures = action.countermeasures === undefined ? player.countermeasures
         : validateCountermeasures(player.aircraft, action.countermeasures);
       const { countermeasureCapacity } = AIRFRAME_LOADOUTS[player.aircraft];
@@ -327,7 +330,8 @@ function perform(player, action) {
     case 'start':
       requireLobby(room.hostId === player.id, '仅房主可以开始。');
       requireLobby(!isMaintenance(), '服务器准备更新，请稍后开局。');
-      requireLobby(canStart(room), room.mission.mode === 'pve' ? '请让所有玩家准备。' : '请让所有玩家准备。多人对抗需要两队均有玩家。');
+      requireLobby(canStart(room), room.mission.groundTargets ? '请让所有玩家准备，并至少挂载一枚制导炸弹或空地导弹。'
+        : room.mission.mode === 'pve' ? '请让所有玩家准备。' : '请让所有玩家准备。多人对抗需要两队均有玩家。');
       startMatch(room);
       break;
     case 'reopen':
@@ -356,8 +360,9 @@ function establishSession(socket, token, name) {
   player.socket?.close(4001, 'Session resumed');
   player.socket = socket;
   send(socket, { type: 'session', protocol: PROTOCOL_VERSION, id: player.id, token: player.token,
-    missions: Object.values(MISSIONS), airframes: Object.fromEntries(Object.entries(AIRFRAME_LOADOUTS).map(([id, airframe]) =>
-      [id, { ...airframe, balanced: defaultLoadout(id) }])) });
+    missions: Object.values(MISSIONS), groundWeapons: GROUND_WEAPONS,
+    airframes: Object.fromEntries(Object.entries(AIRFRAME_LOADOUTS).map(([id, airframe]) =>
+      [id, { ...airframe, balanced: defaultLoadout(id), strike: defaultLoadout(id, true) }])) });
   if (player.room) {
     publishRoom(player.room);
     if (player.room.arena) publishMatch(player.room, player);

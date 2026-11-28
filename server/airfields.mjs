@@ -78,7 +78,8 @@ function startService(aircraft) {
 }
 
 function serviceAircraft(aircraft, dt) {
-  const { runway, flight, stores, originalStores, rack, radarRack, activeRack } = aircraft;
+  const { runway, flight, stores, originalStores, rack, radarRack, activeRack, ground } = aircraft;
+  const racks = [rack, radarRack, activeRack, ...(ground?.racks ?? [])];
   runway.serviceElapsed = Math.min(RUNWAY.serviceSeconds, runway.serviceElapsed + dt);
   if (RUNWAY.serviceSeconds - runway.serviceElapsed < 1e-9) runway.serviceElapsed = RUNWAY.serviceSeconds;
   const progress = runway.serviceElapsed / RUNWAY.serviceSeconds;
@@ -91,7 +92,7 @@ function serviceAircraft(aircraft, dt) {
     const station = runway.missingStations[runway.reloaded++];
     const weapon = originalStores[station];
     stores[station] = weapon;
-    [rack, radarRack, activeRack].find(candidate => candidate?.type === weapon).ammo++;
+    racks.find(candidate => candidate?.type === weapon).ammo++;
   }
   if (progress === 1) {
     flight.damage = freshDamage(flight.airframe);

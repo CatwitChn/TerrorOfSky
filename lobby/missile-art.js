@@ -14,6 +14,43 @@ const r27r = {
 };
 
 const models = {
+  // AGM-88 HARM exterior, using the dimensions published by the U.S. Air Force.
+  'ARM-S': {
+    length: 4.17, diameter: .254, noseColor: '#e3e1cf',
+    nose: [[0, 0], [.022, .36], [.058, .75], [.093, .94], [.122, 1], [.185, 1]],
+    fins: [
+      { span: 1.016, outline: [[0,.36],[.26,.385],[1,.535],[.95,.61],[0,.643]] },
+      { span: .79, outline: [[0,.792],[.34,.818],[1,.898],[.96,.969],[0,.974]] },
+    ],
+    bands: [[.262, '#c6a568'], [.729, '#9a805e']],
+  },
+  'GB-P': {
+    length: 3.0, diameter: .48, noseColor: '#88956d',
+    nose: [[0, .16], [.08, .74], [.19, 1]],
+    fins: [{ span: .78, outline: [[0,.66],[1,.74],[1,.94],[0,.96]] }],
+    bands: [[.31, '#9d9a63']],
+  },
+  // Generic site-launched missile used by the ground defenses.
+  'SAM': {
+    length: 3.2, diameter: .38, noseColor: '#557d86',
+    nose: [[0, .18], [.04, .72], [.13, 1]],
+    fins: [
+      { span: .83, outline: [[0,.41],[1,.55],[.78,.63],[0,.65]] },
+      { span: .65, outline: [[0,.73],[1,.84],[1,.91],[0,.95]] },
+    ],
+    bands: [[.19, '#6ebcc3']],
+  },
+  // AGM-65 Maverick exterior, using the dimensions published by the U.S. Navy.
+  'AGM-T': {
+    length: 2.49, diameter: .305, noseColor: '#485e62',
+    bodyShades: ['#535c42', '#a2aa7c', '#667254'], finColor: '#7f8964',
+    nose: [[0, .30], [.013, .61], [.032, .85], [.058, .98], [.08, 1], [.124, 1]],
+    fins: [
+      { span: .711, outline: [[0,.224],[.42,.353],[1,.701],[.95,.78],[0,.80]] },
+      { span: .55, outline: [[0,.819],[.62,.864],[1,.897],[.93,.972],[0,.979]] },
+    ],
+    bands: [[.147, '#b8a96b'], [.792, '#87916c']],
+  },
   // U.S. Air Force AIM-9M art and Air Combat Command fact sheet.
   'AIM-9M': {
     length: 2.87, diameter: 0.127, noseColor: '#495a5c',
@@ -87,6 +124,8 @@ export function getMissileArt(type) {
     outline.map(([width, position]) => [width * span / 2, station(position)]));
   for (const points of finPoints) wings.addPath(mirroredContour(points));
   const art = { length, diameter, body, radome, wings, nosePoints, bodyPoints, finPoints, noseColor: model.noseColor,
+    bodyShades: model.bodyShades ?? ['#879698', '#f7f4df', '#a2adab'],
+    meshBodyColor: model.bodyShades?.[1] ?? '#d8d7c9', finColor: model.finColor ?? '#a0adb0',
     bands: model.bands.map(([position, color]) => [station(position), color]) };
   drawings.set(type, art);
   return art;
@@ -108,13 +147,13 @@ export function paintMissileArt(context, art, iconColor) {
     context.lineJoin = 'round';
     context.lineWidth = .046;
     context.strokeStyle = '#2b383c';
-    context.fillStyle = '#a0adb0';
+    context.fillStyle = art.finColor;
     context.stroke(art.wings);
     context.fill(art.wings);
     const metal = context.createLinearGradient(-radius, 0, radius, 0);
-    metal.addColorStop(0, '#879698');
-    metal.addColorStop(.34, '#f7f4df');
-    metal.addColorStop(1, '#a2adab');
+    metal.addColorStop(0, art.bodyShades[0]);
+    metal.addColorStop(.34, art.bodyShades[1]);
+    metal.addColorStop(1, art.bodyShades[2]);
     context.stroke(art.body);
     context.fillStyle = metal;
     context.fill(art.body);
